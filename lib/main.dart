@@ -33,8 +33,9 @@ class MyApp extends StatelessWidget {
                 appBarTheme: const AppBarTheme(
                   backgroundColor: Colors.transparent, // AppBar 背景透明
                 ),
-                primaryColor: const Color(0xFFFCEEDB),
-               
+             
+
+                dividerColor: Colors.transparent, 
                 visualDensity: VisualDensity.adaptivePlatformDensity,
                 fontFamily: GoogleFonts.roboto().fontFamily,
                 textTheme: GoogleFonts.robotoTextTheme(
