@@ -83,7 +83,7 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
                     ),
                     borderRadius: BorderRadius.circular(8.r),
                     selectedColor: const Color(0xFFFCEEDB),
-                    fillColor: Theme.of(context).colorScheme.primary,
+                    fillColor: Colors.green,
                     color: Colors.black87,
                     children: [
                       Padding(

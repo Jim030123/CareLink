@@ -10,33 +10,139 @@ class HomeCalendar extends StatefulWidget {
 }
 
 class _HomeCalendarState extends State<HomeCalendar> {
+  final Map<DateTime, List<String>> _events = {
+    DateTime.utc(2025, 10, 5): ['a'],
+    DateTime.utc(2025, 10, 11): ['a'],
+    DateTime.utc(2025, 10, 17): ['a', 'b'],
+    DateTime.utc(2025, 10, 21): ['a'],
+    DateTime.utc(2025, 10, 28): ['a'],
+  };
+
+  List<String> _getEventsForDay(DateTime day) {
+    final key = DateTime.utc(day.year, day.month, day.day);
+    return _events[key] ?? [];
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12.r),
-      child: Container(
-        width: double.infinity,
-        color: Theme.of(context).colorScheme.onSecondary,
-        
-        child: TableCalendar(
-          calendarFormat: CalendarFormat.week, // this want let user choose
-          firstDay: DateTime.utc(2010, 10, 16),
-          lastDay: DateTime.utc(2030, 3, 14),
-          selectedDayPredicate: (day) =>
-              isSameDay(day, DateTime.now().add(const Duration(days: 2))),
-          focusedDay: DateTime.now(),
-          calendarStyle: CalendarStyle(
-            todayDecoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              shape: BoxShape.rectangle,
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.r),
+
+        boxShadow: [
+          BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 3)),
+        ],
+      ),
+      width: double.infinity,
+
+      child: Column(
+        children: [
+          TableCalendar(
+            // 设置为 week view
+            calendarFormat: CalendarFormat.week,
+            availableCalendarFormats: const {CalendarFormat.week: 'Week'},
+            startingDayOfWeek: StartingDayOfWeek.sunday,
+            firstDay: DateTime.utc(2010, 1, 1),
+            lastDay: DateTime.utc(2030, 12, 31),
+            // 聚焦到今天
+            focusedDay: DateTime.now(), //
+
+            eventLoader: _getEventsForDay,
+            // 调整行高/样式使周视图更紧凑
+            daysOfWeekHeight: 24.h,
+            rowHeight: 56.h,
+            headerVisible: true,
+            headerStyle: HeaderStyle(
+              formatButtonVisible: false,
+              titleCentered: true,
+              titleTextStyle: TextStyle(
+                fontSize: 16.sp,
+                fontWeight: FontWeight.bold,
+              ),
+              leftChevronIcon: Icon(Icons.chevron_left, size: 20.sp),
+              rightChevronIcon: Icon(Icons.chevron_right, size: 20.sp),
             ),
-            selectedDecoration: BoxDecoration(
-              color: Colors.red,
-              shape: BoxShape.circle, // selected sample
+
+            calendarBuilders: CalendarBuilders(
+              defaultBuilder: (context, day, focusedDay) {
+                return Center(
+                  child: Text(
+                    '${day.day}',
+                    style: TextStyle(fontSize: 14.sp, color: Colors.black),
+                  ),
+                );
+              },
+              // 在每个单元格右下角绘制 marker（小方块或数字徽章）
+              markerBuilder: (context, date, events) {
+                if (events.isEmpty) return const SizedBox.shrink();
+                if (events.length == 1) {
+                  return Align(
+                    alignment: Alignment.topRight,
+                    child: Container(
+                      margin: EdgeInsets.only(bottom: 6.h, right: 6.w),
+                      width: 10.w,
+                      height: 10.h,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.rectangle,
+                        borderRadius: BorderRadius.circular(2.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 1,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                } else {
+                  return Align(
+                    alignment: Alignment.topRight,
+                    child: Container(
+                      margin: EdgeInsets.only(bottom: 4.h, right: 4.w),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 4.w,
+                        vertical: 2.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(8.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 1,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '${events.length}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10.sp,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              },
             ),
           ),
-        ),
-      
+
+          SizedBox(height: 5.h), // 👈 pushes the next container to the bottom
+
+          Flexible(
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: ElevatedButton(onPressed: () {}, child: Text('Add Event')),
+            ),
+          ),
+        ],
       ),
     );
   }
