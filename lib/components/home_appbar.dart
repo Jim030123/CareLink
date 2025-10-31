@@ -13,11 +13,11 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 使用确定高度包裹，避免在 AppBar title 的有限约束下出现无限高度的布局
+    
     return LayoutBuilder( 
       builder: (context, constraints) => Container(
         color: Theme.of(context).appBarTheme.backgroundColor,
-        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+        
         child: Row(
           children: [
             // left: avatar + name
@@ -57,7 +57,7 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
                         AutoMarqueeText(
                           text: userName,
                           style: TextStyle(
-                            fontSize: 17.sp,
+                            fontSize: 15.sp,
                             color: Colors.white70,
                             shadows: [
                               Shadow(

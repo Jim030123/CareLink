@@ -18,7 +18,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       // appBar: HomeAppbar(userName: 'This is a very long name that will scroll automatically'),
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 172, 151, 93),
+        backgroundColor: const Color(0xFFBAA387),
         //size
         toolbarHeight: 50.h,
         title: HomeAppbar(
@@ -29,25 +29,10 @@ class _HomePageState extends State<HomePage> {
         slivers: [
           SliverAppBar(
             expandedHeight: 280.h,
-
-            floating: true,
+            floating: false,
             pinned: false,
             snap: false,
-            title: Text(
-              'Calendar',
-              style: TextStyle(
-                fontSize: 20.sp,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                shadows: [
-                  Shadow(
-                    offset: Offset(2.0, 2.0), // 阴影位移 (x, y)
-                    blurRadius: 10.0, // 模糊程度
-                    color: Colors.black54, // 阴影颜色
-                  ),
-                ],
-              ),
-            ),
+
             flexibleSpace: ClipRRect(
               borderRadius: BorderRadius.vertical(
                 bottom: Radius.circular(24.r),
@@ -67,6 +52,29 @@ class _HomePageState extends State<HomePage> {
                         ),
                         // 半透明遮罩，调整颜色/透明度以获得需要的视觉效果
                         Container(color: Colors.black.withOpacity(0.25)),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          // 放在 HomeCalendar 之上：bottom = HomeCalendar.bottom(16.h) + HomeCalendar.height(210.h) + 8.h 间距
+                          bottom: 16.h + 210.h + 8.h,
+                          child: Center(
+                            child: Text(
+                              'Calendar',
+                              style: TextStyle(
+                                fontSize: 20.sp,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                shadows: [
+                                  Shadow(
+                                    offset: Offset(2.0, 2.0),
+                                    blurRadius: 10.0,
+                                    color: Colors.black54,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
 
                         Positioned(
                           left: 16.w,
@@ -79,132 +87,261 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: ClipRRect(
-              borderRadius: BorderRadius.vertical(
-                bottom: Radius.circular(24.r),
-              ),
-              child: SizedBox(
-                height: 280.h,
-                child: Stack(
-                  fit: StackFit.expand,
+
+          SliverPersistentHeader(
+            pinned: false,
+            delegate: _SimpleHeaderDelegate(
+              minHeight: 56.h,
+              maxHeight: 56.h,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
+                alignment: Alignment.centerLeft,
+                child: Row(
                   children: [
-                    Image.asset('assets/images/home.jpg', fit: BoxFit.cover),
-                    Container(color: Colors.black.withOpacity(0.25)),
-                    Positioned(
-                      left: 16.w,
-                      right: 16.w,
-                      bottom: 16.h,
-                      child: SizedBox(height: 210.h, child: HomeCalendar()),
+                    Text(
+                      'Health Tracking',
+                      style: TextStyle(
+                        fontSize: 25.sp,
+                        fontWeight: FontWeight.bold,
+                        shadows: [
+                          Shadow(
+                            offset: Offset(2.0, 2.0),
+                            blurRadius: 10.0,
+                            color: Colors.black54,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            // TODO: Implement "See All" action
+                          },
+                          child: Text(
+                            'See All',
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                // Add your widgets here
-                SizedBox(
-                  height: 200.h,
-                  child: GridView.count(
-                    crossAxisCount: 2,
-                    children: List.generate(6, (index) {
-                      return Container(
-                        margin: const EdgeInsets.all(8),
-                        color: Colors.blueAccent,
+
+          // 网格作为 sliver，整个页面统一滚动
+         SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, groupIndex) {
+                  // 总数据（替换成你的真实数据源）
+                  const total = 3;
+                  final services = List.generate(total, (i) => 'Service ${i + 1}');
+
+                  final base = groupIndex * 3;
+                  if (base >= services.length) return null;
+
+                  final leftLabel = services[base];
+                  final rightTopLabel = base + 1 < services.length ? services[base + 1] : null;
+                  final rightBottomLabel = base + 2 < services.length ? services[base + 2] : null;
+
+                  final spacingW = 12.w;
+                  final spacingV = 12.h;
+                  final smallTileHeight = 120.h; // 可按需调整或改为相对值
+                  final bigTileHeight = smallTileHeight * 2 + spacingV;
+
+                  Widget buildTile(String label, {bool isBig = false}) {
+                    return SizedBox(
+                      height: isBig ? bigTileHeight : smallTileHeight,
+                      child: Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
                         child: Center(
                           child: Text(
-                            'Item $index',
-                            style: const TextStyle(color: Colors.white),
+                            label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
                           ),
                         ),
-                      );
-                    }),
-                  ),
-                ),
-              ],
+                      ),
+                    );
+                  }
+
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: 12.h),
+                    child: SizedBox(
+                      height: bigTileHeight,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 左侧大格（占两行高度）
+                          Expanded(
+                            flex: 1,
+                            child: buildTile(leftLabel, isBig: true),
+                          ),
+                          SizedBox(width: spacingW),
+                          // 右侧上下两个小格
+                          Expanded(
+                            flex: 1,
+                            child: Column(
+                              children: [
+                                if (rightTopLabel != null)
+                                  buildTile(rightTopLabel)
+                                else
+                                  SizedBox(height: smallTileHeight),
+                                SizedBox(height: spacingV),
+                                if (rightBottomLabel != null)
+                                  buildTile(rightBottomLabel)
+                                else
+                                  SizedBox(height: smallTileHeight),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                // groupCount = ceil(total / 3)
+                childCount: (15 + 2) ~/ 3,
+              ),
             ),
           ),
 
-          SliverFillRemaining(),
+
+
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _SimpleHeaderDelegate(
+              minHeight: 56.h,
+              maxHeight: 56.h,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: [
+                    Text(
+                      'Services',
+                      style: TextStyle(
+                        fontSize: 25.sp,
+                        fontWeight: FontWeight.bold,
+                        shadows: [
+                          Shadow(
+                            offset: Offset(2.0, 2.0),
+                            blurRadius: 10.0,
+                            color: Colors.black54,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            // TODO: Implement "See All" action
+                          },
+                          child: Text(
+                            'See All',
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 3/2,
+                mainAxisSpacing: 10.h,
+                crossAxisSpacing: 12.w,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  return Padding(
+                    padding: EdgeInsets.all(4.w),
+                    child: Material(
+                      elevation: 2,
+                      borderRadius: BorderRadius.circular(12.r),
+                      color: Colors.white,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12.r),
+                        splashColor: Colors.blue.withOpacity(0.15),
+                        highlightColor: Colors.blue.withOpacity(0.08),
+                        onTap: () {
+                          // TODO: handle tap
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 8.w),
+                          child: Center(
+                            child: Text(
+                              'Service ${index + 1}',
+                              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                childCount: 15,
+              ),
+            ),
+          ),
         ],
       ),
-
-      //      HomeAppbar(
-      //       isSelected: _isSelected,
-      //       userName: 'This is a veryname that will scroll automatically',
-      //       onToggleChanged: (index) {
-      //         setState(() {
-      //           for (var i = 0; i < _isSelected.length; i++) {
-      //             _isSelected[i] = i == index;
-      //           }
-      //         });
-      //       },
-      //     ),
-
-      //  SafeArea(
-      //     child: SingleChildScrollView(
-      //       child: Container(
-      //         padding: EdgeInsets.symmetric(horizontal: 10.w),
-      //         child: Column(
-      //           children: [
-      //             if (_isSelected[0])
-      //               SizedBox(
-      //                 height: 210.h, // 固定高度，响应屏幕尺寸
-      //                 child: HomeCalendar(),
-      //               )
-      //             else if (_isSelected[1])
-      //               SizedBox(
-      //                 height: 210.h, // 也可以给其他组件固定高度
-      //                 child: HomeAiSummary(),
-      //               ),
-
-      //             SizedBox(height: 10.h),
-      //             Align(
-      //               alignment: Alignment.topLeft,
-      //               child: Text(
-      //                 'Services',
-      //                 style: TextStyle(
-      //                   fontSize: 25.sp,
-      //                   shadows: [
-      //                     Shadow(
-      //                       offset: Offset(2.0, 2.0), // 阴影位移 (x, y)
-      //                       blurRadius: 10.0, // 模糊程度
-      //                       color: Colors.black54, // 阴影颜色
-      //                     ),
-      //                   ],
-      //                   fontWeight: FontWeight.bold,
-      //                 ),
-      //                 textAlign: TextAlign.start,
-      //               ),
-      //             ),
-
-      //             SizedBox(
-      //               height: 200.h,
-      //               child: GridView.count(
-      //                 crossAxisCount: 2,
-      //                 children: List.generate(6, (index) {
-      //                   return Container(
-      //                     margin: const EdgeInsets.all(8),
-      //                     color: Colors.blueAccent,
-      //                     child: Center(
-      //                       child: Text(
-      //                         'Item $index',
-      //                         style: const TextStyle(color: Colors.white),
-      //                       ),
-      //                     ),
-      //                   );
-      //                 }),
-      //               ),
-      //             ),
-
-      //           ],
-      //         ),
-      //       ),
-      //     ),
-      //   ),
     );
+  }
+}
+
+class _SimpleHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double minHeight;
+  final double maxHeight;
+  final Widget child;
+
+  _SimpleHeaderDelegate({
+    required this.minHeight,
+    required this.maxHeight,
+    required this.child,
+  });
+
+  @override
+  double get minExtent => minHeight;
+
+  @override
+  double get maxExtent => maxHeight;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(covariant _SimpleHeaderDelegate oldDelegate) {
+    return oldDelegate.minHeight != minHeight ||
+        oldDelegate.maxHeight != maxHeight ||
+        oldDelegate.child != child;
   }
 }
