@@ -4,24 +4,18 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'auto_marquee_text.dart';
 
 class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
-  final List<bool> isSelected;
-  final Function(int) onToggleChanged;
   final String userName;
 
-  const HomeAppbar({
-    super.key,
-    required this.isSelected,
-    required this.onToggleChanged,
-    required this.userName,
-  });
+  const HomeAppbar({super.key, required this.userName});
 
   @override
   Size get preferredSize => Size.fromHeight(90.h);
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
+    // 使用确定高度包裹，避免在 AppBar title 的有限约束下出现无限高度的布局
+    return LayoutBuilder( 
+      builder: (context, constraints) => Container(
         color: Theme.of(context).appBarTheme.backgroundColor,
         padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
         child: Row(
@@ -49,16 +43,29 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
                           style: TextStyle(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                offset: Offset(2.0, 2.0), // 阴影位移 (x, y)
+                                blurRadius: 10.0, // 模糊程度
+                                color: Colors.black54, // 阴影颜色
+                              ),
+                            ],
                           ),
                         ),
-                        Flexible(
-                          child: AutoMarqueeText(
-                            text: userName,
-                            style: TextStyle(
-                              fontSize: 17.sp,
-                              color: Colors.black54,
-                            ),
+                        // 不再使用 Flexible（会请求无限高度），改为固定高度的 SizedBox
+                        AutoMarqueeText(
+                          text: userName,
+                          style: TextStyle(
+                            fontSize: 17.sp,
+                            color: Colors.white70,
+                            shadows: [
+                              Shadow(
+                                offset: Offset(2.0, 2.0), // 阴影位移 (x, y)
+                                blurRadius: 10.0, // 模糊程度
+                                color: Colors.black54, // 阴影颜色
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -67,39 +74,9 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
                 ],
               ),
             ),
-
+              
             // middle: toggle buttons
-            Expanded(
-              flex: 3,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ToggleButtons(
-                    isSelected: isSelected,
-                    onPressed: onToggleChanged,
-                    constraints: BoxConstraints(
-                      minWidth: 40.w,
-                      minHeight: 40.h,
-                    ),
-                    borderRadius: BorderRadius.circular(8.r),
-                    selectedColor: const Color(0xFFFCEEDB),
-                    fillColor: Colors.green,
-                    color: Colors.black87,
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8.w),
-                        child: Icon(Icons.calendar_month, size: 18.sp),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8.w),
-                        child: Icon(Icons.assistant, size: 18.sp),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
+         
             // right: logo
             Flexible(
               flex: 1,
@@ -118,6 +95,45 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class HomeAppBarToggleButton extends StatefulWidget {
+  final List<bool> isSelected;
+  final ValueChanged<int> onToggleChanged;
+
+  const HomeAppBarToggleButton({
+    super.key,
+    required this.isSelected,
+    required this.onToggleChanged,
+  });
+
+  @override
+  State<HomeAppBarToggleButton> createState() => _HomeAppBarStateToggleButton();
+}
+
+class _HomeAppBarStateToggleButton extends State<HomeAppBarToggleButton> {
+  @override
+  Widget build(BuildContext context) {
+    return ToggleButtons(
+      isSelected: widget.isSelected,
+      onPressed: widget.onToggleChanged,
+      constraints: BoxConstraints(minWidth: 40.w, minHeight: 40.h),
+      borderRadius: BorderRadius.circular(8.r),
+      selectedColor: const Color(0xFFFCEEDB),
+      fillColor: Colors.green,
+      color: Colors.black87,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8.w),
+          child: Icon(Icons.calendar_month, size: 18.sp),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8.w),
+          child: Icon(Icons.assistant, size: 18.sp),
+        ),
+      ],
     );
   }
 }
