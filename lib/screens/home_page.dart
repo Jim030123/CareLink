@@ -1,5 +1,6 @@
 import 'package:carelink_mobile/components/home_appbar.dart';
 import 'package:carelink_mobile/components/home_calendar.dart';
+import 'package:carelink_mobile/models/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -13,6 +14,23 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final List<bool> _isSelected = [true, false];
 
+  final List<Service> services = [
+    Service(
+      title: 'Medicine',
+      icon: Icons.medication, // 或 Icons.local_pharmacy / Icons.medical_services
+      color: Colors.yellow.shade600,
+      onTap: () {
+        // TODO: medicine action
+      },
+    ),
+    // 其余示例项，按需替换
+    for (var i = 2; i <= 15; i++)
+      Service(
+        title: 'Service $i',
+        icon: Icons.health_and_safety,
+        color: Colors.white,
+      ),
+  ];
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,21 +155,28 @@ class _HomePageState extends State<HomePage> {
           ),
 
           // 网格作为 sliver，整个页面统一滚动
-         SliverPadding(
+          SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, groupIndex) {
                   // 总数据（替换成你的真实数据源）
                   const total = 3;
-                  final services = List.generate(total, (i) => 'Service ${i + 1}');
+                  final services = List.generate(
+                    total,
+                    (i) => 'Service ${i + 1}',
+                  );
 
                   final base = groupIndex * 3;
                   if (base >= services.length) return null;
 
                   final leftLabel = services[base];
-                  final rightTopLabel = base + 1 < services.length ? services[base + 1] : null;
-                  final rightBottomLabel = base + 2 < services.length ? services[base + 2] : null;
+                  final rightTopLabel = base + 1 < services.length
+                      ? services[base + 1]
+                      : null;
+                  final rightBottomLabel = base + 2 < services.length
+                      ? services[base + 2]
+                      : null;
 
                   final spacingW = 12.w;
                   final spacingV = 12.h;
@@ -162,12 +187,17 @@ class _HomePageState extends State<HomePage> {
                     return SizedBox(
                       height: isBig ? bigTileHeight : smallTileHeight,
                       child: Card(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
                         child: Center(
                           child: Text(
                             label,
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -214,8 +244,6 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-
-
 
           SliverPersistentHeader(
             pinned: true,
@@ -270,40 +298,65 @@ class _HomePageState extends State<HomePage> {
             sliver: SliverGrid(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 3/2,
+                childAspectRatio: 3 / 2,
                 mainAxisSpacing: 10.h,
                 crossAxisSpacing: 12.w,
               ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  return Padding(
-                    padding: EdgeInsets.all(4.w),
-                    child: Material(
-                      elevation: 2,
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final service = services[index];
+                final bool useDarkText = service.color.computeLuminance() > 0.5;
+                return Padding(
+                  padding: EdgeInsets.all(4.w),
+                  child: Material(
+                    elevation: 2,
+                    borderRadius: BorderRadius.circular(12.r),
+                    color: service.color,
+                    child: InkWell(
                       borderRadius: BorderRadius.circular(12.r),
-                      color: Colors.white,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12.r),
-                        splashColor: Colors.blue.withOpacity(0.15),
-                        highlightColor: Colors.blue.withOpacity(0.08),
-                        onTap: () {
-                          // TODO: handle tap
-                        },
-                        child: Container(
-                          padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 8.w),
-                          child: Center(
-                            child: Text(
-                              'Service ${index + 1}',
-                              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                      splashColor: Colors.black12,
+                      onTap:
+                          service.onTap ??
+                          () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Tapped ${service.title}'),
+                              ),
+                            );
+                          },
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 12.h,
+                          horizontal: 8.w,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              service.icon,
+                              size: 28.sp,
+                              color: useDarkText
+                                  ? Colors.black87
+                                  : Colors.white,
                             ),
-                          ),
+                            SizedBox(height: 8.h),
+                            Text(
+                              service.title,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.w600,
+                                color: useDarkText
+                                    ? Colors.black87
+                                    : Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  );
-                },
-                childCount: 15,
-              ),
+                  ),
+                );
+              }, childCount: 15),
             ),
           ),
         ],
