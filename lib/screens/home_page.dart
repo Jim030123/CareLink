@@ -13,6 +13,28 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final List<bool> _isSelected = [true, false];
+  final ScrollController _scrollController = ScrollController();
+  double _appBarOpacity = 1.0;
+  // how many logical pixels to scroll before the appbar becomes fully transparent
+  late final double _fadeThreshold = 160.h;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    final t = (offset / _fadeThreshold).clamp(0.0, 1.0);
+    final newOpacity = (1.0 - t);
+    if ((newOpacity - _appBarOpacity).abs() > 0.01) {
+      setState(() {
+        _appBarOpacity = newOpacity;
+      });
+    }
+  }
 
   final List<Service> services = [
     Service(
@@ -34,9 +56,10 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: false,
       // appBar: HomeAppbar(userName: 'This is a very long name that will scroll automatically'),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFBAA387),
+        backgroundColor: const Color(0xFFBAA387).withOpacity(_appBarOpacity),
         //size
         toolbarHeight: 50.h,
         title: HomeAppbar(
@@ -44,64 +67,55 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       body: CustomScrollView(
+        controller: _scrollController,
         slivers: [
-          SliverAppBar(
-            expandedHeight: 280.h,
-            floating: false,
-            pinned: false,
-            snap: false,
-
-            flexibleSpace: ClipRRect(
+          // Keep the Scaffold.appBar; make the decorative background a simple sliver
+          SliverToBoxAdapter(
+            child: ClipRRect(
               borderRadius: BorderRadius.vertical(
                 bottom: Radius.circular(24.r),
               ),
-              child: FlexibleSpaceBar(
-                collapseMode: CollapseMode.parallax,
-
-                background:
-                    // Make the background image semi-transparent
-                    Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // 背景图片放在最底层
-                        Image.asset(
-                          'assets/images/home.jpg',
-                          fit: BoxFit.cover,
-                        ),
-                        // 半透明遮罩，调整颜色/透明度以获得需要的视觉效果
-                        Container(color: Colors.black.withOpacity(0.25)),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          // 放在 HomeCalendar 之上：bottom = HomeCalendar.bottom(16.h) + HomeCalendar.height(210.h) + 8.h 间距
-                          bottom: 16.h + 210.h + 8.h,
-                          child: Center(
-                            child: Text(
-                              'Calendar',
-                              style: TextStyle(
-                                fontSize: 20.sp,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    offset: Offset(2.0, 2.0),
-                                    blurRadius: 10.0,
-                                    color: Colors.black54,
-                                  ),
-                                ],
+              child: SizedBox(
+                height: 280.h,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 背景圖片放在最底層
+                    Image.asset('assets/images/home.jpg', fit: BoxFit.cover),
+                    // 半透明遮罩，調整顏色/透明度以獲得需要的視覺效果
+                    Container(color: Colors.black.withOpacity(0.25)),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      // 放在 HomeCalendar 之上：bottom = HomeCalendar.bottom(16.h) + HomeCalendar.height(210.h) + 8.h 間距
+                      bottom: 16.h + 210.h + 8.h,
+                      child: Center(
+                        child: Text(
+                          'Calendar',
+                          style: TextStyle(
+                            fontSize: 20.sp,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                offset: Offset(2.0, 2.0),
+                                blurRadius: 10.0,
+                                color: Colors.black54,
                               ),
-                            ),
+                            ],
                           ),
                         ),
-
-                        Positioned(
-                          left: 16.w,
-                          right: 16.w,
-                          bottom: 16.h,
-                          child: SizedBox(height: 210.h, child: HomeCalendar()),
-                        ),
-                      ],
+                      ),
                     ),
+
+                    Positioned(
+                      left: 16.w,
+                      right: 16.w,
+                      bottom: 16.h,
+                      child: SizedBox(height: 210.h, child: HomeCalendar()),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -160,23 +174,15 @@ class _HomePageState extends State<HomePage> {
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, groupIndex) {
-                  // 总数据（替换成你的真实数据源）
-                  const total = 3;
-                  final services = List.generate(
-                    total,
-                    (i) => 'Service ${i + 1}',
-                  );
+                  // Use the model-driven services list from the state
+                  final total = services.length;
 
                   final base = groupIndex * 3;
-                  if (base >= services.length) return null;
+                  if (base >= total) return null;
 
-                  final leftLabel = services[base];
-                  final rightTopLabel = base + 1 < services.length
-                      ? services[base + 1]
-                      : null;
-                  final rightBottomLabel = base + 2 < services.length
-                      ? services[base + 2]
-                      : null;
+                  final leftLabel = services[base].title;
+                  final rightTopLabel = base + 1 < total ? services[base + 1].title : null;
+                  final rightBottomLabel = base + 2 < total ? services[base + 2].title : null;
 
                   final spacingW = 12.w;
                   final spacingV = 12.h;
@@ -240,7 +246,7 @@ class _HomePageState extends State<HomePage> {
                   );
                 },
                 // groupCount = ceil(total / 3)
-                childCount: (15 + 2) ~/ 3,
+                childCount: (services.length + 2) ~/ 3,
               ),
             ),
           ),
@@ -362,6 +368,13 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    super.dispose();
   }
 }
 
