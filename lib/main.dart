@@ -1,3 +1,4 @@
+import 'package:carelink_mobile/components/scroll_animated_appbar.dart';
 import 'package:carelink_mobile/screens/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -46,7 +47,7 @@ class MyApp extends StatelessWidget {
                 ),
               );
           },
-          child: HomePage(),
+          child: ScrollAnimatedAppBar(),
         );
       },
     );

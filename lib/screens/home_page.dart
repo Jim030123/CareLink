@@ -28,31 +28,33 @@ class _HomePageState extends State<HomePage> {
     });
 
     _scrollController.addListener(_handleScroll);
-    
+
     // Initialize services here so the closures can use the State's `context`.
     services = [
       Service(
         title: 'Heart Rate',
-        icon: Icons.health_and_safety, // 或 Icons.local_pharmacy / Icons.medical_services
+        icon: Icons
+            .health_and_safety, // 或 Icons.local_pharmacy / Icons.medical_services
         color: Colors.yellow.shade600,
-        onTap: () {
-         
-        },
+        onTap: () {},
       ),
 
-       Service(
+      Service(
         title: 'Blood Pressure',
-        icon: Icons.local_hospital, // 或 Icons.local_pharmacy / Icons.medical_services
+        icon: Icons
+            .local_hospital, // 或 Icons.local_pharmacy / Icons.medical_services
         color: Colors.yellow.shade600,
-        onTap: () {
-         
-        },
+        onTap: () {},
       ),
 
+      for (var i = 2; i <= 15; i++)
+        Service(
+          title: 'Service $i',
+          icon: Icons.health_and_safety,
+          color: Colors.white,
+        ),
 
-       
       // 其余示例项，按需替换
-    
     ];
   }
 
@@ -204,110 +206,7 @@ class _HomePageState extends State<HomePage> {
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, groupIndex) {
-                  // Only show the first 3 services in this special 3-tile layout
-                  final total = topServices.length;
-
-                  final base = groupIndex * 3;
-                  if (base >= total) return null;
-
-          final Service leftService = topServices[base];
-          final Service? rightTopService =
-            base + 1 < total ? topServices[base + 1] : null;
-          final Service? rightBottomService =
-            base + 2 < total ? topServices[base + 2] : null;
-
-                  final spacingW = 12.w;
-                  final spacingV = 12.h;
-                  final smallTileHeight = 120.h; // 可按需调整或改为相对值
-                  final bigTileHeight = smallTileHeight * 2 + spacingV;
-
-                  Widget buildTile(Service service, {bool isBig = false}) {
-                    final bool useDarkText =
-                        service.color.computeLuminance() > 0.5;
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        return SizedBox(
-                          height: isBig ? bigTileHeight : smallTileHeight,
-                          width: double.infinity,
-                          child: Card(
-                            color: service.color,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12.r),
-                            ),
-                            child: Padding(
-                              padding: EdgeInsets.all(12.r),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          service.title,
-                                          textAlign: TextAlign.start,
-                                          style: TextStyle(
-                                            fontSize: 20.sp,
-                                            fontWeight: FontWeight.w600,
-                                            color: useDarkText
-                                                ? Colors.black87
-                                                : Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                      Icon(
-                                        service.icon,
-                                        size: 42.sp,
-                                        color: useDarkText
-                                            ? Colors.black87
-                                            : Colors.white,
-                                      ),
-                                    ],
-                                  ),
-                                  // If the tile is big we can leave space for extra content
-                                  if (isBig) SizedBox(height: 12.h),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  }
-
-                  return Padding(
-                    padding: EdgeInsets.only(bottom: 12.h),
-                    child: SizedBox(
-                      height: bigTileHeight,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // 左侧大格（占两行高度）
-                          Expanded(
-                            flex: 1,
-                            child: buildTile(leftService, isBig: true),
-                          ),
-                          SizedBox(width: spacingW),
-                          // 右侧上下两个小格
-                          Expanded(
-                            flex: 1,
-                            child: Column(
-                              children: [
-                                if (rightTopService != null)
-                                  buildTile(rightTopService)
-                                else
-                                  SizedBox(height: smallTileHeight),
-                                SizedBox(height: spacingV),
-                                if (rightBottomService != null)
-                                  buildTile(rightBottomService)
-                                else
-                                  SizedBox(height: smallTileHeight),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
+                 
                 },
                 // groupCount = ceil(total / 3)
                 childCount: (topServices.length + 2) ~/ 3,
@@ -442,8 +341,6 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 }
-
-
 
 class _SimpleHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double minHeight;
