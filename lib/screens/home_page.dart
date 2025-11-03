@@ -3,6 +3,7 @@ import 'package:carelink_mobile/components/home_calendar.dart';
 import 'package:carelink_mobile/models/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/svg.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,14 +15,45 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final List<bool> _isSelected = [true, false];
   final ScrollController _scrollController = ScrollController();
-  double _appBarOpacity = 1.0;
+  final ValueNotifier<double> _appBarOpacity = ValueNotifier(1.0);
   // how many logical pixels to scroll before the appbar becomes fully transparent
   late final double _fadeThreshold = 160.h;
 
   @override
   void initState() {
     super.initState();
+    // precache background image to avoid first-frame decode hitch
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      precacheImage(const AssetImage('assets/images/home.jpg'), context);
+    });
+
     _scrollController.addListener(_handleScroll);
+    
+    // Initialize services here so the closures can use the State's `context`.
+    services = [
+      Service(
+        title: 'Heart Rate',
+        icon: Icons.health_and_safety, // 或 Icons.local_pharmacy / Icons.medical_services
+        color: Colors.yellow.shade600,
+        onTap: () {
+         
+        },
+      ),
+
+       Service(
+        title: 'Blood Pressure',
+        icon: Icons.local_hospital, // 或 Icons.local_pharmacy / Icons.medical_services
+        color: Colors.yellow.shade600,
+        onTap: () {
+         
+        },
+      ),
+
+
+       
+      // 其余示例项，按需替换
+    
+    ];
   }
 
   void _handleScroll() {
@@ -29,41 +61,39 @@ class _HomePageState extends State<HomePage> {
     final offset = _scrollController.offset;
     final t = (offset / _fadeThreshold).clamp(0.0, 1.0);
     final newOpacity = (1.0 - t);
-    if ((newOpacity - _appBarOpacity).abs() > 0.01) {
-      setState(() {
-        _appBarOpacity = newOpacity;
-      });
+    if ((_appBarOpacity.value - newOpacity).abs() > 0.01) {
+      _appBarOpacity.value = newOpacity;
     }
   }
 
-  final List<Service> services = [
-    Service(
-      title: 'Medicine',
-      icon: Icons.medication, // 或 Icons.local_pharmacy / Icons.medical_services
-      color: Colors.yellow.shade600,
-      onTap: () {
-        // TODO: medicine action
-      },
-    ),
-    // 其余示例项，按需替换
-    for (var i = 2; i <= 15; i++)
-      Service(
-        title: 'Service $i',
-        icon: Icons.health_and_safety,
-        color: Colors.white,
-      ),
-  ];
+  // Initialize services in initState so closures can capture the valid `context`.
+  late final List<Service> services;
   @override
   Widget build(BuildContext context) {
+    // Prepare slices: first 3 services for the special layout, rest for the grid
+    final topServices = services.take(3).toList();
+    final gridServices = services.length > 3
+        ? services.skip(3).toList()
+        : <Service>[];
     return Scaffold(
       extendBodyBehindAppBar: false,
       // appBar: HomeAppbar(userName: 'This is a very long name that will scroll automatically'),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFBAA387).withOpacity(_appBarOpacity),
-        //size
-        toolbarHeight: 50.h,
-        title: HomeAppbar(
-          userName: 'This is a very long name that will scroll automatically',
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(60.h),
+        child: ValueListenableBuilder<double>(
+          valueListenable: _appBarOpacity,
+          builder: (context, opacity, child) {
+            return AppBar(
+              backgroundColor: const Color(0xFFBAA387).withOpacity(opacity),
+              // size
+              toolbarHeight: 50.h,
+              title: child,
+              elevation: opacity > 0.05 ? 4.0 : 0.0,
+            );
+          },
+          child: HomeAppbar(
+            userName: 'This is a very long name that will scroll automatically',
+          ),
         ),
       ),
       body: CustomScrollView(
@@ -174,39 +204,73 @@ class _HomePageState extends State<HomePage> {
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, groupIndex) {
-                  // Use the model-driven services list from the state
-                  final total = services.length;
+                  // Only show the first 3 services in this special 3-tile layout
+                  final total = topServices.length;
 
                   final base = groupIndex * 3;
                   if (base >= total) return null;
 
-                  final leftLabel = services[base].title;
-                  final rightTopLabel = base + 1 < total ? services[base + 1].title : null;
-                  final rightBottomLabel = base + 2 < total ? services[base + 2].title : null;
+          final Service leftService = topServices[base];
+          final Service? rightTopService =
+            base + 1 < total ? topServices[base + 1] : null;
+          final Service? rightBottomService =
+            base + 2 < total ? topServices[base + 2] : null;
 
                   final spacingW = 12.w;
                   final spacingV = 12.h;
                   final smallTileHeight = 120.h; // 可按需调整或改为相对值
                   final bigTileHeight = smallTileHeight * 2 + spacingV;
 
-                  Widget buildTile(String label, {bool isBig = false}) {
-                    return SizedBox(
-                      height: isBig ? bigTileHeight : smallTileHeight,
-                      child: Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
-                        child: Center(
-                          child: Text(
-                            label,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w600,
+                  Widget buildTile(Service service, {bool isBig = false}) {
+                    final bool useDarkText =
+                        service.color.computeLuminance() > 0.5;
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SizedBox(
+                          height: isBig ? bigTileHeight : smallTileHeight,
+                          width: double.infinity,
+                          child: Card(
+                            color: service.color,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.r),
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.all(12.r),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          service.title,
+                                          textAlign: TextAlign.start,
+                                          style: TextStyle(
+                                            fontSize: 20.sp,
+                                            fontWeight: FontWeight.w600,
+                                            color: useDarkText
+                                                ? Colors.black87
+                                                : Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                      Icon(
+                                        service.icon,
+                                        size: 42.sp,
+                                        color: useDarkText
+                                            ? Colors.black87
+                                            : Colors.white,
+                                      ),
+                                    ],
+                                  ),
+                                  // If the tile is big we can leave space for extra content
+                                  if (isBig) SizedBox(height: 12.h),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     );
                   }
 
@@ -220,7 +284,7 @@ class _HomePageState extends State<HomePage> {
                           // 左侧大格（占两行高度）
                           Expanded(
                             flex: 1,
-                            child: buildTile(leftLabel, isBig: true),
+                            child: buildTile(leftService, isBig: true),
                           ),
                           SizedBox(width: spacingW),
                           // 右侧上下两个小格
@@ -228,13 +292,13 @@ class _HomePageState extends State<HomePage> {
                             flex: 1,
                             child: Column(
                               children: [
-                                if (rightTopLabel != null)
-                                  buildTile(rightTopLabel)
+                                if (rightTopService != null)
+                                  buildTile(rightTopService)
                                 else
                                   SizedBox(height: smallTileHeight),
                                 SizedBox(height: spacingV),
-                                if (rightBottomLabel != null)
-                                  buildTile(rightBottomLabel)
+                                if (rightBottomService != null)
+                                  buildTile(rightBottomService)
                                 else
                                   SizedBox(height: smallTileHeight),
                               ],
@@ -246,7 +310,7 @@ class _HomePageState extends State<HomePage> {
                   );
                 },
                 // groupCount = ceil(total / 3)
-                childCount: (services.length + 2) ~/ 3,
+                childCount: (topServices.length + 2) ~/ 3,
               ),
             ),
           ),
@@ -309,7 +373,7 @@ class _HomePageState extends State<HomePage> {
                 crossAxisSpacing: 12.w,
               ),
               delegate: SliverChildBuilderDelegate((context, index) {
-                final service = services[index];
+                final service = gridServices[index];
                 final bool useDarkText = service.color.computeLuminance() > 0.5;
                 return Padding(
                   padding: EdgeInsets.all(4.w),
@@ -362,7 +426,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 );
-              }, childCount: 15),
+              }, childCount: gridServices.length),
             ),
           ),
         ],
@@ -374,9 +438,12 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
+    _appBarOpacity.dispose();
     super.dispose();
   }
 }
+
+
 
 class _SimpleHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double minHeight;
