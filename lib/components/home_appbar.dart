@@ -15,85 +15,83 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     
     return LayoutBuilder( 
-      builder: (context, constraints) => Container(
-        color: Theme.of(context).appBarTheme.backgroundColor,
-        child: Row(
-          children: [
-            // left: avatar + name
-            Expanded(
-              flex: 5,
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 20.r,
-                    backgroundImage: const NetworkImage(
-                      'https://i.pravatar.cc/150?img=3',
-                    ),
+      builder: (context, constraints) => Row(
+        
+        children: [
+          // left: avatar + name
+          Expanded(
+            flex: 5,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20.r,
+                  backgroundImage: const NetworkImage(
+                    'https://i.pravatar.cc/150?img=3',
                   ),
-                  SizedBox(width: 10.w),
-                  Expanded(
-                    child: Column(
-                      
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Welcome Back',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                offset: Offset(2.0, 2.0), // 阴影位移 (x, y)
-                                blurRadius: 10.0, // 模糊程度
-                                color: Colors.black54, // 阴影颜色
-                              ),
-                            ],
-                          ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: Column(
+                    
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Welcome Back',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              offset: Offset(2.0, 2.0), // 阴影位移 (x, y)
+                              blurRadius: 10.0, // 模糊程度
+                              color: Colors.black54, // 阴影颜色
+                            ),
+                          ],
                         ),
-                        // 不再使用 Flexible（会请求无限高度），改为固定高度的 SizedBox
-                        AutoMarqueeText( 
-                          text: userName,
-                          style: TextStyle(
-                            fontSize: 15.sp,
-                            color: Colors.black87,
-                            shadows: [
-                              Shadow(
-                                offset: Offset(2.0, 2.0), // 阴影位移 (x, y)
-                                blurRadius: 10.0, // 模糊程度
-                                color: Colors.black54, // 阴影颜色
-                              ),
-                            ],
-                          ),
+                      ),
+                      // 不再使用 Flexible（会请求无限高度），改为固定高度的 SizedBox
+                      AutoMarqueeText( 
+                        text: userName,
+                        style: TextStyle(
+                          fontSize: 15.sp,
+                          color: Colors.black87,
+                          shadows: [
+                            Shadow(
+                              offset: Offset(2.0, 2.0), // 阴影位移 (x, y)
+                              blurRadius: 10.0, // 模糊程度
+                              color: Colors.black54, // 阴影颜色
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-              
-            // middle: toggle buttons
-         
-            // right: logo
-            Flexible(
-              flex: 1,
-              child: Align(
-                alignment: Alignment.center,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown, // 比 cover 更安全
-                  child: SvgPicture.asset(
-                    'assets/icons/logo.svg',
-                    width: 60.w,
-                    height: 60.h,
-                  ),
+          ),
+            
+          // middle: toggle buttons
+       
+          // right: logo
+          Flexible(
+            flex: 1,
+            child: Align(
+              alignment: Alignment.center,
+              child: FittedBox(
+                fit: BoxFit.scaleDown, // 比 cover 更安全
+                child: SvgPicture.asset(
+                  'assets/icons/logo.svg',
+                  width: 60.w,
+                  height: 60.h,
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

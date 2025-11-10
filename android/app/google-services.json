@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "347878142359",
+    "project_id": "carelink-ed263",
+    "storage_bucket": "carelink-ed263.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:347878142359:android:a3c4fe73e41d11986314d2",
+        "android_client_info": {
+          "package_name": "com.example.carelink_mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "347878142359-5dk95r77bva10p91ojds1m1dq2pipm2e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAINxNtPjacKy6MPIJsdvnUiUrE2yyA_Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "347878142359-5dk95r77bva10p91ojds1m1dq2pipm2e.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "347878142359-br46smgujpr0h6248d6pourf31otgh7h.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.carelinkMobile"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

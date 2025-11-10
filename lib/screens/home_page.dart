@@ -4,6 +4,7 @@ import 'package:carelink_mobile/models/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:carelink_mobile/components/health_card.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -184,7 +185,7 @@ class _HomePageState extends State<HomePage> {
                             // TODO: Implement "See All" action
                           },
                           child: Text(
-                            'See All',
+                            'See All >>',
                             style: TextStyle(
                               fontSize: 16.sp,
                               fontWeight: FontWeight.w500,
@@ -201,21 +202,88 @@ class _HomePageState extends State<HomePage> {
           ),
 
           // 网格作为 sliver，整个页面统一滚动
-          SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, groupIndex) {
-                 
-                },
-                // groupCount = ceil(total / 3)
-                childCount: (topServices.length + 2) ~/ 3,
+          SliverToBoxAdapter(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 左半屏: replaced with reusable HealthCard widget
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.all(4.w),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          HealthCard(
+                            title: 'Heart Rate',
+                            value: '149',
+                            icon: Icons.favorite_outline_outlined,
+                            
+                            color: Colors.white,
+                            onTap: () {
+                              // preserve existing onTap behavior (empty for now)
+                            },
+                          ),
+                            
+                          SizedBox(height: 8.h),
+                            
+                          HealthCard(
+                            title: 'Energy Score',
+                            value: '81',
+                            icon: Icons.sports_martial_arts_outlined,
+                            iconColor: Colors.blue,
+                            color: Colors.white,
+                            onTap: () {
+                              // preserve existing onTap behavior (empty for now)
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                            
+                  // 右半屏：两个卡片（Container）
+                      Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.all(4.w),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          HealthCard(
+                            title: 'Blood Oxygen',
+                            value: '93',
+                            icon: Icons.bloodtype_outlined,
+                           iconColor: Colors.green,
+                            color: Colors.white,
+                            onTap: () {
+                              // preserve existing onTap behavior (empty for now)
+                            },
+                          ),
+                            
+                          SizedBox(height: 8.h),
+                            
+                          HealthCard(
+                            title: 'Sleep Score',
+                            value: '73',
+                            icon: Icons.bedtime_outlined,
+                            iconColor: Colors.purple,
+                            color: Colors.white,
+                            onTap: () {
+                              // preserve existing onTap behavior (empty for now)
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),                ],
               ),
             ),
           ),
-
           SliverPersistentHeader(
-            pinned: true,
+            pinned: false,
             delegate: _SimpleHeaderDelegate(
               minHeight: 56.h,
               maxHeight: 56.h,
@@ -246,7 +314,7 @@ class _HomePageState extends State<HomePage> {
                             // TODO: Implement "See All" action
                           },
                           child: Text(
-                            'See All',
+                            'See All >>',
                             style: TextStyle(
                               fontSize: 16.sp,
                               fontWeight: FontWeight.w500,
@@ -298,7 +366,7 @@ class _HomePageState extends State<HomePage> {
                           horizontal: 8.w,
                         ),
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.start,
                           children: [
                             Icon(
                               service.icon,
@@ -328,6 +396,28 @@ class _HomePageState extends State<HomePage> {
               }, childCount: gridServices.length),
             ),
           ),
+
+          SliverFillRemaining(
+            child: Container(
+              color: Colors.grey[200],
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'AI Chat Box',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                  // Add your AI chat box widget here
+                ],
+              ),
+            ),
+          ),
+
         ],
       ),
     );
