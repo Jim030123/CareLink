@@ -14,7 +14,7 @@ class ColorSchemeExample extends StatefulWidget {
 }
 
 class _ColorSchemeExampleState extends State<ColorSchemeExample> {
-  Color selectedColor = const Color(0xFFFCEEDB);
+  Color selectedColor = Colors.green;
   Brightness selectedBrightness = Brightness.light;
   double selectedContrast = 0.0;
   static const List<DynamicSchemeVariant> schemeVariants = DynamicSchemeVariant.values;

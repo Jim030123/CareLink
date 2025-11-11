@@ -61,7 +61,7 @@ class HealthCard extends StatelessWidget {
                           Text(
                             value,
                             style: TextStyle(
-                              fontSize: 35.sp,
+                              fontSize: 20.sp,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

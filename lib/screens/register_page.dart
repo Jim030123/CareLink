@@ -65,82 +65,112 @@ class RegisterPage extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 16.w,
-                                vertical: 8.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Color(0xFFF4CBA1),
-                                borderRadius: BorderRadius.circular(16.w),
-                              ),
+                            SizedBox(height: 16.h),
 
-                              child: Text(
-                                '1',
-                                style: TextStyle(fontSize: 24.sp),
-                              ),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 16.w,
+                                    vertical: 8.h,
+                                  ),
+
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFF4CBA1),
+
+                                    borderRadius: BorderRadius.circular(16.w),
+                                  ),
+
+                                  child: Text(
+                                    '1',
+                                    style: TextStyle(fontSize: 24.sp),
+                                  ),
+                                ),
+                                SizedBox(width: 8.w),
+
+                                Expanded(
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 16.w,
+
+                                      vertical: 8.h,
+                                    ),
+
+                                    decoration: BoxDecoration(
+                                      color: Color(0xFFFFF8F0),
+
+                                      borderRadius: BorderRadius.circular(16.w),
+                                    ),
+
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+
+                                      children: [
+                                        Icon(
+                                          Icons.lightbulb_outline,
+
+                                          size: 24.sp,
+
+                                          color: Colors.orange,
+                                        ),
+
+                                        SizedBox(width: 8.w),
+
+                                        Flexible(
+                                          // 防止长文字溢出
+                                          child: Text(
+                                            'Which role would you like to register as?',
+
+                                            textAlign: TextAlign.start,
+
+                                            softWrap: true,
+
+                                            style: TextStyle(fontSize: 15.sp),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            SizedBox(height: 12.h),
 
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16.w),
-                              ),
-                              width: double.infinity,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 16.w,
-                                vertical: 8.h,
-                              ),
+                            Text('data')
+                          ],
+                        ),
+                      ),
 
-                              child: Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 12.w,
-                                  vertical: 4.h,
-                                ),
-
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFFFF8F0),
-
-                                  borderRadius: BorderRadius.circular(8.w),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 6,
-                                      offset: Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.lightbulb_outline,
-                                      size: 24.sp,
-                                      color: Colors.orange,
-                                    ),
-                                    SizedBox(width: 8.w),
-                                    Flexible(
-                                      // 防止长文字溢出
-                                      child: Text(
-                                        'Which role would you like to register as?',
-                                        textAlign: TextAlign.center,
-                                        softWrap: true,
-                                        style: TextStyle(fontSize: 15.sp),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                      SizedBox(height: 16.h),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12.w,
+                          vertical: 4.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16.w),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 6,
+                              offset: Offset(0, 3),
                             ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             SizedBox(height: 16.h),
 
                             ElevatedButton(
                               onPressed: () {
-                                context.go('/register/caregiver');
+                                context.push(
+                                  '/register/caregiver',
+                                ); // animation?
                               },
                               child: Text('Caregiver'),
-                            ),
+                            ), // use push so the page is pushed onto the stack and can be popped
 
                             SizedBox(height: 16.h),
                             Text(
@@ -156,7 +186,7 @@ class RegisterPage extends StatelessWidget {
 
                             ElevatedButton(
                               onPressed: () {
-                                context.go('/register/doctor');
+                                context.push('/register/doctor');
                               },
                               child: Text('Doctor'),
                             ),
@@ -174,7 +204,6 @@ class RegisterPage extends StatelessWidget {
                         ),
                       ),
 
-                      SizedBox(height: 8.h),
                       Center(
                         child: TextButton(
                           onPressed: () => context.go('/login'),
