@@ -1,3 +1,4 @@
+import 'package:carelink_mobile/components/text_field.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -160,6 +161,7 @@ class _LoginPageState extends State<LoginPage> {
                               },
                             ),
                             SizedBox(height: 12.h),
+
                             TextFormField(
                               controller: _passController,
                               decoration: InputDecoration(
@@ -192,15 +194,7 @@ class _LoginPageState extends State<LoginPage> {
                               width: double.infinity,
                               child: ElevatedButton(
                                 onPressed: _onLogin,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: accent,
-                                  foregroundColor: Colors.black,
-                                  padding: EdgeInsets.symmetric(vertical: 12.h),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20.w),
-                                  ),
-                                  elevation: 0,
-                                ),
+
                                 child: Text(
                                   'Login',
                                   style: TextStyle(fontSize: 16.sp),

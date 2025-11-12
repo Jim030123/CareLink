@@ -1,6 +1,9 @@
+import 'package:carelink_mobile/utils/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:go_router/go_router.dart';
 
 /// Create Primary Caregiver Account step
 /// Exposes callbacks:
@@ -41,7 +44,7 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
     super.dispose();
   }
 
-  void _handleNext() {
+  Future<void> _handleNext() async {
     if (!_formKey.currentState!.validate()) return;
 
     final data = {
@@ -53,20 +56,44 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
 
     if (widget.onNext != null) {
       widget.onNext!(data);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Form valid — implement onNext to proceed'),
-        ),
-      );
+      return;
     }
+
+    // Attempt to create the account. Recent firebase_auth versions removed
+    // fetchSignInMethodsForEmail to avoid email enumeration; instead we try
+    // to create the user and handle the 'email-already-in-use' error.
+    // try {
+    //   await AuthService.instance.signUpWithEmail(
+    //     email: data['email']!,
+    //     password: data['password']!,
+    //   );
+
+      // On success, navigate to next registration step
+      context.push('/register/caregiver/numberofcarerecipient');
+    // } on FirebaseAuthException catch (e) {
+    //   if (e.code == 'email-already-in-use') {
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       const SnackBar(
+    //         content: Text(
+    //           'You already created an account before, please sign in',
+    //         ),
+    //       ),
+    //     );
+    //   } else {
+    //     ScaffoldMessenger.of(
+    //       context,
+    //     ).showSnackBar(SnackBar(content: Text('Register failed: $e')));
+    //   }
+    // } catch (e) {
+    //   ScaffoldMessenger.of(
+    //     context,
+    //   ).showSnackBar(SnackBar(content: Text('Register failed: $e')));
+    // }
   }
 
   @override
   Widget build(BuildContext context) {
-    final Color background = const Color(0xFFFAF3EC);
     final Color card = Colors.white;
-    final Color accent = const Color(0xFFF4CBA1);
 
     return Scaffold(
       body: LayoutBuilder(
@@ -146,49 +173,66 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
 
                                 Expanded(
                                   child: Container(
+                                    alignment: Alignment.topLeft,
                                     padding: EdgeInsets.symmetric(
                                       horizontal: 16.w,
 
                                       vertical: 8.h,
                                     ),
 
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFFFFF8F0),
-
-                                      borderRadius: BorderRadius.circular(16.w),
-                                    ),
-
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-
-                                      children: [
-                                        Icon(
-                                          Icons.lightbulb_outline,
-
-                                          size: 24.sp,
-
-                                          color: Colors.orange,
-                                        ),
-
-                                        SizedBox(width: 8.w),
-
-                                        Flexible(
-                                          // 防止长文字溢出
-                                          child: Text(
-                                            'Allows us to customize the care experience based on the caregiver\'s relationship, preferences, and responsibilities.',
-
-                                            textAlign: TextAlign.justify,
-
-                                            softWrap: true,
-
-                                            style: TextStyle(fontSize: 15.sp),
-                                          ),
-                                        ),
-                                      ],
+                                    child: Text(
+                                      'Create Primary Caregiver',
+                                      textAlign: TextAlign.center,
+                                      softWrap: true,
+                                      style: TextStyle(
+                                        fontSize: 24.sp,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ],
+                            ),
+                            SizedBox(height: 16.h),
+
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                width: constraints.maxWidth,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 16.w,
+                                  vertical: 8.h,
+                                ),
+
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFFFF8F0),
+                                  borderRadius: BorderRadius.circular(16.w),
+                                ),
+
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+
+                                  children: [
+                                    Icon(
+                                      Icons.lightbulb_outline,
+                                      size: 24.sp,
+                                      color: Colors.orange,
+                                    ),
+
+                                    SizedBox(width: 8.w),
+
+                                    Flexible(
+                                      // 防止长文字溢出
+                                      child: Text(
+                                        'Allows us to customize the care experience based on the caregiver\'s relationship, preferences, and responsibilities.',
+                                        textAlign: TextAlign.justify,
+                                        softWrap: true,
+                                        style: TextStyle(fontSize: 15.sp),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -256,8 +300,9 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                                 validator: (v) {
                                   if (v == null || v.isEmpty)
                                     return 'Confirm password';
-                                  if (v != _password.text)
+                                  if (v != _password.text) {
                                     return 'Passwords do not match';
+                                  }
                                   return null;
                                 },
                               ),
@@ -276,13 +321,8 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                               onPressed:
                                   widget.onBack ??
                                   () => Navigator.of(context).maybePop(),
-                              style: OutlinedButton.styleFrom(
+                              style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20.w),
-                                ),
-                                side: const BorderSide(color: Colors.black12),
-                                padding: EdgeInsets.symmetric(vertical: 12.h),
                               ),
                               child: Text(
                                 'Back',
@@ -297,15 +337,7 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                           Expanded(
                             child: ElevatedButton(
                               onPressed: _handleNext,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: accent,
-                                foregroundColor: Colors.black,
-                                padding: EdgeInsets.symmetric(vertical: 12.h),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20.w),
-                                ),
-                                elevation: 0,
-                              ),
+
                               child: Text(
                                 'Next',
                                 style: TextStyle(fontSize: 14.sp),
@@ -318,37 +350,10 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                       SizedBox(height: 16.h),
 
                       Center(
-                        child: ElevatedButton(
-                          onPressed:
-                              widget.onLogin ??
-                              () => Navigator.of(
-                                context,
-                              ).pushReplacementNamed('/login'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: card,
-                            foregroundColor: Colors.black,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 36.w,
-                              vertical: 12.h,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20.w),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Text(
-                            'Login',
-                            style: TextStyle(fontSize: 14.sp),
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: 8.h),
-                      Center(
                         child: Text(
                           'Already have account? Login here',
                           style: TextStyle(
-                            fontSize: 12.sp,
+                            fontSize: 15.sp,
                             color: Colors.black54,
                           ),
                         ),

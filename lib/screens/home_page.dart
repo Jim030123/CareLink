@@ -3,7 +3,6 @@ import 'package:carelink_mobile/components/home_calendar.dart';
 import 'package:carelink_mobile/models/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:carelink_mobile/components/health_card.dart';
 
 class HomePage extends StatefulWidget {
@@ -14,7 +13,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final List<bool> _isSelected = [true, false];
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<double> _appBarOpacity = ValueNotifier(1.0);
   // how many logical pixels to scroll before the appbar becomes fully transparent
@@ -74,7 +72,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     // Prepare slices: first 3 services for the special layout, rest for the grid
-    final topServices = services.take(3).toList();
+    services.take(3).toList();
     final gridServices = services.length > 3
         ? services.skip(3).toList()
         : <Service>[];

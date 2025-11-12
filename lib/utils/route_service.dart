@@ -1,5 +1,7 @@
 import 'package:carelink_mobile/screens/home_page.dart';
 import 'package:carelink_mobile/screens/login_page.dart';
+import 'package:carelink_mobile/screens/register_care_reciepient_page.dart';
+import 'package:carelink_mobile/screens/register_number_care_reciepient_page.dart';
 import 'package:carelink_mobile/screens/register_page.dart';
 import 'package:carelink_mobile/utils/test_page.dart';
 import 'package:go_router/go_router.dart';
@@ -12,7 +14,10 @@ import '../screens/register_doctor_page.dart';
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: <GoRoute>[
-    GoRoute(path: '/', builder: (context, state) => const LoginPage()),
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const LoginPage(),
+    ),
     GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
     GoRoute(
       path: '/register',
@@ -23,6 +28,16 @@ final GoRouter appRouter = GoRouter(
       path: '/register/caregiver',
       builder: (context, state) => const RegisterCaregiverPage(),
     ),
+
+    // GoRoute(
+    //   path: '/register/caregiver/registerrecipientdetail',
+    //   builder: (context, state) => const RegisterCareReciepientPage(),
+    // ),
+    GoRoute(
+      path: '/register/caregiver/numberofcarerecipient',
+      builder: (context, state) => const NumberCareReciepientPage(),
+    ),
+
     GoRoute(
       path: '/register/doctor',
       builder: (context, state) => const RegisterDoctorPage(),

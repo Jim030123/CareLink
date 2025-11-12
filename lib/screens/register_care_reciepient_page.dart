@@ -1,205 +1,391 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
+// import 'package:flutter/material.dart';
+// import 'package:flutter_screenutil/flutter_screenutil.dart';
+// import 'package:flutter_svg/svg.dart';
 
-/// Step: Care Recipient Account — select how many elderly persons the user will manage.
-///
-/// Callbacks:
-/// - onBack: VoidCallback? (defaults to Navigator.pop)
-/// - onNext: ValueChanged<int>? receives the selected count
-/// - onLogin: VoidCallback? (defaults to pushReplacementNamed('/login'))
-class RegisterCareReciepientPage extends StatefulWidget {
-  const RegisterCareReciepientPage({
-    super.key,
-    this.initialCount = 1,
-    this.onBack,
-    this.onNext,
-    this.onLogin,
-  });
+// /// Step: Care Recipient Account — select how many elderly persons the user will manage.
+// ///
+// /// Callbacks:
+// /// - onBack: VoidCallback? (defaults to Navigator.pop)
+// /// - onNext: ValueChanged<int>? receives the selected count
+// /// - onLogin: VoidCallback? (defaults to pushReplacementNamed('/login'))
+// class RegisterCareReciepientPage extends StatefulWidget {
+//   const RegisterCareReciepientPage({super.key});
 
-  final int initialCount;
-  final VoidCallback? onBack;
-  final ValueChanged<int>? onNext;
-  final VoidCallback? onLogin;
+//   @override
+//   State<RegisterCareReciepientPage> createState() =>
+//       _RegisterCareReciepientPageState();
+// }
 
-  @override
-  State<RegisterCareReciepientPage> createState() => _RegisterCareReciepientPageState();
-}
+// class _RegisterCareReciepientPageState
+//     extends State<RegisterCareReciepientPage> {
+//   @override
+//   Widget build(BuildContext context) {
+//     final Color card = Colors.white;
+//     final Color accent = const Color(0xFFF4CBA1);
 
-class _RegisterCareReciepientPageState extends State<RegisterCareReciepientPage> {
-  late int _count;
+//     return Scaffold(
+//       body: LayoutBuilder(
+//         builder: (context, constraints) {
+//           return SafeArea(
+//             child: SingleChildScrollView(
+//               child: Center(
+//                 child: Padding(
+//                   padding: EdgeInsets.symmetric(
+//                     horizontal: 16.w,
+//                     vertical: 8.h,
+//                   ),
+//                   child: Column(
+//                     mainAxisSize: MainAxisSize.min,
+//                     children: [
+//                       // step indicator and card
+//                       Container(
+//                         padding: EdgeInsets.all(16.w),
 
-  @override
-  void initState() {
-    super.initState();
-    _count = widget.initialCount.clamp(0, 99);
-  }
+//                         decoration: BoxDecoration(
+//                           color: Colors.white,
 
-  void _increment() {
-    setState(() {
-      if (_count < 99) _count++;
-    });
-  }
+//                           borderRadius: BorderRadius.circular(16.w),
 
-  void _decrement() {
-    setState(() {
-      if (_count > 0) _count--;
-    });
-  }
+//                           boxShadow: const [
+//                             BoxShadow(
+//                               color: Colors.black12,
 
-  String _displayCount() => _count.toString().padLeft(2, '0');
+//                               blurRadius: 8,
 
-  void _handleNext() {
-    if (widget.onNext != null) {
-      widget.onNext!(_count);
-    } else {
-      // default: show simple message
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selected count: $_count')));
-    }
-  }
+//                               offset: Offset(0, 4),
+//                             ),
+//                           ],
+//                         ),
 
-  @override
-  Widget build(BuildContext context) {
-    final Color bg = const Color(0xFFFAF3EC);
-    final Color card = Colors.white;
-    final Color accent = const Color(0xFFF4CBA1);
+//                         child: Column(
+//                           crossAxisAlignment: CrossAxisAlignment.center,
 
-    return Scaffold(
-      backgroundColor: bg,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        title: Text('Register', style: TextStyle(fontSize: 18.sp, color: Colors.black)),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
-          child: Column(
-            children: [
-              // step indicator and card
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(12.w),
-                decoration: BoxDecoration(color: card, borderRadius: BorderRadius.circular(16.w)),
-                child: Column(
-                  children: [
-                    Align(
-                      alignment: Alignment.topLeft,
-                      child: Icon(Icons.local_hospital, color: Colors.deepOrange, size: 28.w),
-                    ),
-                    SizedBox(height: 8.h),
-                    CircleAvatar(
-                      radius: 16.w,
-                      backgroundColor: accent,
-                      child: Text('2', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600)),
-                    ),
-                    SizedBox(height: 8.h),
-                    Text('Care Recipient Account', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600)),
-                    SizedBox(height: 6.h),
-                    Text('Enter how much Elderly Person need to handle', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.sp, color: Colors.black54)),
-                  ],
-                ),
-              ),
+//                           children: [
+//                             Row(
+//                               children: [
+//                                 SvgPicture.asset(
+//                                   'assets/icons/logo.svg',
 
-              SizedBox(height: 40.h),
+//                                   width: 60.w,
 
-              // counter controls
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // decrement button
-                  GestureDetector(
-                    onTap: _decrement,
-                    child: Container(
-                      width: 48.w,
-                      height: 48.w,
-                      decoration: BoxDecoration(color: card, shape: BoxShape.circle, boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0,4))]),
-                      child: Center(child: Text('-', style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold))),
-                    ),
-                  ),
+//                                   height: 60.h,
+//                                 ),
 
-                  SizedBox(width: 18.w),
+//                                 Expanded(
+//                                   child: Center(
+//                                     child: Container(
+//                                       margin: EdgeInsets.only(right: 60.w),
 
-                  // display
-                  Container(
-                    width: 84.w,
-                    height: 84.w,
-                    decoration: BoxDecoration(color: card, borderRadius: BorderRadius.circular(12.w), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0,4))]),
-                    child: Center(child: Text(_displayCount(), style: TextStyle(fontSize: 36.sp, fontWeight: FontWeight.w700))),
-                  ),
+//                                       child: Text(
+//                                         'Register',
 
-                  SizedBox(width: 18.w),
+//                                         textAlign: TextAlign.center,
 
-                  // increment button
-                  GestureDetector(
-                    onTap: _increment,
-                    child: Container(
-                      width: 48.w,
-                      height: 48.w,
-                      decoration: BoxDecoration(color: card, shape: BoxShape.circle, boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0,4))]),
-                      child: Center(child: Text('+', style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold))),
-                    ),
-                  ),
-                ],
-              ),
+//                                         style: TextStyle(
+//                                           fontSize: 25.sp,
 
-              SizedBox(height: 40.h),
+//                                           fontWeight: FontWeight.bold,
+//                                         ),
+//                                       ),
+//                                     ),
+//                                   ),
+//                                 ),
+//                               ],
+//                             ),
 
-              // Back / Next buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: widget.onBack ?? () => Navigator.of(context).maybePop(),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: card,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.w)),
-                        side: const BorderSide(color: Colors.black12),
-                        padding: EdgeInsets.symmetric(vertical: 12.h),
-                      ),
-                      child: Text('Back', style: TextStyle(fontSize: 14.sp, color: Colors.black)),
-                    ),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _handleNext,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: accent,
-                        foregroundColor: Colors.black,
-                        padding: EdgeInsets.symmetric(vertical: 12.h),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.w)),
-                        elevation: 0,
-                      ),
-                      child: Text('Next', style: TextStyle(fontSize: 14.sp)),
-                    ),
-                  ),
-                ],
-              ),
+//                             SizedBox(height: 16.h),
 
-              SizedBox(height: 18.h),
+//                             Row(
+//                               children: [
+//                                 Align(
+//                                   alignment: Alignment.topCenter,
 
-              Center(
-                child: ElevatedButton(
-                  onPressed: widget.onLogin ?? () => Navigator.of(context).pushReplacementNamed('/login'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: card,
-                    foregroundColor: Colors.black,
-                    padding: EdgeInsets.symmetric(horizontal: 36.w, vertical: 12.h),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.w)),
-                    elevation: 0,
-                  ),
-                  child: Text('Login', style: TextStyle(fontSize: 14.sp)),
-                ),
-              ),
+//                                   child: Container(
+//                                     padding: EdgeInsets.symmetric(
+//                                       horizontal: 16.w,
 
-              SizedBox(height: 8.h),
-              Center(child: Text('Already have account? Login here', style: TextStyle(fontSize: 12.sp, color: Colors.black54))),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+//                                       vertical: 8.h,
+//                                     ),
+
+//                                     decoration: BoxDecoration(
+//                                       color: Color(0xFFF4CBA1),
+
+//                                       borderRadius: BorderRadius.circular(16.w),
+//                                     ),
+
+//                                     child: Text(
+//                                       '4',
+
+//                                       style: TextStyle(fontSize: 24.sp),
+//                                     ),
+//                                   ),
+//                                 ),
+
+//                                 SizedBox(width: 8.w),
+
+//                                 Expanded(
+//                                   child: Container(
+//                                     alignment: Alignment.topLeft,
+
+//                                     padding: EdgeInsets.symmetric(
+//                                       horizontal: 16.w,
+
+//                                       vertical: 8.h,
+//                                     ),
+
+//                                     child: Text(
+//                                       'Care Reciepient Detail',
+
+//                                       textAlign: TextAlign.center,
+
+//                                       softWrap: true,
+
+//                                       style: TextStyle(
+//                                         fontSize: 24.sp,
+
+//                                         fontWeight: FontWeight.bold,
+//                                       ),
+//                                     ),
+//                                   ),
+//                                 ),
+//                               ],
+//                             ),
+
+//                             SizedBox(height: 16.h),
+
+//                             Align(
+//                               alignment: Alignment.centerLeft,
+
+//                               child: Container(
+//                                 width: constraints.maxWidth,
+
+//                                 padding: EdgeInsets.symmetric(
+//                                   horizontal: 16.w,
+
+//                                   vertical: 8.h,
+//                                 ),
+
+//                                 decoration: BoxDecoration(
+//                                   color: Color(0xFFFFF8F0),
+
+//                                   borderRadius: BorderRadius.circular(16.w),
+//                                 ),
+
+//                                 child: Row(
+//                                   mainAxisSize: MainAxisSize.min,
+
+//                                   children: [
+//                                     Icon(
+//                                       Icons.lightbulb_outline,
+
+//                                       size: 24.sp,
+
+//                                       color: Colors.orange,
+//                                     ),
+
+//                                     SizedBox(width: 8.w),
+
+//                                     Flexible(
+//                                       // 防止长文字溢出
+//                                       child: Text(
+//                                         'Fill Care Reciepient Detail',
+
+//                                         textAlign: TextAlign.justify,
+
+//                                         softWrap: true,
+
+//                                         style: TextStyle(fontSize: 15.sp),
+//                                       ),
+//                                     ),
+//                                   ],
+//                                 ),
+//                               ),
+//                             ),
+//                           ],
+//                         ),
+//                       ),
+
+//                       SizedBox(height: 40.h),
+
+//                       // counter controls
+
+
+//            Container(
+
+//             padding: EdgeInsets.all(16.w),
+
+//             decoration: BoxDecoration(
+
+//              color: card,
+
+//              borderRadius: BorderRadius.circular(16.w),
+
+//              boxShadow: const [
+
+//               BoxShadow(
+
+//                color: Colors.black12,
+
+//                blurRadius: 8,
+
+//                offset: Offset(0, 4),
+
+//               ),
+
+//              ],
+
+//             ),
+
+//             child: Form(
+
+//              key: _formKey,
+
+//              child: Column(
+
+//               children: [
+
+//                _buildTextField(
+
+//                 controller: _firstName,
+
+//                 hint: 'First Name',
+
+//                ),
+
+//                SizedBox(height: 10.h),
+
+//                _buildTextField(
+
+//                 controller: _lastName,
+
+//                 hint: 'Last Name',
+
+//                ),
+
+//                SizedBox(height: 10.h),
+
+//                _buildTextField(
+
+//                 controller: _email,
+
+//                 hint: 'Email',
+
+//                 keyboardType: TextInputType.emailAddress,
+
+//                 validator: (v) {
+
+//                  if (v == null || v.trim().isEmpty)
+
+//                   return 'Enter email';
+
+//                  if (!v.contains('@'))
+
+//                   return 'Enter a valid email';
+
+//                  return null;
+
+//                 },
+
+//                ),
+
+//                SizedBox(height: 10.h),
+
+//                _buildTextField(
+
+//                 controller: _password,
+
+//                 hint: 'Password',
+
+//                 obscureText: true,
+
+//                 validator: (v) {
+
+//                  if (v == null || v.isEmpty)
+
+//                   return 'Enter password';
+
+//                  if (v.length < 6)
+
+//                   return 'Password must be at least 6 characters';
+
+//                  return null;
+
+//                 },
+
+//                ),
+
+//                SizedBox(height: 10.h),
+
+//                _buildTextField(
+
+//                 controller: _confirm,
+
+//                 hint: 'Confirm Password',
+
+//                 obscureText: true,
+
+//                 validator: (v) {
+
+//                  if (v == null || v.isEmpty)
+
+//                   return 'Confirm password';
+
+//                  if (v != _password.text) {
+
+//                   return 'Passwords do not match';
+
+//                  }
+
+//                  return null;
+
+//                 },
+
+//                ),
+
+//               ],
+
+//              ),
+
+//             ),
+
+//            ),
+
+
+
+//                       SizedBox(height: 40.h),
+
+//                       // Back / Next buttons
+//                       Row(
+//                         children: [
+//                           Expanded(
+//                             child: ElevatedButton(
+//                               onPressed: () => Navigator.of(context).maybePop(),
+//                               style: ElevatedButton.styleFrom(
+//                                 backgroundColor: Colors.white,
+//                               ),
+
+//                               child: Text(
+//                                 'Back',
+//                                 style: TextStyle(
+//                                   fontSize: 14.sp,
+//                                   color: Colors.black,
+//                                 ),
+//                               ),
+//                             ),
+//                           ),
+//                           SizedBox(width: 12.w),
+//                         ],
+//                       ),
+
+//                       SizedBox(height: 8.h),
+//                     ],
+//                   ),
+//                 ),
+//               ),
+//             ),
+//           );
+//         },
+//       ),
+//     );
+//   }
+// }

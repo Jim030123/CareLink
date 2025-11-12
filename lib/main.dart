@@ -30,6 +30,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    const Color accentColor = Color(0xFFF4CBA1);
     return OrientationBuilder(
       builder: (context, orientation) {
         return ScreenUtilInit(
@@ -53,6 +54,15 @@ class MyApp extends StatelessWidget {
                 fontFamily: GoogleFonts.roboto().fontFamily,
                 textTheme: GoogleFonts.robotoTextTheme(
                   Theme.of(context).textTheme,
+                ),
+                // Set ElevatedButton default style app-wide
+                elevatedButtonTheme: ElevatedButtonThemeData(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.w)),
+                    elevation: 2,
+                  ),
                 ),
               ),
             );
