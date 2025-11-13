@@ -126,4 +126,6 @@ class AuthService {
     if (user == null) return null;
     return await user.getIdToken(forceRefresh);
   }
+
+
 }

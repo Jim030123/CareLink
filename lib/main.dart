@@ -5,21 +5,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
 
 import 'firebase_options.dart';
-// import 'package:flutter/rendering.dart';
-
+import 'package:carelink_mobile/utils/graphql_service.dart';
 
 
 Future<void> main() async {
-  //  debugPaintSizeEnabled = true;
-
   WidgetsFlutterBinding.ensureInitialized();
-await Firebase.initializeApp(
-  options: DefaultFirebaseOptions.currentPlatform,
-);
 
-   initializeDateFormatting().then((_) => runApp(MyApp()));
+  // Initialize Hive for graphql_flutter cache
+  await initHiveForFlutter();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  await initializeDateFormatting();
+
+  // Create a single client notifier and reuse throughout the app
+  final clientNotifier = createClientNotifier();
+
+  runApp(GraphQLProvider(
+    client: clientNotifier,
+    child: MyApp(),
+  ));
 }
 
 // router is provided by `lib/utils/route_service.dart` as `appRouter`

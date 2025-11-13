@@ -26,57 +26,53 @@ class HealthCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final borderRadius = BorderRadius.circular(12.r);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Material(
-          elevation: 2,
-          color: Colors.transparent,
+    return Material(
+      elevation: 2,
+      color: Colors.transparent,
+      borderRadius: borderRadius,
+      child: Ink(
+        decoration: BoxDecoration(color: color, borderRadius: borderRadius),
+        child: InkWell(
           borderRadius: borderRadius,
-          child: Ink(
-            decoration: BoxDecoration(color: color, borderRadius: borderRadius),
-            child: InkWell(
-              borderRadius: borderRadius,
-              splashColor: Colors.black12,
-              onTap: onTap,
-              child: Container(
-                height: 100.h,
-                padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 12.w),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 18.sp,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 4.h),
-                          Text(
-                            value,
-                            style: TextStyle(
-                              fontSize: 20.sp,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+          splashColor: Colors.black12,
+          onTap: onTap,
+          child: Container(
+            height: 100.h,
+            padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 12.w),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-
-                    Icon(icon, color: iconColor ?? Colors.red, size: 50.sp),
-                  ],
+                      SizedBox(height: 4.h),
+                      Text(
+                        value,
+                        style: TextStyle(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+
+                Icon(icon, color: iconColor ?? Colors.red, size: 50.sp),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

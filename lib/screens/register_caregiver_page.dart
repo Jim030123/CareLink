@@ -1,9 +1,12 @@
-import 'package:carelink_mobile/utils/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:carelink_mobile/components/text_field.dart';
+import 'package:carelink_mobile/utils/graphql_service.dart';
+// import 'package:carelink_mobile/utils/auth_service.dart';
+// import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
 
 /// Create Primary Caregiver Account step
 /// Exposes callbacks:
@@ -59,36 +62,46 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
       return;
     }
 
-    // Attempt to create the account. Recent firebase_auth versions removed
-    // fetchSignInMethodsForEmail to avoid email enumeration; instead we try
-    // to create the user and handle the 'email-already-in-use' error.
-    // try {
-    //   await AuthService.instance.signUpWithEmail(
-    //     email: data['email']!,
-    //     password: data['password']!,
-    //   );
+    // Check whether the email already exists in the backend via GraphQL.
+    // The dev middleware exposes a `users` query (see GraphQLTestPage), so we
+    // query `users { email }` and match client-side. Replace with a filtered
+    // query if your server exposes one for efficiency.
+    try {
+  final client = GraphQLProvider.of(context).value;
+      final result = await client.query(QueryOptions(
+        document: gql(r'''
+          query {
+            users {
+              email
+            }
+          }
+        '''),
+        fetchPolicy: FetchPolicy.networkOnly,
+      ));
 
-      // On success, navigate to next registration step
-      context.push('/register/caregiver/numberofcarerecipient');
-    // } on FirebaseAuthException catch (e) {
-    //   if (e.code == 'email-already-in-use') {
-    //     ScaffoldMessenger.of(context).showSnackBar(
-    //       const SnackBar(
-    //         content: Text(
-    //           'You already created an account before, please sign in',
-    //         ),
-    //       ),
-    //     );
-    //   } else {
-    //     ScaffoldMessenger.of(
-    //       context,
-    //     ).showSnackBar(SnackBar(content: Text('Register failed: $e')));
-    //   }
-    // } catch (e) {
-    //   ScaffoldMessenger.of(
-    //     context,
-    //   ).showSnackBar(SnackBar(content: Text('Register failed: $e')));
-    // }
+      if (result.hasException) {
+        final msg = result.exception.toString();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Server error: $msg')));
+        return;
+      }
+
+      final users = result.data?['users'] as List<dynamic>?;
+      final emailValue = data['email'] as String;
+      final exists = users?.any((u) => (u['email'] as String?)?.toLowerCase() == emailValue.toLowerCase()) ?? false;
+
+      if (exists) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('You already created an account before, please sign in'),
+        ));
+        return;
+      }
+
+  // Not found — proceed to next registration page and pass the caregiver email
+  context.push('/register/caregiver/numberofcarerecipient', extra: _email.text.trim());
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Request failed: $e')));
+      return;
+    }
   }
 
   @override
@@ -257,52 +270,45 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                           key: _formKey,
                           child: Column(
                             children: [
-                              _buildTextField(
+                              FormTextField(
                                 controller: _firstName,
                                 hint: 'First Name',
                               ),
                               SizedBox(height: 10.h),
-                              _buildTextField(
+                              FormTextField(
                                 controller: _lastName,
                                 hint: 'Last Name',
                               ),
                               SizedBox(height: 10.h),
-                              _buildTextField(
+                              FormTextField(
                                 controller: _email,
                                 hint: 'Email',
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (v) {
-                                  if (v == null || v.trim().isEmpty)
-                                    return 'Enter email';
-                                  if (!v.contains('@'))
-                                    return 'Enter a valid email';
+                                  if (v == null || v.trim().isEmpty) return 'Enter email';
+                                  if (!v.contains('@')) return 'Enter a valid email';
                                   return null;
                                 },
                               ),
                               SizedBox(height: 10.h),
-                              _buildTextField(
+                              FormTextField(
                                 controller: _password,
                                 hint: 'Password',
                                 obscureText: true,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
-                                    return 'Enter password';
-                                  if (v.length < 6)
-                                    return 'Password must be at least 6 characters';
+                                  if (v == null || v.isEmpty) return 'Enter password';
+                                  if (v.length < 6) return 'Password must be at least 6 characters';
                                   return null;
                                 },
                               ),
                               SizedBox(height: 10.h),
-                              _buildTextField(
+                              FormTextField(
                                 controller: _confirm,
                                 hint: 'Confirm Password',
                                 obscureText: true,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
-                                    return 'Confirm password';
-                                  if (v != _password.text) {
-                                    return 'Passwords do not match';
-                                  }
+                                  if (v == null || v.isEmpty) return 'Confirm password';
+                                  if (v != _password.text) return 'Passwords do not match';
                                   return null;
                                 },
                               ),
@@ -318,9 +324,7 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                         children: [
                           Expanded(
                             child: ElevatedButton(
-                              onPressed:
-                                  widget.onBack ??
-                                  () => Navigator.of(context).maybePop(),
+                              onPressed: widget.onBack ?? () => Navigator.of(context).maybePop(),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                               ),
@@ -330,14 +334,13 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                                   fontSize: 14.sp,
                                   color: Colors.black,
                                 ),
-                              ), // navigate back
+                              ),
                             ),
                           ),
                           SizedBox(width: 12.w),
                           Expanded(
                             child: ElevatedButton(
                               onPressed: _handleNext,
-
                               child: Text(
                                 'Next',
                                 style: TextStyle(fontSize: 14.sp),
@@ -366,37 +369,6 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
           );
         },
       ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    bool obscureText = false,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-  }) {
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8.w),
-      borderSide: BorderSide(color: Colors.grey.shade300),
-    );
-
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        hintText: hint,
-        contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-        border: border,
-        enabledBorder: border,
-        focusedBorder: border.copyWith(
-          borderSide: const BorderSide(color: Colors.blue),
-        ),
-      ),
-      validator:
-          validator ??
-          (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:go_router/go_router.dart';
+import 'register_care_reciepient_page.dart';
 
 /// Step: Care Recipient Account — select how many elderly persons the user will manage.
 ///
@@ -15,12 +17,14 @@ class NumberCareReciepientPage extends StatefulWidget {
     this.onBack,
     this.onNext,
     this.onLogin,
+    this.caregiverEmail,
   });
 
   final int initialCount;
   final VoidCallback? onBack;
   final ValueChanged<int>? onNext;
   final VoidCallback? onLogin;
+  final String? caregiverEmail;
 
   @override
   State<NumberCareReciepientPage> createState() =>
@@ -34,7 +38,7 @@ class _NumberCareReciepientPageState
   @override
   void initState() {
     super.initState();
-    _count = widget.initialCount.clamp(0, 99);
+    _count = widget.initialCount.clamp(1, 99);
   }
 
   void _increment() {
@@ -45,7 +49,7 @@ class _NumberCareReciepientPageState
 
   void _decrement() {
     setState(() {
-      if (_count > 0) _count--;
+      if (_count > 1) _count--;
     });
   }
 
@@ -55,10 +59,17 @@ class _NumberCareReciepientPageState
     if (widget.onNext != null) {
       widget.onNext!(_count);
     } else {
-      // default: show simple message
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Selected count: $_count')));
+      // default: navigate to the care-recipient detail page
+
+      // Pass both count and caregiverEmail forward so the recipient page can
+      // associate records with the caregiver in the backend.
+      context.push(
+        '/register/caregiver/registerrecipientdetail',
+        extra: {
+          'count': _count,
+          'caregiverEmail': widget.caregiverEmail,
+        },
+      );
     }
   }
 

@@ -25,6 +25,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _onLogin() async {
+    // Validate form fields first; if invalid, show field errors and stop.
+    if (!_formKey.currentState!.validate()) return;
+
     try {
       await AuthService.instance.signInWithEmail(
         email: _emailController.text,
@@ -47,11 +50,6 @@ class _LoginPageState extends State<LoginPage> {
     // initialize responsive helper (adjust design size here if your design uses different base)
 
     final Color background = const Color(0xFFFAF3EC);
-    final Color accent = const Color(0xFFF4CBA1);
-    final OutlineInputBorder fieldBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(6.w),
-      borderSide: BorderSide(color: Colors.grey.shade400),
-    );
 
     return Scaffold(
       backgroundColor: background,
@@ -116,7 +114,7 @@ class _LoginPageState extends State<LoginPage> {
 
                     // White rounded card with form
                     Container(
-                      padding: EdgeInsets.all(20.w),
+                      padding: EdgeInsets.all(16.w),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20.w),
@@ -133,51 +131,21 @@ class _LoginPageState extends State<LoginPage> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            TextFormField(
+                            FormTextField(
                               controller: _emailController,
-                              decoration: InputDecoration(
-                                hintText: 'Email',
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 14,
-                                ),
-                                border: fieldBorder,
-                                enabledBorder: fieldBorder,
-                                focusedBorder: fieldBorder.copyWith(
-                                  borderSide: const BorderSide(
-                                    color: Colors.blue,
-                                  ),
-                                ),
-                              ),
+                              hint: 'Email',
                               keyboardType: TextInputType.emailAddress,
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Enter email';
-                                }
-                                if (!value.contains('@')) {
-                                  return 'Enter a valid email';
-                                }
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Enter email';
+                                if (!v.contains('@')) return 'Enter a valid email';
                                 return null;
                               },
                             ),
                             SizedBox(height: 12.h),
 
-                            TextFormField(
+                            FormTextField(
                               controller: _passController,
-                              decoration: InputDecoration(
-                                hintText: 'Password',
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 14,
-                                ),
-                                border: fieldBorder,
-                                enabledBorder: fieldBorder,
-                                focusedBorder: fieldBorder.copyWith(
-                                  borderSide: const BorderSide(
-                                    color: Colors.blue,
-                                  ),
-                                ),
-                              ),
+                              hint: 'Password',
                               obscureText: true,
                               validator: (value) {
                                 if (value == null || value.isEmpty) {

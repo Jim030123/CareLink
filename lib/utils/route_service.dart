@@ -14,6 +14,7 @@ import '../screens/register_doctor_page.dart';
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: <GoRoute>[
+    // Todo: after login that will save the state
     GoRoute(
       path: '/',
       builder: (context, state) => const LoginPage(),
@@ -29,13 +30,21 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const RegisterCaregiverPage(),
     ),
 
-    // GoRoute(
-    //   path: '/register/caregiver/registerrecipientdetail',
-    //   builder: (context, state) => const RegisterCareReciepientPage(),
-    // ),
+    GoRoute(
+      path: '/register/caregiver/registerrecipientdetail',
+      builder: (context, state) {
+        final extra = state.extra;
+        if (extra is Map) {
+          final count = extra['count'] as int;
+          final caregiverEmail = extra['caregiverEmail'] as String?;
+          return RegisterCareReciepientPage(count: count, caregiverEmail: caregiverEmail);
+        }
+        return RegisterCareReciepientPage(count: extra as int);
+      },
+    ),
     GoRoute(
       path: '/register/caregiver/numberofcarerecipient',
-      builder: (context, state) => const NumberCareReciepientPage(),
+      builder: (context, state) => NumberCareReciepientPage(caregiverEmail: state.extra as String?),
     ),
 
     GoRoute(
