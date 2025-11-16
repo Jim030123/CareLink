@@ -9,7 +9,6 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 /// - Genymotion emulator: use 10.0.3.2.
 /// - Physical device: use the host machine LAN IP (e.g. 10.63.226.21)
 String _defaultBaseUrl() {
-  
   // Fallback to a LAN IP — change this to your dev machine IP when testing on a physical device
   return 'http://10.63.226.100:25001/';
 }

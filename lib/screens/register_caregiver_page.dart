@@ -1,4 +1,5 @@
 import 'package:carelink_mobile/components/text_field.dart';
+import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
 // import 'package:carelink_mobile/utils/auth_service.dart';
 // import 'package:firebase_auth/firebase_auth.dart';
@@ -67,39 +68,173 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
     // query `users { email }` and match client-side. Replace with a filtered
     // query if your server exposes one for efficiency.
     try {
-  final client = GraphQLProvider.of(context).value;
-      final result = await client.query(QueryOptions(
-        document: gql(r'''
+      final client = GraphQLProvider.of(context).value;
+      final result = await client.query(
+        QueryOptions(
+          document: gql(r'''
           query {
             users {
               email
             }
           }
         '''),
-        fetchPolicy: FetchPolicy.networkOnly,
-      ));
+          fetchPolicy: FetchPolicy.networkOnly,
+        ),
+      );
 
       if (result.hasException) {
         final msg = result.exception.toString();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Server error: $msg')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Server error: $msg')));
         return;
       }
 
       final users = result.data?['users'] as List<dynamic>?;
       final emailValue = data['email'] as String;
-      final exists = users?.any((u) => (u['email'] as String?)?.toLowerCase() == emailValue.toLowerCase()) ?? false;
+      final exists =
+          users?.any(
+            (u) =>
+                (u['email'] as String?)?.toLowerCase() ==
+                emailValue.toLowerCase(),
+          ) ??
+          false;
 
       if (exists) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('You already created an account before, please sign in'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You already created an account before, please sign in',
+            ),
+          ),
+        );
         return;
       }
 
-  // Not found — proceed to next registration page and pass the caregiver email
-  context.push('/register/caregiver/numberofcarerecipient', extra: _email.text.trim());
+      // help me insert an id column in user_account table through gqlusing the index_table's id ==1
+      // 1) read the index row where id == 1 to get the next id
+      final idxResult = await client.query(
+        QueryOptions(
+          document: gql(r'''
+            query {
+              indexById(id: 1) {
+                index
+                prefix
+              }
+            }
+            '''),
+          fetchPolicy: FetchPolicy.networkOnly,
+        ),
+      );
+
+      if (idxResult.hasException) {
+        final msg = idxResult.exception.toString();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Index fetch failed: $msg')));
+        return;
+      }
+
+      final index = idxResult.data!['indexById']['index'] as int;
+
+      final prefix = idxResult.data?['indexById']['prefix'];
+
+      final generatedCode = '$prefix-${index.toString().padLeft(3, '0')}';
+      print('Generated Code = $generatedCode');
+
+ // Insert user_account row using the reserved/generated code
+      final insertResult = await client.mutate(
+        MutationOptions(
+          document: gql(r'''
+            mutation InsertUserAccount($id: String!, $email: String!, $firstName: String!, $lastName: String!) {
+              insert_user_account_one(object: {
+                id: $id,
+                email: $email,
+                first_name: $firstName,
+                last_name: $lastName
+              }) {
+                id
+              }
+            }
+          '''),
+          variables: {
+            'id': generatedCode,
+            'email': data['email'],
+            'firstName': data['firstName'],
+            'lastName': data['lastName'],
+          },
+        ),
+      );
+
+      if (insertResult.hasException) {
+        final msg = insertResult.exception.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Insert failed: $msg')),
+        );
+        return;
+      }
+
+      // increment the index on the server to reserve this id and get updated row
+      final incResult = await client.mutate(
+        MutationOptions(
+          document: gql(r'''
+            mutation IncrementIndex($id: Int!) {
+              incrementIndex(id: $id) {
+                index
+                prefix
+              }
+            }
+          '''),
+          variables: {'id': 1},
+        ),
+      );
+
+      if (incResult.hasException) {
+        final msg = incResult.exception.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Index increment failed: $msg')),
+        );
+        return;
+      }
+
+       // Create the Firebase auth user first
+      try {
+        await AuthService.instance.signUpWithEmail(
+          email: data['email'] as String,
+          password: data['password'] as String,
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Signup failed: $e')),
+        );
+        return;
+      }
+
+      final incData = incResult.data?['incrementIndex'];
+      if (incData == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Index increment returned null')),
+        );
+        return;
+      }
+
+      final updatedIndex = incData['index'] as int;
+      final updatedPrefix = incData['prefix'] as String? ?? prefix as String? ?? '';
+
+      final reservedCode = '$updatedPrefix-${updatedIndex.toString().padLeft(3, '0')}';
+      print('Reserved Generated Code = $reservedCode');
+
+
+
+
+      context.push(
+        '/register/caregiver/numberofcarerecipient',
+        extra: _email.text.trim(),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Request failed: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Request failed: $e')));
       return;
     }
   }
@@ -285,8 +420,10 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                                 hint: 'Email',
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (v) {
-                                  if (v == null || v.trim().isEmpty) return 'Enter email';
-                                  if (!v.contains('@')) return 'Enter a valid email';
+                                  if (v == null || v.trim().isEmpty)
+                                    return 'Enter email';
+                                  if (!v.contains('@'))
+                                    return 'Enter a valid email';
                                   return null;
                                 },
                               ),
@@ -296,8 +433,10 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                                 hint: 'Password',
                                 obscureText: true,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty) return 'Enter password';
-                                  if (v.length < 6) return 'Password must be at least 6 characters';
+                                  if (v == null || v.isEmpty)
+                                    return 'Enter password';
+                                  if (v.length < 6)
+                                    return 'Password must be at least 6 characters';
                                   return null;
                                 },
                               ),
@@ -307,8 +446,10 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                                 hint: 'Confirm Password',
                                 obscureText: true,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty) return 'Confirm password';
-                                  if (v != _password.text) return 'Passwords do not match';
+                                  if (v == null || v.isEmpty)
+                                    return 'Confirm password';
+                                  if (v != _password.text)
+                                    return 'Passwords do not match';
                                   return null;
                                 },
                               ),
@@ -324,7 +465,9 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
                         children: [
                           Expanded(
                             child: ElevatedButton(
-                              onPressed: widget.onBack ?? () => Navigator.of(context).maybePop(),
+                              onPressed:
+                                  widget.onBack ??
+                                  () => Navigator.of(context).maybePop(),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                               ),

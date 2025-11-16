@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../screens/graphql_test_page.dart';
 import '../screens/register_caregiver_page.dart';
 import '../screens/register_doctor_page.dart';
+import '../screens/graphql_insert_test_page.dart';
 
 /// Central app router exported for use by `main.dart`.
 final GoRouter appRouter = GoRouter(
@@ -51,5 +52,9 @@ final GoRouter appRouter = GoRouter(
       path: '/register/doctor',
       builder: (context, state) => const RegisterDoctorPage(),
     ),
+    // GoRoute(
+    //   path: '/',
+    //   builder: (context, state) => const GraphQLInsertTestPage(),
+    // ),
   ],
 );
