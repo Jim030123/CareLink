@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:carelink_mobile/components/text_field.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
@@ -116,13 +118,16 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
       final idxResult = await client.query(
         QueryOptions(
           document: gql(r'''
-            query {
-              indexById(id: 1) {
+            query GetIndexByPk($id: Int!) {
+              index_table_by_pk(id: $id) {
+                id
+                name
                 index
                 prefix
               }
             }
             '''),
+          variables: {'id': 1},
           fetchPolicy: FetchPolicy.networkOnly,
         ),
       );
@@ -135,44 +140,148 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
         return;
       }
 
-      final index = idxResult.data!['indexById']['index'] as int;
+      // read from Hasura response key for single-row by-pk
+      final index = idxResult.data!['index_table_by_pk']['index'] as int;
 
-      final prefix = idxResult.data?['indexById']['prefix'];
+      final prefix = idxResult.data?['index_table_by_pk']['prefix'] as String?;
 
       final generatedCode = '$prefix-${index.toString().padLeft(3, '0')}';
-      print('Generated Code = $generatedCode');
+      debugPrint('Generated Code = $generatedCode');
 
- // Insert user_account row using the reserved/generated code
-      final insertResult = await client.mutate(
-        MutationOptions(
-          document: gql(r'''
-            mutation InsertUserAccount($id: String!, $email: String!, $firstName: String!, $lastName: String!) {
-              insert_user_account_one(object: {
-                id: $id,
-                email: $email,
-                first_name: $firstName,
-                last_name: $lastName
-              }) {
-                id
+      final userCredential = await AuthService.instance.signUpWithEmail(
+        email: data['email'] as String,
+        password: data['password'] as String,
+      );
+
+      final uid = userCredential.user!.uid;
+      print("New UID = $uid");
+
+      // refresh usertable first through gql query from firebase
+  final userTableResult = await client.query(
+        QueryOptions(
+          document: gql('''
+            query {
+              users {
+                uid
+                email
               }
             }
           '''),
-          variables: {
-            'id': generatedCode,
-            'email': data['email'],
-            'firstName': data['firstName'],
-            'lastName': data['lastName'],
-          },
         ),
       );
 
-      if (insertResult.hasException) {
-        final msg = insertResult.exception.toString();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Insert failed: $msg')),
+//print the usertableresult
+print(userTableResult.data);
+
+
+
+
+      // If we have a Firebase UID for this user, update the user_account.id
+      // where uid matches the Firebase UID to reserve the generatedCode.
+      if (uid.isNotEmpty) {
+        // Use server's expected mutation signature: pass uid and new_id directly
+        final updateUserIdGql = r'''
+          mutation UpdateUserAccountId($uid: String!, $new_id: String!) {
+            update_user_account(uid: $uid, new_id: $new_id) {
+              id
+            }
+          }
+          ''';
+
+        final updateResult = await client.mutate(
+          MutationOptions(
+            document: gql(updateUserIdGql),
+            variables: {'uid': uid, 'new_id': generatedCode},
+            fetchPolicy: FetchPolicy.noCache,
+          ),
         );
-        return;
+        // Detailed logging for update result
+        if (updateResult.hasException) {
+          debugPrint(
+            'Update user_account id failed: ${updateResult.exception}',
+          );
+          // log GraphQL errors and link exceptions if present
+          final ex = updateResult.exception;
+          if (ex != null) {
+            if (ex.graphqlErrors.isNotEmpty) {
+              for (final ge in ex.graphqlErrors) {
+                debugPrint(
+                  'GraphQL error: ${ge.message}; path: ${ge.path}; extensions: ${ge.extensions}',
+                );
+              }
+            }
+            if (ex.linkException != null) {
+              debugPrint('Link exception: ${ex.linkException}');
+            }
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to update account id: ${updateResult.exception}',
+              ),
+            ),
+          );
+        }
+
+        debugPrint('Update user_account result: ${updateResult.data}');
+
+        // Server returns the updated user object with `id` (or null on failure).
+       final returnedId =
+            updateResult.data?['update_user_account']?['id'] as  String?;
+        final accountSet = returnedId != null && returnedId.isNotEmpty;
+
+        if (!accountSet) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to set user_account.id for this uid.'),
+            ),
+          );
+          return;
+        }
       }
+
+      // Insert user_account row using the generated code
+      //   final String upsertCaregiverGql = r'''
+      // mutation UpsertCaregiver($input: CaregiverInput!) {
+      //   upsertCaregiver(input: $input) {
+      //     id
+      //     firstName
+      //     lastName
+      //     name
+      //     email
+      //     phone
+      //     caregiverType
+      //     careRecipientId
+      //   }
+      // }
+      // ''';
+
+      //   final variables = {
+      //     'id': generatedCode,
+      //     'firstName': data['firstName'],
+      //     'lastName': data['lastName'],
+      //     'email': data['email'],
+      //     'phone': null,
+      //     'caregiverType': 'Primary',
+      //     'careRecipientId': null,
+      //   };
+
+      //   final insertResult = await client.mutate(
+      //     MutationOptions(
+      //       document: gql(upsertCaregiverGql),
+      //       variables: {'input': variables},
+      //       fetchPolicy: FetchPolicy.noCache,
+      //     ),
+      //   );
+
+      //   if (insertResult.hasException) {
+      //     debugPrint('Upsert failed: ${insertResult.exception}');
+      //   } else {
+      //     debugPrint('Upsert result: ${insertResult.data}');
+      //   }
+
+      // Before incrementing the index, ensure the account row was actually set
+
 
       // increment the index on the server to reserve this id and get updated row
       final incResult = await client.mutate(
@@ -191,47 +300,25 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
 
       if (incResult.hasException) {
         final msg = incResult.exception.toString();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Index increment failed: $msg')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Index increment failed: $msg')));
         return;
       }
 
-       // Create the Firebase auth user first
-      try {
-        await AuthService.instance.signUpWithEmail(
-          email: data['email'] as String,
-          password: data['password'] as String,
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Signup failed: $e')),
-        );
-        return;
-      }
-
-      final incData = incResult.data?['incrementIndex'];
-      if (incData == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Index increment returned null')),
-        );
-        return;
-      }
-
-      final updatedIndex = incData['index'] as int;
-      final updatedPrefix = incData['prefix'] as String? ?? prefix as String? ?? '';
-
-      final reservedCode = '$updatedPrefix-${updatedIndex.toString().padLeft(3, '0')}';
-      print('Reserved Generated Code = $reservedCode');
-
-
-
-
-      context.push(
-        '/register/caregiver/numberofcarerecipient',
-        extra: _email.text.trim(),
+      // if create a caregiver success and upsert success create a debugmessage
+      debugPrint(
+        'Caregiver created and upserted successfully with code: $generatedCode',
       );
-    } catch (e) {
+
+      // Directly navigate to recipient detail and pass useful values via extra
+      // if (!mounted) return;
+      // context.push(
+      //   '/register/caregiver/recipientdetail',
+      //   extra: {'cgid': generatedCode, 'count': 1},
+      // );
+    } catch (e, st) {
+      debugPrint('Request failed: $e\n$st');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Request failed: $e')));

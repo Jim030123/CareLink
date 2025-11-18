@@ -1,5 +1,6 @@
 import 'package:carelink_mobile/screens/home_page.dart';
 import 'package:carelink_mobile/screens/login_page.dart';
+import 'package:carelink_mobile/screens/medicIne_reminder.dart';
 import 'package:carelink_mobile/screens/register_care_reciepient_page.dart';
 import 'package:carelink_mobile/screens/register_number_care_reciepient_page.dart';
 import 'package:carelink_mobile/screens/register_page.dart';
@@ -20,6 +21,12 @@ final GoRouter appRouter = GoRouter(
       path: '/',
       builder: (context, state) => const LoginPage(),
     ),
+
+//  GoRoute(
+//       path: '/',
+//       builder: (context, state) => const TypeofMedicine(),
+//     ),
+
     GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
     GoRoute(
       path: '/register',
