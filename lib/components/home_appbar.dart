@@ -13,10 +13,8 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    
-    return LayoutBuilder( 
+    return LayoutBuilder(
       builder: (context, constraints) => Row(
-        
         children: [
           // left: avatar + name
           Expanded(
@@ -32,7 +30,6 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
                 SizedBox(width: 10.w),
                 Expanded(
                   child: Column(
-                    
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -53,7 +50,7 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
                         ),
                       ),
                       // 不再使用 Flexible（会请求无限高度），改为固定高度的 SizedBox
-                      AutoMarqueeText( 
+                      AutoMarqueeText(
                         text: userName,
                         style: TextStyle(
                           fontSize: 15.sp,
@@ -73,9 +70,9 @@ class HomeAppbar extends StatelessWidget implements PreferredSizeWidget {
               ],
             ),
           ),
-            
+
           // middle: toggle buttons
-       
+
           // right: logo
           Flexible(
             flex: 1,

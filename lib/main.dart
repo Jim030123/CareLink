@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'firebase_options.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
@@ -26,9 +27,11 @@ Future<void> main() async {
   // Create a single client notifier and reuse throughout the app
   final clientNotifier = createClientNotifier();
 
-  runApp(GraphQLProvider(
-    client: clientNotifier,
-    child: MyApp(),
+  runApp(ProviderScope(
+    child: GraphQLProvider(
+      client: clientNotifier,
+      child: MyApp(),
+    ),
   ));
 }
 

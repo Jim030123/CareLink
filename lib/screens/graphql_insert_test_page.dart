@@ -60,10 +60,10 @@ class _GraphQLInsertTestPageState extends State<GraphQLInsertTestPage> {
         },
       ];
 
-      // Use middleware schema: upsertCareReciepient(input: CareReciepientInput!)
+      // Use middleware schema: upsertCareRecipient(input: CareRecipientInput!)
       const String mutation = r'''
-mutation UpsertCareRecipient($input: CareReciepientInput!) {
-  upsertCareReciepient(input: $input) {
+mutation UpsertCareRecipient($input: CareRecipientInput!) {
+  upsertCareRecipient(input: $input) {
     id
     firstName
     lastName
@@ -107,7 +107,7 @@ mutation UpsertCareRecipient($input: CareReciepientInput!) {
             _appendLog('GraphQL linkException: ${result.exception!.linkException}');
           }
         } else {
-          final data = result.data?['upsertCareReciepient'];
+          final data = result.data?['upsertCareRecipient'];
           _appendLog('Upsert returned: $data');
           if (data == null) {
             _appendLog('Note: mutation returned null — check server resolver, validation, or constraints (e.g., caregiverId existence).');

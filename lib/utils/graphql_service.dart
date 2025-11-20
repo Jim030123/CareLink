@@ -34,4 +34,3 @@ GraphQLClient createClient({String? idToken, String? baseUrl}) {
 /// Convenience for GraphQLProvider
 ValueNotifier<GraphQLClient> createClientNotifier({String? idToken, String? baseUrl}) =>
     ValueNotifier<GraphQLClient>(createClient(idToken: idToken, baseUrl: baseUrl));
-

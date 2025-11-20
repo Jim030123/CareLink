@@ -288,7 +288,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
           child: Container(
             height: 44.h,
             decoration: BoxDecoration(
-              color: sel ? const Color(0xFFF8D8D8) : Colors.transparent,
+              color: sel ? const Color(0xFFF7EAD3) : Colors.transparent,
               boxShadow: sel
                   ? [
                       BoxShadow(
@@ -458,6 +458,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                             ),
 
                             child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
                                 //add this
                                 Align(
@@ -512,9 +513,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                       Expanded(
                         child: SizedBox(
                           child: ElevatedButton(
-                            onPressed: () {
-
-                            },
+                            onPressed: () {},
                             style: ElevatedButton.styleFrom(
                               padding: EdgeInsets.symmetric(vertical: 14.h),
                               shape: RoundedRectangleBorder(

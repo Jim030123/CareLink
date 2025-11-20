@@ -1,8 +1,9 @@
 import 'package:carelink_mobile/screens/home_page.dart';
 import 'package:carelink_mobile/screens/login_page.dart';
 import 'package:carelink_mobile/screens/medicIne_reminder.dart';
-import 'package:carelink_mobile/screens/register_care_reciepient_page.dart';
-import 'package:carelink_mobile/screens/register_number_care_reciepient_page.dart';
+import 'package:carelink_mobile/screens/register_care_recipient_page.dart';
+import 'package:carelink_mobile/screens/register_care_recipient_page.dart';
+import 'package:carelink_mobile/screens/register_number_care_recipient_page.dart';
 import 'package:carelink_mobile/screens/register_page.dart';
 import 'package:carelink_mobile/utils/test_page.dart';
 import 'package:go_router/go_router.dart';
@@ -17,16 +18,9 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: <GoRoute>[
     // Todo: after login that will save the state
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const LoginPage(),
-    ),
+    // GoRoute(path: '/', builder: (context, state) => const RegisterCareRecipientPage(count: 2)),
 
-//  GoRoute(
-//       path: '/',
-//       builder: (context, state) => const TypeofMedicine(),
-//     ),
-
+    GoRoute(path: '/', builder: (context, state) => const RegisterCareRecipientPage(count: 2)),
     GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
     GoRoute(
       path: '/register',
@@ -44,15 +38,14 @@ final GoRouter appRouter = GoRouter(
         final extra = state.extra;
         if (extra is Map) {
           final count = extra['count'] as int;
-          final caregiverEmail = extra['caregiverEmail'] as String?;
-          return RegisterCareReciepientPage(count: count, caregiverEmail: caregiverEmail);
+          return RegisterCareRecipientPage(count: count);
         }
-        return RegisterCareReciepientPage(count: extra as int);
+        return RegisterCareRecipientPage(count: extra as int);
       },
     ),
     GoRoute(
       path: '/register/caregiver/numberofcarerecipient',
-      builder: (context, state) => NumberCareReciepientPage(caregiverEmail: state.extra as String?),
+      builder: (context, state) => const NumberCareRecipientPage(),
     ),
 
     GoRoute(

@@ -1,11 +1,14 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/text_field.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
 // import 'package:carelink_mobile/utils/auth_service.dart';
 // import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../utils/caregiver_provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
@@ -16,7 +19,7 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 /// - onBack: VoidCallback
 /// - onNext: ValueChanged<Map<String, dynamic>> with collected form data
 /// - onLogin: VoidCallback
-class RegisterCaregiverPage extends StatefulWidget {
+class RegisterCaregiverPage extends ConsumerStatefulWidget {
   const RegisterCaregiverPage({
     super.key,
     this.onBack,
@@ -29,16 +32,17 @@ class RegisterCaregiverPage extends StatefulWidget {
   final VoidCallback? onLogin;
 
   @override
-  State<RegisterCaregiverPage> createState() => _RegisterCaregiverPageState();
+  ConsumerState<RegisterCaregiverPage> createState() => _RegisterCaregiverPageState();
 }
 
-class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
+class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _firstName = TextEditingController();
   final TextEditingController _lastName = TextEditingController();
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
   final TextEditingController _confirm = TextEditingController();
+  final TextEditingController _phone = TextEditingController();
 
   @override
   void dispose() {
@@ -47,6 +51,7 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
     _email.dispose();
     _password.dispose();
     _confirm.dispose();
+    _phone.dispose();
     super.dispose();
   }
 
@@ -58,6 +63,7 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
       'lastName': _lastName.text.trim(),
       'email': _email.text.trim(),
       'password': _password.text,
+      'phone': _phone.text.trim(),
     };
 
     if (widget.onNext != null) {
@@ -115,38 +121,18 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
 
       // help me insert an id column in user_account table through gqlusing the index_table's id ==1
       // 1) read the index row where id == 1 to get the next id
-      final idxResult = await client.query(
-        QueryOptions(
-          document: gql(r'''
-            query GetIndexByPk($id: Int!) {
-              index_table_by_pk(id: $id) {
-                id
-                name
-                index
-                prefix
-              }
-            }
-            '''),
-          variables: {'id': 1},
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-      );
+     final generatedCode = await fetchGeneratedCode(
+  context,
+  id: 1,
+);
 
-      if (idxResult.hasException) {
-        final msg = idxResult.exception.toString();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Index fetch failed: $msg')));
-        return;
+      // store generated caregiver id in Riverpod state so downstream pages
+      // can read it without relying on router extras.
+      try {
+        ref.read(caregiverIdProvider.notifier).state = generatedCode;
+      } catch (e) {
+        debugPrint('Failed to write caregiverIdProvider: $e');
       }
-
-      // read from Hasura response key for single-row by-pk
-      final index = idxResult.data!['index_table_by_pk']['index'] as int;
-
-      final prefix = idxResult.data?['index_table_by_pk']['prefix'] as String?;
-
-      final generatedCode = '$prefix-${index.toString().padLeft(3, '0')}';
-      debugPrint('Generated Code = $generatedCode');
 
       final userCredential = await AuthService.instance.signUpWithEmail(
         email: data['email'] as String,
@@ -157,7 +143,7 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
       print("New UID = $uid");
 
       // refresh usertable first through gql query from firebase
-  final userTableResult = await client.query(
+      final userTableResult = await client.query(
         QueryOptions(
           document: gql('''
             query {
@@ -170,31 +156,34 @@ class _RegisterCaregiverPageState extends State<RegisterCaregiverPage> {
         ),
       );
 
-//print the usertableresult
-print(userTableResult.data);
-
-
-
+      //print the usertableresult
+      print(userTableResult.data);
 
       // If we have a Firebase UID for this user, update the user_account.id
       // where uid matches the Firebase UID to reserve the generatedCode.
       if (uid.isNotEmpty) {
-        // Use server's expected mutation signature: pass uid and new_id directly
-        final updateUserIdGql = r'''
-          mutation UpdateUserAccountId($uid: String!, $new_id: String!) {
-            update_user_account(uid: $uid, new_id: $new_id) {
+        // Use newest schema: `updateCaregiverAccount` mutation (camelCase)
+        final updateCaregiverAccountGql = r'''
+          mutation UpdateCaregiverAccount($uid: String!, $new_id: String!, $userType: String!) {
+            update_caregiver_account(uid: $uid, new_id: $new_id, userType: $userType) {
               id
+              userType
             }
           }
-          ''';
+        ''';
 
         final updateResult = await client.mutate(
           MutationOptions(
-            document: gql(updateUserIdGql),
-            variables: {'uid': uid, 'new_id': generatedCode},
+            document: gql(updateCaregiverAccountGql),
+            variables: {
+              'uid': uid,
+              'new_id': generatedCode,
+              'userType': 'Caregiver',
+            },
             fetchPolicy: FetchPolicy.noCache,
           ),
         );
+
         // Detailed logging for update result
         if (updateResult.hasException) {
           debugPrint(
@@ -214,20 +203,13 @@ print(userTableResult.data);
               debugPrint('Link exception: ${ex.linkException}');
             }
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Failed to update account id: ${updateResult.exception}',
-              ),
-            ),
-          );
         }
 
-        debugPrint('Update user_account result: ${updateResult.data}');
+        debugPrint('Update caregiver account result: ${updateResult.data}');
 
         // Server returns the updated user object with `id` (or null on failure).
-       final returnedId =
-            updateResult.data?['update_user_account']?['id'] as  String?;
+        final returnedId =
+            updateResult.data?['update_caregiver_account']?['id'] as String?;
         final accountSet = returnedId != null && returnedId.isNotEmpty;
 
         if (!accountSet) {
@@ -240,69 +222,30 @@ print(userTableResult.data);
         }
       }
 
-      // Insert user_account row using the generated code
-      //   final String upsertCaregiverGql = r'''
-      // mutation UpsertCaregiver($input: CaregiverInput!) {
-      //   upsertCaregiver(input: $input) {
-      //     id
-      //     firstName
-      //     lastName
-      //     name
-      //     email
-      //     phone
-      //     caregiverType
-      //     careRecipientId
-      //   }
-      // }
-      // ''';
-
-      //   final variables = {
-      //     'id': generatedCode,
-      //     'firstName': data['firstName'],
-      //     'lastName': data['lastName'],
-      //     'email': data['email'],
-      //     'phone': null,
-      //     'caregiverType': 'Primary',
-      //     'careRecipientId': null,
-      //   };
-
-      //   final insertResult = await client.mutate(
-      //     MutationOptions(
-      //       document: gql(upsertCaregiverGql),
-      //       variables: {'input': variables},
-      //       fetchPolicy: FetchPolicy.noCache,
-      //     ),
-      //   );
-
-      //   if (insertResult.hasException) {
-      //     debugPrint('Upsert failed: ${insertResult.exception}');
-      //   } else {
-      //     debugPrint('Upsert result: ${insertResult.data}');
-      //   }
-
-      // Before incrementing the index, ensure the account row was actually set
-
-
       // increment the index on the server to reserve this id and get updated row
+      final incGql = r'''
+        mutation IncrementIndex($pk_columns: IndexPkColumnsInput!, $_inc: IndexIncInput) {
+          update_index_table_by_pk(pk_columns: $pk_columns, _inc: $_inc) {
+            index
+            prefix
+          }
+        }
+        ''';
+
       final incResult = await client.mutate(
         MutationOptions(
-          document: gql(r'''
-            mutation IncrementIndex($id: Int!) {
-              incrementIndex(id: $id) {
-                index
-                prefix
-              }
-            }
-          '''),
-          variables: {'id': 1},
+          document: gql(incGql),
+          variables: {
+            'pk_columns': {'id': 1}, // required by schema
+            '_inc': {'index': 1}, // increment by 1
+          },
+          fetchPolicy: FetchPolicy.noCache,
         ),
       );
 
       if (incResult.hasException) {
         final msg = incResult.exception.toString();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Index increment failed: $msg')));
+        debugPrint('Index increment failed: $msg');
         return;
       }
 
@@ -311,12 +254,50 @@ print(userTableResult.data);
         'Caregiver created and upserted successfully with code: $generatedCode',
       );
 
+      // Insert caregiver row using the generated code
+
+      final String upsertCaregiverGql = r'''
+        mutation UpsertCaregiver($input: CaregiverInput!) {
+          insert_caregiver (object: $input) {
+            id
+            firstName
+            lastName
+            name
+            email
+            phone
+            caregiverType
+            careRecipientId
+          }
+        }
+        ''';
+
+      final variables = {
+        'id': generatedCode,
+        'firstName': data['firstName'],
+        'lastName': data['lastName'],
+        'email': data['email'],
+        'phone': data['phone'],
+        'caregiverType': 'Primary',
+        'careRecipientId': null,
+      };
+
+      final insertResult = await client.mutate(
+        MutationOptions(
+          document: gql(upsertCaregiverGql),
+          variables: {'input': variables},
+          fetchPolicy: FetchPolicy.noCache,
+        ),
+      );
+
+      if (insertResult.hasException) {
+        debugPrint('Upsert failed: ${insertResult.exception}');
+      } else {
+        debugPrint('Upsert result: ${insertResult.data}');
+      }
+
       // Directly navigate to recipient detail and pass useful values via extra
-      // if (!mounted) return;
-      // context.push(
-      //   '/register/caregiver/recipientdetail',
-      //   extra: {'cgid': generatedCode, 'count': 1},
-      // );
+      if (!mounted) return;
+      context.push('/register/caregiver/numberofcarerecipient');
     } catch (e, st) {
       debugPrint('Request failed: $e\n$st');
       ScaffoldMessenger.of(
@@ -502,6 +483,19 @@ print(userTableResult.data);
                                 hint: 'Last Name',
                               ),
                               SizedBox(height: 10.h),
+                              FormTextField(
+                                controller: _phone,
+                                keyboardType: TextInputType.phone,
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty)
+                                    return 'Enter phone number';
+                                  return null;
+                                },
+                                hint: 'Phone',
+                              ),
+
+                              SizedBox(height: 10.h),
+
                               FormTextField(
                                 controller: _email,
                                 hint: 'Email',

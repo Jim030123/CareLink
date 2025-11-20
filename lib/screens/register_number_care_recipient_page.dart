@@ -3,8 +3,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../utils/caregiver_provider.dart';
-import 'register_care_recipient_page.dart';
+
+
 
 /// Step: Care Recipient Account — select how many elderly persons the user will manage.
 ///
@@ -12,8 +12,8 @@ import 'register_care_recipient_page.dart';
 /// - onBack: VoidCallback? (defaults to Navigator.pop)
 /// - onNext: ValueChanged<int>? receives the selected count
 /// - onLogin: VoidCallback? (defaults to pushReplacementNamed('/login'))
-class NumberCareReciepientPage extends ConsumerStatefulWidget {
-  const NumberCareReciepientPage({
+class NumberCareRecipientPage extends ConsumerStatefulWidget {
+  const NumberCareRecipientPage({
     super.key,
     this.initialCount = 1,
     this.onBack,
@@ -27,12 +27,12 @@ class NumberCareReciepientPage extends ConsumerStatefulWidget {
   final VoidCallback? onLogin;
 
   @override
-  ConsumerState<NumberCareReciepientPage> createState() =>
-      _NumberCareReciepientPageState();
+  ConsumerState<NumberCareRecipientPage> createState() =>
+      _NumberCareRecipientPageState();
 }
 
-class _NumberCareReciepientPageState
-  extends ConsumerState<NumberCareReciepientPage> {
+class _NumberCareRecipientPageState
+  extends ConsumerState<NumberCareRecipientPage> {
   late int _count;
 
   @override
@@ -190,7 +190,7 @@ class _NumberCareReciepientPageState
                                     ),
 
                                     child: Text(
-                                      'Create Care Reciepient',
+                                      'Create Care Recipient',
 
                                       textAlign: TextAlign.center,
 
