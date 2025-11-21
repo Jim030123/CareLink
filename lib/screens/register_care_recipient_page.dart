@@ -5,7 +5,7 @@ import 'package:flutter_svg/svg.dart';
 import '../components/care_recipient_form.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../utils/caregiver_provider.dart';
+// caregiver provider import removed (not used in this screen)
 
 /// Step: Care Recipient Account — select how many elderly persons the user will manage.
 ///
@@ -66,18 +66,7 @@ class _RegisterCareRecipientPageState
       _formKeys.add(GlobalKey<FormState>());
     }
 
-    // Show caregiver id in a SnackBar when the page first appears (if present).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final caregiverId = ref.read(caregiverIdProvider);
-      if (caregiverId != null && caregiverId.isNotEmpty) {
-        debugPrint(
-          'Reached RegisterCareRecipientPage with caregiverId: $caregiverId',
-        );
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Caregiver id: $caregiverId')));
-      }
-    });
+    // intentionally left empty: no startup SnackBar required
   }
 
   @override
@@ -426,8 +415,7 @@ class _RegisterCareRecipientPageState
                                         // test
                                         final caregiverId = 'CG-005';
 
-                                        if (caregiverId == null ||
-                                            caregiverId.isEmpty) {
+                                        if (caregiverId.isEmpty) {
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(

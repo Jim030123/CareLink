@@ -37,7 +37,7 @@ class HealthCard extends StatelessWidget {
           splashColor: Colors.black12,
           onTap: onTap,
           child: Container(
-            height: 100.h,
+            
             padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 12.w),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

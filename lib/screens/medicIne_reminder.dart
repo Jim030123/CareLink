@@ -1,3 +1,5 @@
+import 'package:carelink_mobile/components/status.dart';
+import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -17,8 +19,7 @@ class TypeofMedicine extends StatefulWidget {
 
 class _TypeofMedicineState extends State<TypeofMedicine> {
   late MedicineType _selected;
-  int _selectedStatus = 0; // 0 = Sufficient, 1 = Finished
-  int _selectedSegment = 1; // 0=Schedule,1=Medicine,2=History
+  int _selectedSegment = 1;
 
   @override
   void initState() {
@@ -27,201 +28,34 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
   }
 
   void _select(MedicineType t) {
-    setState(() {
-      _selected = t;
-    });
+    setState(() => _selected = t);
     widget.onChanged?.call(t);
   }
 
-  Widget _buildPile() {
-    final items = [
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Paracetamol',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Calcium',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-      },
-    ];
-
-    return Column(
-      children: items.map((it) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: 12.h),
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-            decoration: BoxDecoration(
-              color: it['color'] as Color?,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8.w),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Image.asset(
-                    it['asset'] as String,
-                    width: 20.w,
-                    height: 20.w,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: Text(
-                    it['name'] as String,
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Dose: ${it['dose']}',
-                      style: TextStyle(fontSize: 13.sp),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      '${it['left']} Left',
-                      style: TextStyle(fontSize: 12.sp, color: Colors.black54),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
+  String _labelFor(MedicineType t) {
+    switch (t) {
+      case MedicineType.capsule:
+        return 'Capsule';
+      case MedicineType.tablet:
+        return 'Tablet';
+      case MedicineType.injection:
+        return 'Injection';
+      case MedicineType.cream:
+        return 'Cream';
+    }
   }
 
-  Widget statusRow({required String label, required Color color}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-
-      children: [
-        // Indicator（带阴影的圆点）
-        Container(
-          width: 8.w,
-
-          height: 8.h,
-
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-
-            color: color, // 主色
-
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black12,
-
-                blurRadius: 1,
-
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-        ),
-
-        SizedBox(width: 12.w),
-
-        // 文本用 Expanded 避免 Row overflow
-        Expanded(
-          child: Text(
-            label,
-
-            maxLines: 1,
-
-            overflow: TextOverflow.ellipsis,
-
-            style: TextStyle(fontSize: 16.sp, color: Colors.black87),
-          ),
-        ),
-      ],
-    );
+  String _assetFor(MedicineType t) {
+    switch (t) {
+      case MedicineType.capsule:
+        return 'assets/icons/capsule.png';
+      case MedicineType.tablet:
+        return 'assets/icons/tablet.png';
+      case MedicineType.injection:
+        return 'assets/icons/injection.png';
+      case MedicineType.cream:
+        return 'assets/icons/cream.png';
+    }
   }
 
   Widget _buildOption({
@@ -246,38 +80,38 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
               color: bg,
               borderRadius: BorderRadius.circular(12),
               border: border,
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: Colors.orange.withOpacity(0.12),
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-
-            // replace with the assets/icons/cream.png
-            child: Image.asset(assetName, width: 28, height: 28),
+            child: Image.asset(assetName, width: 28.w, height: 28.w),
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: isSelected ? Colors.black87 : Colors.black54,
-            ),
-          ),
+          SizedBox(height: 8.h),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12.sp,
+                  color: isSelected ? Colors.black87 : Colors.black54)),
         ],
       ),
     );
   }
+
+  final List<Map<String, dynamic>> _items = [
+    {'name': 'Aspirin', 'dose': '500mg', 'left': '25', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF7EAD3)},
+    {'name': 'Paracetamol', 'dose': '500mg', 'left': '18', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF8D8D8)},
+    {'name': 'Calcium', 'dose': '500mg', 'left': '25', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF7EAD3)},
+    {'name': 'Ibuprofen', 'dose': '200mg', 'left': '12', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF8D8D8)},
+    {'name': 'Amoxicillin', 'dose': '250mg', 'left': '10', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF7EAD3)},
+    {'name': 'Metformin', 'dose': '500mg', 'left': '40', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF8D8D8)},
+    {'name': 'Simvastatin', 'dose': '20mg', 'left': '30', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF7EAD3)},
+    {'name': 'Omeprazole', 'dose': '20mg', 'left': '15', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF8D8D8)},
+    {'name': 'Losartan', 'dose': '50mg', 'left': '22', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF7EAD3)},
+    {'name': 'Lisinopril', 'dose': '10mg', 'left': '28', 'asset': 'assets/icons/capsule.png', 'color': const Color(0xFFF8D8D8)},
+  ];
 
   Widget _buildSegmentedControl() {
     Widget seg(String label, int idx) {
@@ -291,7 +125,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
               color: sel ? const Color(0xFFF7EAD3) : Colors.transparent,
               boxShadow: sel
                   ? [
-                      BoxShadow(
+                      const BoxShadow(
                         color: Colors.black12,
                         blurRadius: 4,
                         offset: Offset(0, 1),
@@ -314,7 +148,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
       );
     }
 
-    // fixed-width segmented pill so it can be centered and have equal segments
     return SizedBox(
       width: 260.w,
       height: 44.h,
@@ -324,15 +157,12 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
           borderRadius: BorderRadius.circular(24.w),
           border: Border.all(color: Colors.grey.shade300),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24.w),
-          child: Row(
-            children: [
-              seg('Schedule', 0),
-              seg('Medicine', 1),
-              seg('History', 2),
-            ],
-          ),
+        child: Row(
+          children: [
+            seg('Schedule', 0),
+            seg('Medicine', 1),
+            seg('History', 2),
+          ],
         ),
       ),
     );
@@ -341,208 +171,189 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SafeArea(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: 8.h),
-
-                    Container(
-                      padding: EdgeInsets.all(16.w),
-                      width: constraints.maxWidth,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Type of Medication',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 8.h),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildOption(
-                                  type: MedicineType.capsule,
-                                  assetName: 'assets/icons/capsule.png',
-                                  label: 'Capsule',
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _buildOption(
-                                  type: MedicineType.tablet,
-                                  assetName: 'assets/icons/tablet.png',
-                                  label: 'Tablet',
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _buildOption(
-                                  type: MedicineType.injection,
-                                  assetName: 'assets/icons/injection.png',
-                                  label: 'Injection',
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _buildOption(
-                                  type: MedicineType.cream,
-                                  assetName: 'assets/icons/cream.png',
-                                  label: 'Cream',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 12),
-
-                    Container(
-                      padding: EdgeInsets.all(16.w),
-                      width: constraints.maxWidth,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Dosage',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 8.h),
-                          // Add dosage input fields or widgets here
-                          Container(
-                            padding: EdgeInsets.all(16.w),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12.r),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                //add this
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    "Status",
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                statusRow(
-                                  label: 'Active',
-                                  color: Color(0xFFF8D8D8),
-                                ),
-                                statusRow(
-                                  label: 'Inactive',
-                                  color: Color(0xFFF7EAD3),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(height: 12.h),
-                          _buildPile(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+      appBar: const PageAppBar(
+        title: 'Medicine Reminder',
+        showBack: true,
+        showSearch: true,
       ),
-      bottomNavigationBar: LayoutBuilder(
-        builder: (context, constraints) {
-          return SafeArea(
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-              color: Colors.transparent,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(height: 10.h),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+      body: CustomScrollView(
+        slivers: [
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _TypeHeaderDelegate(
+              maxExtent: 180.h,
+              minExtent: 88.h,
+              builder: (context, progress) {
+                return Container(
+                  padding: EdgeInsets.all(12.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: Center(child: _buildSegmentedControl())),
-                      SizedBox(width: 12.w),
-
-                      Expanded(
-                        child: SizedBox(
-                          child: ElevatedButton(
-                            onPressed: () {},
-                            style: ElevatedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 14.h),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add, size: 20.w),
-                                SizedBox(width: 8.w),
-                                Text(
-                                  'Add Medication',
-                                  style: TextStyle(fontSize: 11.sp),
-                                ),
-                              ],
-                            ),
+                      if (progress < 1.0) ...[
+                        Opacity(
+                          opacity: (1 - progress),
+                          child: const Text(
+                            'Type of Medication',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
+                        ),
+                        SizedBox(height: 8.h),
+                        SizedBox(
+                          height: (1 - progress) * 80.h,
+                          child: Row(
+                            children: MedicineType.values.map((t) {
+                              return Expanded(
+                                child: _buildOption(
+                                  type: t,
+                                  assetName: _assetFor(t),
+                                  label: _labelFor(t),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
+                      Opacity(
+                        opacity: progress,
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(8.w),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Image.asset(_assetFor(_selected), width: 24.w, height: 24.w),
+                            ),
+                            SizedBox(width: 12.w),
+                            Text(_labelFor(_selected),
+                                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                          ],
                         ),
                       ),
                     ],
                   ),
+                );
+              },
+            ),
+          ),
+
+          /// 🔥 这里用 SliverList 替代 Column，解决溢出问题!
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final it = _items[index];
+                return Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
+                  child: Container(
+                    padding: EdgeInsets.all(12.w),
+                    decoration: BoxDecoration(
+                      color: it['color'],
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        const BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(8.w),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Image.asset(it['asset'], width: 20.w, height: 20.w),
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Text(it['name'],
+                              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('Dose: ${it['dose']}', style: TextStyle(fontSize: 13.sp)),
+                            SizedBox(height: 4.h),
+                            Text('${it['left']} Left',
+                                style: TextStyle(fontSize: 12.sp, color: Colors.black54)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+              childCount: _items.length,
+            ),
+          ),
+        ],
+      ),
+
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StatusCard(),
+              SizedBox(height: 10.h),
+              Row(
+                children: [
+                  _buildSegmentedControl(),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {},
+                      child: Text('Add Medication', style: TextStyle(fontSize: 11.sp)),
+                    ),
+                  ),
                 ],
               ),
-            ),
-          );
-        },
+            ],
+          ),
+        ),
       ),
     );
   }
+}
+
+class _TypeHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double _maxExtent;
+  final double _minExtent;
+  final Widget Function(BuildContext, double progress) builder;
+
+  _TypeHeaderDelegate({
+    required double maxExtent,
+    required double minExtent,
+    required this.builder,
+  })  : _maxExtent = maxExtent,
+        _minExtent = minExtent;
+
+  @override
+  double get maxExtent => _maxExtent;
+
+  @override
+  double get minExtent => _minExtent;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final range = maxExtent - minExtent;
+    final progress = (shrinkOffset / range).clamp(0.0, 1.0);
+    return builder(context, progress);
+  }
+
+  @override
+  bool shouldRebuild(_TypeHeaderDelegate oldDelegate) =>
+      oldDelegate.maxExtent != maxExtent || oldDelegate.minExtent != minExtent;
 }
