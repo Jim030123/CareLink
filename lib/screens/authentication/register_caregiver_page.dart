@@ -8,7 +8,7 @@ import 'package:carelink_mobile/utils/graphql_service.dart';
 // import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../utils/caregiver_provider.dart';
+import '../../utils/caregiver_provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
@@ -77,6 +77,10 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
     // query if your server exposes one for efficiency.
     try {
       final client = GraphQLProvider.of(context).value;
+
+
+      // (sync moved later to after sign-up to ensure uid exists server-side)
+
       final result = await client.query(
         QueryOptions(
           document: gql(r'''
@@ -141,6 +145,47 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
 
       final uid = userCredential.user!.uid;
       print("New UID = $uid");
+
+      // ⭐ Minimal-change approach: run the server-side sync after signup
+      // so the newly-created Firebase UID is present when Postgres is refreshed.
+      try {
+        final syncMutation = r'''
+          mutation SyncUsersToPostgres {
+            syncUsersToPostgres {
+              success
+              synced
+            }
+          }
+        ''';
+
+        final syncResult = await client.mutate(
+          MutationOptions(
+            document: gql(syncMutation),
+            fetchPolicy: FetchPolicy.noCache,
+          ),
+        );
+
+        if (syncResult.hasException) {
+          debugPrint('syncUsersToPostgres mutation error: ${syncResult.exception}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Warning: user sync failed (continuing).')),
+          );
+        } else {
+          final syncData = syncResult.data?['syncUsersToPostgres'];
+          if (syncData is Map) {
+            debugPrint('syncUsersToPostgres: success=${syncData['success']}, synced=${syncData['synced']}');
+          } else if (syncData is bool) {
+            debugPrint('syncUsersToPostgres: result=$syncData');
+          } else {
+            debugPrint('syncUsersToPostgres: unexpected result: $syncData');
+          }
+        }
+      } catch (e, st) {
+        debugPrint('syncUsersToPostgres call failed: $e\n$st');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Warning: user sync failed (continuing).')),
+        );
+      }
 
       // refresh usertable first through gql query from firebase
       final userTableResult = await client.query(
@@ -212,6 +257,8 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
             updateResult.data?['update_caregiver_account']?['id'] as String?;
         final accountSet = returnedId != null && returnedId.isNotEmpty;
 
+
+
         if (!accountSet) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -220,33 +267,6 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
           );
           return;
         }
-      }
-
-      // increment the index on the server to reserve this id and get updated row
-      final incGql = r'''
-        mutation IncrementIndex($pk_columns: IndexPkColumnsInput!, $_inc: IndexIncInput) {
-          update_index_table_by_pk(pk_columns: $pk_columns, _inc: $_inc) {
-            index
-            prefix
-          }
-        }
-        ''';
-
-      final incResult = await client.mutate(
-        MutationOptions(
-          document: gql(incGql),
-          variables: {
-            'pk_columns': {'id': 1}, // required by schema
-            '_inc': {'index': 1}, // increment by 1
-          },
-          fetchPolicy: FetchPolicy.noCache,
-        ),
-      );
-
-      if (incResult.hasException) {
-        final msg = incResult.exception.toString();
-        debugPrint('Index increment failed: $msg');
-        return;
       }
 
       // if create a caregiver success and upsert success create a debugmessage

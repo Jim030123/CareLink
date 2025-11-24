@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// A small card that shows statuses such as Active / Inactive.
-class StatusCard extends StatelessWidget {
-    const StatusCard({Key? key}) : super(key: key);
+class Status_Card extends StatelessWidget {
+    const Status_Card({Key? key}) : super(key: key);
 
     @override
     Widget build(BuildContext context) {
@@ -34,12 +34,12 @@ class StatusCard extends StatelessWidget {
                         ),
                         SizedBox(height: 12.h),
                         const _StatusRow(
-                            label: 'Active',
+                            label: 'Insufficient',
                             color: Color(0xFFF8D8D8),
                         ),
                         SizedBox(height: 8.h),
                         const _StatusRow(
-                            label: 'Inactive',
+                            label: 'Sufficient',
                             color: Color(0xFFF7EAD3),
                         ),
                     ],

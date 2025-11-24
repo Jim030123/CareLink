@@ -3,16 +3,17 @@ import 'package:carelink_mobile/components/home_calendar.dart';
 import 'package:carelink_mobile/models/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'dart:math';
 import 'package:carelink_mobile/components/health_card.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class CareRecipientHomePage extends StatefulWidget {
+  const CareRecipientHomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<CareRecipientHomePage> createState() => _CareRecipientHomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _CareRecipientHomePageState extends State<CareRecipientHomePage> {
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<double> _appBarOpacity = ValueNotifier(1.0);
   // how many logical pixels to scroll before the appbar becomes fully transparent
@@ -74,8 +75,25 @@ class _HomePageState extends State<HomePage> {
     // Prepare slices: first 3 services for the special layout, rest for the grid
     services.take(3).toList();
     final gridServices = services.length > 3
-        ? services.skip(3).toList()
-        : <Service>[];
+      ? services.skip(3).toList()
+      : <Service>[];
+    // If for any reason the grid slice is empty, show all services so the
+    // page doesn't appear blank while testing.
+    final displayServices = gridServices.isNotEmpty ? gridServices : services;
+
+    // Responsive sizing for grid children: compute childAspectRatio from
+    // available width and a desired item height based on screen height.
+    final screenWidth = MediaQuery.of(context).size.width;
+    // total horizontal padding applied around the grid (matching SliverPadding)
+    final totalHorizontalPadding = 16.w * 2;
+    // spacing between columns (crossAxisSpacing)
+    final columnSpacing = 12.w;
+    final availableWidth = screenWidth - totalHorizontalPadding - columnSpacing;
+    final itemWidth = availableWidth / 2;
+    // choose itemHeight as a fraction of screen height but clamp to reasonable bounds
+    final rawItemHeight = MediaQuery.of(context).size.height * 0.18;
+    final itemHeight = max(120.h, min(220.h, rawItemHeight));
+    final childAspectRatio = itemWidth / itemHeight;
     return Scaffold(
       extendBodyBehindAppBar: false,
       // appBar: HomeAppbar(userName: 'This is a very long name that will scroll automatically'),
@@ -122,7 +140,7 @@ class _HomePageState extends State<HomePage> {
                       bottom: 16.h + 210.h + 8.h,
                       child: Center(
                         child: Text(
-                          'Calendar',
+                          'Appointment Upcoming',
                           style: TextStyle(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.bold,
@@ -218,15 +236,15 @@ class _HomePageState extends State<HomePage> {
                             title: 'Heart Rate',
                             value: '149',
                             icon: Icons.favorite_outline_outlined,
-                            
+
                             color: Colors.white,
                             onTap: () {
                               // preserve existing onTap behavior (empty for now)
                             },
                           ),
-                            
+
                           SizedBox(height: 8.h),
-                            
+
                           HealthCard(
                             title: 'Energy Score',
                             value: '81',
@@ -241,9 +259,9 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                            
+
                   // 右半屏：两个卡片（Container）
-                      Expanded(
+                  Expanded(
                     child: Padding(
                       padding: EdgeInsets.all(4.w),
                       child: Column(
@@ -254,15 +272,15 @@ class _HomePageState extends State<HomePage> {
                             title: 'Blood Oxygen',
                             value: '93',
                             icon: Icons.bloodtype_outlined,
-                           iconColor: Colors.green,
+                            iconColor: Colors.green,
                             color: Colors.white,
                             onTap: () {
                               // preserve existing onTap behavior (empty for now)
                             },
                           ),
-                            
+
                           SizedBox(height: 8.h),
-                            
+
                           HealthCard(
                             title: 'Sleep Score',
                             value: '73',
@@ -276,7 +294,8 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                     ),
-                  ),                ],
+                  ),
+                ],
               ),
             ),
           ),
@@ -333,65 +352,35 @@ class _HomePageState extends State<HomePage> {
             sliver: SliverGrid(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 3 / 2,
+                childAspectRatio: childAspectRatio,
                 mainAxisSpacing: 10.h,
                 crossAxisSpacing: 12.w,
               ),
               delegate: SliverChildBuilderDelegate((context, index) {
-                final service = gridServices[index];
-                final bool useDarkText = service.color.computeLuminance() > 0.5;
+                final svc = displayServices[index];
                 return Padding(
                   padding: EdgeInsets.all(4.w),
                   child: Material(
                     elevation: 2,
                     borderRadius: BorderRadius.circular(12.r),
-                    color: service.color,
+
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12.r),
                       splashColor: Colors.black12,
-                      onTap:
-                          service.onTap ??
-                          () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Tapped ${service.title}'),
-                              ),
-                            );
-                          },
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 12.h,
-                          horizontal: 8.w,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            Icon(
-                              service.icon,
-                              size: 28.sp,
-                              color: useDarkText
-                                  ? Colors.black87
-                                  : Colors.white,
-                            ),
-                            SizedBox(height: 8.h),
-                            Text(
-                              service.title,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 16.sp,
-                                fontWeight: FontWeight.w600,
-                                color: useDarkText
-                                    ? Colors.black87
-                                    : Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
+                      onTap: svc.onTap ?? () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('${svc.title} tapped')),
+                        );
+                      },
+                      child: _serviceCard(
+                        service: svc.title,
+                        icon: svc.icon,
+                        iconColor: svc.color,
                       ),
                     ),
                   ),
                 );
-              }, childCount: gridServices.length),
+              }, childCount: displayServices.length),
             ),
           ),
 
@@ -415,7 +404,6 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-
         ],
       ),
     );
@@ -428,6 +416,38 @@ class _HomePageState extends State<HomePage> {
     _appBarOpacity.dispose();
     super.dispose();
   }
+}
+
+Widget _serviceCard({
+  required String service,
+  required IconData icon,
+  final Color? iconColor,
+}) {
+  return Container(
+    padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 8.w),
+    child: LayoutBuilder(builder: (context, constraints) {
+      // scale icon and text according to available height
+      final maxH = constraints.maxHeight.isFinite ? constraints.maxHeight : 160.h;
+      final iconSize = min(64.sp, maxH * 0.38);
+      final textStyle = TextStyle(fontSize: max(12.sp, maxH * 0.08), fontWeight: FontWeight.w600);
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: iconColor ?? Colors.red, size: iconSize),
+          SizedBox(height: 8.h),
+          Flexible(
+            child: Text(
+              service,
+              textAlign: TextAlign.center,
+              style: textStyle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    }),
+  );
 }
 
 class _SimpleHeaderDelegate extends SliverPersistentHeaderDelegate {

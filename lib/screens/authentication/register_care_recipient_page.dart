@@ -2,9 +2,12 @@ import 'package:carelink_mobile/components/numbering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
-import '../components/care_recipient_form.dart';
+import '../../components/care_recipient_form.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math';
 // caregiver provider import removed (not used in this screen)
 
 /// Step: Care Recipient Account — select how many elderly persons the user will manage.
@@ -77,6 +80,16 @@ class _RegisterCareRecipientPageState
       }
     }
     super.dispose();
+  }
+
+  String _generatePassword([int length = 10]) {
+    const chars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#\$%&*';
+    final rnd = Random.secure();
+    return List.generate(
+      length,
+      (_) => chars[rnd.nextInt(chars.length)],
+    ).join();
   }
 
   Future<bool> _onWillPop() async {
@@ -399,7 +412,7 @@ class _RegisterCareRecipientPageState
                                                 'dateOfBirth':
                                                     m['dob']?.text.trim() ?? '',
                                                 'gender': m['gender']!.text
-                                                  .trim(),
+                                                    .trim(),
                                                 'type': m['type']!.text.trim(),
                                               },
                                             )
@@ -463,56 +476,65 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
 }
 ''';
 
-                                            // Build recipients list compatible with GraphQL input
-                                            // Call `fetchGeneratedCode` once per recipient so the
-                                            // backend increments its index per query.
-                                            final List<Map<String, dynamic>>
-                                                recipientsList = [];
+                                          // Build recipients list compatible with GraphQL input
+                                          // Call `fetchGeneratedCode` once per recipient so the
+                                          // backend increments its index per query.
+                                          final List<Map<String, dynamic>>
+                                          recipientsList = [];
 
-                                            for (var i = 0; i < recipients.length; i++) {
-                                              final r = recipients[i];
-                                              // fetch a generated code for this recipient
-                                              final perCode = await fetchGeneratedCode(
-                                                context,
-                                                id: 2,
-                                              );
-                                              final clientId =
-                                                  (perCode != null && perCode.isNotEmpty)
-                                                      ? perCode
-                                                      : 'CR-${i + 1}';
+                                          for (
+                                            var i = 0;
+                                            i < recipients.length;
+                                            i++
+                                          ) {
+                                            final r = recipients[i];
+                                            // fetch a generated code for this recipient
+                                            final perCode =
+                                                await fetchGeneratedCode(
+                                                  context,
+                                                  id: 2,
+                                                );
+                                            final clientId =
+                                                (perCode != null &&
+                                                    perCode.isNotEmpty)
+                                                ? perCode
+                                                : 'CR-${i + 1}';
 
-                                              final item = {
-                                                'id': clientId,
-                                                'firstName':
-                                                    (r['firstName'] ?? '')
-                                                        .toString(),
-                                                'lastName':
-                                                    (r['lastName'] ?? '')
-                                                        .toString(),
-                                                'dateOfBirth':
-                                                    (r['dateOfBirth'] ?? '')
-                                                            .toString()
-                                                            .isNotEmpty
-                                                        ? r['dateOfBirth']
-                                                        : null,
-                                                'gender': (r['gender'] ?? '')
-                                                    .toString(),
-                                                'email': (r['email'] ?? '')
-                                                    .toString(),
-                                                'phone': (r['phone'] ?? '')
+                                            final item = {
+                                              'id': clientId,
+                                              'firstName':
+                                                  (r['firstName'] ?? '')
+                                                      .toString(),
+                                              'lastName': (r['lastName'] ?? '')
                                                   .toString(),
-                                                'caregiverId': caregiverId,
-                                                'type': (r['careRecipientTypeId'] ??
-                                                    r['type'] ??
-                                                    '')
+                                              'dateOfBirth':
+                                                  (r['dateOfBirth'] ?? '')
+                                                      .toString()
+                                                      .isNotEmpty
+                                                  ? r['dateOfBirth']
+                                                  : null,
+                                              'gender': (r['gender'] ?? '')
                                                   .toString(),
-                                              };
+                                              'email': (r['email'] ?? '')
+                                                  .toString(),
+                                              'phone': (r['phone'] ?? '')
+                                                  .toString(),
+                                              'caregiverId': caregiverId,
+                                              'type':
+                                                  (r['careRecipientTypeId'] ??
+                                                          r['type'] ??
+                                                          '')
+                                                      .toString(),
+                                            };
 
-                                              recipientsList.add(item);
-                                              debugPrint('generatedCode for #${i + 1}: $perCode');
-                                              debugPrint(
-                                                  'Built recipient id=${clientId}, name=${item['firstName']} ${item['lastName']}');
-                                            }
+                                            recipientsList.add(item);
+                                            debugPrint(
+                                              'generatedCode for #${i + 1}: $perCode',
+                                            );
+                                            debugPrint(
+                                              'Built recipient id=${clientId}, name=${item['firstName']} ${item['lastName']}',
+                                            );
+                                          }
 
                                           final result = await client.mutate(
                                             MutationOptions(
@@ -541,17 +563,19 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                             return;
                                           }
 
-                                            final insertPayload =
-                                              result.data?['insert_care_recipient'];
+                                          final insertPayload = result
+                                              .data?['insert_care_recipient'];
 
-                                            // `insert_care_recipient` may return either a Hasura-style
-                                            // object with `returning` or a plain List of inserted rows.
-                                            final inserted = (insertPayload is Map &&
-                                                insertPayload['returning'] != null)
+                                          // `insert_care_recipient` may return either a Hasura-style
+                                          // object with `returning` or a plain List of inserted rows.
+                                          final inserted =
+                                              (insertPayload is Map &&
+                                                  insertPayload['returning'] !=
+                                                      null)
                                               ? insertPayload['returning']
                                               : insertPayload ?? result.data;
 
-                                            debugPrint('Inserted: $inserted');
+                                          debugPrint('Inserted: $inserted');
 
                                           ScaffoldMessenger.of(
                                             context,
@@ -562,8 +586,277 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                               ),
                                             ),
                                           );
-                                          // Advance or close — here we pop back to previous page
+                                          // Attempt to create user accounts for recipients
+                                          try {
+                                            final functions =
+                                                FirebaseFunctions.instanceFor(
+                                                  region: 'us-central1',
+                                                );
+                                            for (final r in recipientsList) {
+                                              final email = (r['email'] ?? '')
+                                                  .toString();
+                                              if (email.isEmpty) continue;
 
+                                              // generate a simple password - you may want to replace
+                                              // with a more secure generator or send an invite link
+                                              final password =
+                                                  _generatePassword();
+
+                                              final callable = functions
+                                                  .httpsCallable(
+                                                    'sendTestEmail',
+                                                  );
+                                              // build a clear email subject and body including the temporary password
+                                              final subject =
+                                                  'CareLink account created — action required';
+
+                                              final text =
+                                                  'Hello ${r['firstName']} ${r['lastName']},\n\n'
+                                                  'An account has been created for you on CareLink. Use the credentials below to sign in for the first time:\n\n'
+                                                  'Email: $email\n'
+                                                  'Temporary password: $password\n\n'
+                                                  'For your security, please sign in and change your password as soon as possible. If you did not expect this email, contact your caregiver or support immediately.\n\n'
+                                                  'Download the app or sign in at: https://your-app-url.example\n\n'
+                                                  'Regards,\nCareLink Team';
+
+                                              // Optional HTML version (simple): replace or remove if not needed
+                                              final html =
+                                                  '''
+<p>Hello ${r['firstName']} ${r['lastName']},</p>
+<p>An account has been created for you on <strong>CareLink</strong>. Use the credentials below to sign in for the first time:</p>
+<ul>
+  <li><strong>Email:</strong> $email</li>
+  <li><strong>Temporary password:</strong> $password</li>
+</ul>
+<p>Please sign in and change your password as soon as possible. If you did not expect this email, contact your caregiver or support immediately.</p>
+<p>Regards,<br/>CareLink Team</p>
+''';
+
+                                              // send recipient id, email, displayName and password to cloud function
+                                              final resp = await callable.call(<
+                                                String,
+                                                dynamic
+                                              >{
+                                                // creation info + email payload
+                                                'recipientId': r['id'],
+                                                'email': email,
+                                                'displayName':
+                                                    '${r['firstName']} ${r['lastName']}',
+                                                'password': password,
+                                                // email fields (function can use these)
+                                                'to': email,
+                                                'subject': subject,
+                                                'text': text,
+                                                'html': html,
+                                              });
+
+                                              // Optionally handle `resp.data` to retrieve creation status
+                                              debugPrint(
+                                                'createUserForRecipient resp: ${resp.data}',
+                                              );
+                                              // Parse the response and attach returned UID to recipient object
+                                              try {
+                                                final respData = resp.data;
+                                                String? returnedUid;
+                                                if (respData is Map) {
+                                                  if (respData['uid'] != null) {
+                                                    returnedUid =
+                                                        respData['uid']
+                                                            .toString();
+                                                  } else if (respData['uids']
+                                                          is List &&
+                                                      (respData['uids'] as List)
+                                                          .isNotEmpty) {
+                                                    returnedUid =
+                                                        (respData['uids']
+                                                                as List)[0]
+                                                            ?.toString();
+                                                  } else if (respData['recipients']
+                                                          is List &&
+                                                      (respData['recipients']
+                                                              as List)
+                                                          .isNotEmpty) {
+                                                    final first =
+                                                        (respData['recipients']
+                                                            as List)[0];
+                                                    if (first is Map &&
+                                                        first['createdUser']
+                                                            is Map &&
+                                                        first['createdUser']['uid'] !=
+                                                            null) {
+                                                      returnedUid =
+                                                          first['createdUser']['uid']
+                                                              .toString();
+                                                    }
+                                                  }
+                                                }
+
+                                                if (returnedUid != null &&
+                                                    returnedUid.isNotEmpty) {
+                                                  r['authUid'] = returnedUid;
+                                                  debugPrint(
+                                                    'Attached authUid=$returnedUid to recipient id=${r['id']}',
+                                                  );
+
+                                                  // Now update the Postgres `user_account` table via GraphQL
+                                                  try {
+                                                    // Ensure backend sync from Firebase -> Postgres so
+                                                    // the newly-created uid is present before update.
+                                                    try {
+                                                      final syncMutation = r'''
+                                                        mutation SyncUsersToPostgres {
+                                                          syncUsersToPostgres {
+                                                            success
+                                                            synced
+                                                          }
+                                                        }
+                                                      ''';
+
+                                                      final syncResult =
+                                                          await client.mutate(
+                                                            MutationOptions(
+                                                              document: gql(
+                                                                syncMutation,
+                                                              ),
+                                                              fetchPolicy:
+                                                                  FetchPolicy
+                                                                      .noCache,
+                                                            ),
+                                                          );
+
+                                                      if (syncResult
+                                                          .hasException) {
+                                                        debugPrint(
+                                                          'syncUsersToPostgres mutation error: ${syncResult.exception}',
+                                                        );
+                                                        ScaffoldMessenger.of(
+                                                          context,
+                                                        ).showSnackBar(
+                                                          const SnackBar(
+                                                            content: Text(
+                                                              'Warning: user sync failed (continuing).',
+                                                            ),
+                                                          ),
+                                                        );
+                                                      } else {
+                                                        final syncData = syncResult
+                                                            .data?['syncUsersToPostgres'];
+                                                        if (syncData is Map) {
+                                                          debugPrint(
+                                                            'syncUsersToPostgres: success=${syncData['success']}, synced=${syncData['synced']}',
+                                                          );
+                                                        } else if (syncData
+                                                            is bool) {
+                                                          debugPrint(
+                                                            'syncUsersToPostgres: result=$syncData',
+                                                          );
+                                                        } else {
+                                                          debugPrint(
+                                                            'syncUsersToPostgres: unexpected result: $syncData',
+                                                          );
+                                                        }
+                                                      }
+                                                    } catch (e, st) {
+                                                      debugPrint(
+                                                        'syncUsersToPostgres call failed: $e\n$st',
+                                                      );
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            'Warning: user sync failed (continuing).',
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                    const String
+                                                    updateUserMutation = r'''
+mutation UpdateUser($uid: String!, $new_id: String!, $userType: String!) {
+  update_caregiver_account(uid: $uid, new_id: $new_id, userType: $userType) {
+    uid
+    id
+    userType
+  }
+}
+''';
+
+                                                    final updateResult =
+                                                        await client.mutate(
+                                                          MutationOptions(
+                                                            document: gql(
+                                                              updateUserMutation,
+                                                            ),
+                                                            variables: {
+                                                              'uid':
+                                                                  returnedUid,
+                                                              'new_id': r['id'],
+                                                              'userType':
+                                                                  'Care Recipient',
+                                                            },
+                                                            fetchPolicy:
+                                                                FetchPolicy
+                                                                    .noCache,
+                                                          ),
+                                                        );
+
+                                                    if (updateResult
+                                                        .hasException) {
+                                                      debugPrint(
+                                                        'Failed to update user_account for uid=$returnedUid: ${updateResult.exception}',
+                                                      );
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            'Failed to link account in backend',
+                                                          ),
+                                                        ),
+                                                      );
+                                                    } else {
+                                                      debugPrint(
+                                                        'Updated user_account for uid=$returnedUid: ${updateResult.data}',
+                                                      );
+                                                    }
+                                                  } catch (e) {
+                                                    debugPrint(
+                                                      'GraphQL update error for uid=$returnedUid: $e',
+                                                    );
+                                                  }
+                                                } else {
+                                                  debugPrint(
+                                                    'No uid returned for recipient id=${r['id']}',
+                                                  );
+                                                }
+                                              } catch (e) {
+                                                debugPrint(
+                                                  'Failed to parse function response for uid: $e',
+                                                );
+                                              }
+                                            }
+                                          } catch (e) {
+                                            // Not fatal — function may not exist in some environments
+                                            debugPrint(
+                                              'Account creation (cloud function) failed: $e',
+                                            );
+
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Accounts not created: cloud function unavailable',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                          // Navigate to registration complete page after save flow finishes
+                                          if (!mounted) return;
+                                          context.go(
+                                            '/register/registercomplete',
+                                          );
+                                          // Advance or close — here we pop back to previous page
                                         } catch (e) {
                                           debugPrint('Request failed: $e');
                                           ScaffoldMessenger.of(
@@ -628,8 +921,6 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                             SizedBox(width: 12.w),
                           ],
                         ),
-
-                        SizedBox(height: 8.h),
                       ],
                     ),
                   ),

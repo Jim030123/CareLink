@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class HomeCalendar extends StatefulWidget {
@@ -32,13 +33,13 @@ class _HomeCalendarState extends State<HomeCalendar> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12.r),
-      
+
           boxShadow: [
             BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 3)),
           ],
         ),
         width: double.infinity,
-      
+
         child: Column(
           children: [
             TableCalendar(
@@ -50,7 +51,7 @@ class _HomeCalendarState extends State<HomeCalendar> {
               lastDay: DateTime.utc(2030, 12, 31),
               // 聚焦到今天
               focusedDay: DateTime.now(), //
-      
+
               eventLoader: _getEventsForDay,
               // 调整行高/样式使周视图更紧凑
               daysOfWeekHeight: 24.h,
@@ -66,7 +67,7 @@ class _HomeCalendarState extends State<HomeCalendar> {
                 leftChevronIcon: Icon(Icons.chevron_left, size: 20.sp),
                 rightChevronIcon: Icon(Icons.chevron_right, size: 20.sp),
               ),
-      
+
               calendarBuilders: CalendarBuilders(
                 defaultBuilder: (context, day, focusedDay) {
                   return Center(
@@ -134,13 +135,18 @@ class _HomeCalendarState extends State<HomeCalendar> {
                 },
               ),
             ),
-      
+
             SizedBox(height: 5.h), // 👈 pushes the next container to the bottom
-      
+
             Flexible(
               child: Align(
                 alignment: Alignment.bottomRight,
-                child: ElevatedButton(onPressed: () {}, child: Text('Add Event')),
+                child: ElevatedButton(
+                  onPressed: () {
+                    context.push('/show_appointment');
+                  },
+                  child: Text('Show Appointment'),
+                ),
               ),
             ),
           ],
