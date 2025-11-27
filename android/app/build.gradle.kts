@@ -27,6 +27,8 @@ android {
         applicationId = "com.example.carelink_mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // local_auth requires a minimum SDK of 23. Set explicitly to ensure
+        // the biometric APIs (BiometricPrompt) are available.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
