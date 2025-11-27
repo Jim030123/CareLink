@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:math';
 import 'package:carelink_mobile/components/health_card.dart';
+import 'package:carelink_mobile/components/ai_chat_box.dart';
+import 'package:go_router/go_router.dart';
 
 class CareRecipientHomePage extends StatefulWidget {
   const CareRecipientHomePage({super.key});
@@ -30,31 +32,70 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> {
     _scrollController.addListener(_handleScroll);
 
     // Initialize services here so the closures can use the State's `context`.
+    // Use concrete service cards requested by the user.
     services = [
       Service(
         title: 'Heart Rate',
-        icon: Icons
-            .health_and_safety, // 或 Icons.local_pharmacy / Icons.medical_services
+        icon: Icons.favorite_outline_outlined,
         color: Colors.yellow.shade600,
         onTap: () {},
       ),
 
       Service(
         title: 'Blood Pressure',
-        icon: Icons
-            .local_hospital, // 或 Icons.local_pharmacy / Icons.medical_services
-        color: Colors.yellow.shade600,
+        icon: Icons.local_hospital,
+        color: Colors.red.shade400,
         onTap: () {},
       ),
 
-      for (var i = 2; i <= 15; i++)
-        Service(
-          title: 'Service $i',
-          icon: Icons.health_and_safety,
-          color: Colors.white,
-        ),
+      Service(
+        title: 'Medication',
+        icon: Icons.medication, // fallback: Icons.local_pharmacy
+        color: Colors.blue.shade600,
+        onTap: () {
+          // TODO: wire navigation for Medication
+        },
+      ),
 
-      // 其余示例项，按需替换
+      Service(
+        title: 'Remote Monitor',
+        icon: Icons.devices,
+        color: Colors.green.shade600,
+        onTap: () {
+          // TODO: wire navigation for Remote Monitor
+        },
+      ),
+
+      Service(
+        title: 'Manage Caregiver',
+        icon: Icons.group,
+        color: Colors.purple.shade600,
+        onTap: () {
+          context.push('/managecaregiver');
+        },
+      ),
+
+      Service(
+        title: 'Manage Care Recipient',
+        icon: Icons.people,
+        color: Colors.orange.shade600,
+        onTap: () {
+          context.push('/managecarerecipient');
+        },
+      ),
+
+      // keep a couple extra examples if you want more cards
+      Service(
+        title: 'Medication',
+        icon: Icons.medication,
+        color: Colors.indigo,
+        onTap: () => context.push('/medication'),
+      ),
+      Service(
+        title: 'Activity',
+        icon: Icons.directions_run,
+        color: Colors.teal,
+      ),
     ];
   }
 
@@ -75,8 +116,8 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> {
     // Prepare slices: first 3 services for the special layout, rest for the grid
     services.take(3).toList();
     final gridServices = services.length > 3
-      ? services.skip(3).toList()
-      : <Service>[];
+        ? services.skip(3).toList()
+        : <Service>[];
     // If for any reason the grid slice is empty, show all services so the
     // page doesn't appear blank while testing.
     final displayServices = gridServices.isNotEmpty ? gridServices : services;
@@ -95,6 +136,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> {
     final itemHeight = max(120.h, min(220.h, rawItemHeight));
     final childAspectRatio = itemWidth / itemHeight;
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       extendBodyBehindAppBar: false,
       // appBar: HomeAppbar(userName: 'This is a very long name that will scroll automatically'),
       appBar: PreferredSize(
@@ -367,11 +409,13 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12.r),
                       splashColor: Colors.black12,
-                      onTap: svc.onTap ?? () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('${svc.title} tapped')),
-                        );
-                      },
+                      onTap:
+                          svc.onTap ??
+                          () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${svc.title} tapped')),
+                            );
+                          },
                       child: _serviceCard(
                         service: svc.title,
                         icon: svc.icon,
@@ -384,23 +428,24 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> {
             ),
           ),
 
-          SliverFillRemaining(
+          
+          SliverToBoxAdapter(
             child: Container(
-              color: Colors.grey[200],
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'AI Chat Box',
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black54,
-                      ),
+              color: Colors.green[200],
+              padding: EdgeInsets.all(16.w),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: Column(
+                  children: [
+                    // Chat box (the component manages its own internal layout)
+                    Expanded(child: AIChatBox()),
+                    SizedBox(height: 12.h),
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: Text('Chat with the assistant for quick help and tips.', style: TextStyle(fontSize: 14.sp, color: Colors.black54)),
                     ),
-                  ),
-                  // Add your AI chat box widget here
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -424,29 +469,48 @@ Widget _serviceCard({
   final Color? iconColor,
 }) {
   return Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12.r),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.withOpacity(0.3),
+          spreadRadius: 1,
+          blurRadius: 5,
+          offset: Offset(0, 3),
+        ),
+      ],
+    ),
     padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 8.w),
-    child: LayoutBuilder(builder: (context, constraints) {
-      // scale icon and text according to available height
-      final maxH = constraints.maxHeight.isFinite ? constraints.maxHeight : 160.h;
-      final iconSize = min(64.sp, maxH * 0.38);
-      final textStyle = TextStyle(fontSize: max(12.sp, maxH * 0.08), fontWeight: FontWeight.w600);
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: iconColor ?? Colors.red, size: iconSize),
-          SizedBox(height: 8.h),
-          Flexible(
-            child: Text(
-              service,
-              textAlign: TextAlign.center,
-              style: textStyle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        // scale icon and text according to available height
+        final maxH = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 160.h;
+        final iconSize = min(64.sp, maxH * 0.38);
+        final textStyle = TextStyle(
+          fontSize: max(12.sp, maxH * 0.08),
+          fontWeight: FontWeight.w600,
+        );
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: iconColor ?? Colors.red, size: iconSize),
+            SizedBox(height: 8.h),
+            Flexible(
+              child: Text(
+                service,
+                textAlign: TextAlign.center,
+                style: textStyle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-        ],
-      );
-    }),
+          ],
+        );
+      },
+    ),
   );
 }
 

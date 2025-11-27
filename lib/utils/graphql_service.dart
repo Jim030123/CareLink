@@ -10,7 +10,7 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 /// - Physical device: use the host machine LAN IP (e.g. 10.63.226.21)
 String _defaultBaseUrl() {
   // Fallback to a LAN IP — change this to your dev machine IP when testing on a physical device
-  return 'http://10.101.18.100:25001/';
+  return 'http://10.209.91.100:25001/';
 }
 
 GraphQLClient createClient({String? idToken, String? baseUrl}) {

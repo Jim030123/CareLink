@@ -2,6 +2,25 @@ import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart';
+
+class Appointment {
+  final DateTime date;
+  final String title;
+  final String time;
+  final String leftLabel;
+  final String centerLabel;
+  final String rightLabel;
+
+  Appointment({
+    required this.date,
+    required this.title,
+    required this.time,
+    required this.leftLabel,
+    required this.centerLabel,
+    required this.rightLabel,
+  });
+}
 
 class ShowAppointmentPage extends StatefulWidget {
   const ShowAppointmentPage({super.key});
@@ -11,13 +30,68 @@ class ShowAppointmentPage extends StatefulWidget {
 }
 
 class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  late List<Appointment> _appointments;
+  bool _showInlineSearch = false;
+  final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+  String _searchQuery = '';
   @override
+  void initState() {
+    super.initState();
+    _selectedDay = DateTime.now();
+    // sample appointments; in real app this would come from backend
+    _appointments = [
+
+        Appointment(
+        date: DateTime.now().subtract(Duration(days: 2)),
+        title: 'Medication Review',
+        time: '09:30 AM',
+        leftLabel: 'Dr Lim',
+        centerLabel: 'Medication Review',
+        rightLabel: 'John Doe',
+      ),
+      Appointment(
+        date: DateTime.now(),
+        title: 'Follow-up Appointment',
+        time: '11:02 PM',
+        leftLabel: 'Dr Ng',
+        centerLabel: 'Follow-up Appointment',
+        rightLabel: 'Ng Ying Qi',
+      ),
+      Appointment(
+        date: DateTime.now().add(Duration(days: 2)),
+        title: 'Medication Review',
+        time: '09:30 AM',
+        leftLabel: 'Dr Lim',
+        centerLabel: 'Medication Review',
+        rightLabel: 'John Doe',
+      ),
+
+       Appointment(
+        date: DateTime.now().add(Duration(days: 2)),
+        title: 'Medication Review',
+        time: '09:30 AM',
+        leftLabel: 'Dr Lim',
+        centerLabel: 'Medication Review',
+        rightLabel: 'John Doe',
+      ),
+    ];
+  }
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const PageAppBar(
+      appBar: PageAppBar(
         title: 'Show Appointment',
         showBack: true,
         showSearch: true,
+        onSearch: _toggleInlineSearch,
       ),
 
       body: LayoutBuilder(
@@ -28,6 +102,38 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                 padding: EdgeInsets.all(16.w),
                 child: Column(
                   children: [
+                    // Inline search field (appears when search icon pressed)
+                    if (_showInlineSearch)
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 12.h),
+                        child: TextField(
+                          controller: _searchCtrl,
+                          focusNode: _searchFocus,
+                          decoration: InputDecoration(
+                            hintText: 'Search appointments (title, doctor, name)',
+                            prefixIcon: Icon(Icons.search),
+                            suffixIcon: IconButton(
+                              icon: Icon(Icons.close),
+                              onPressed: () {
+                                setState(() {
+                                  _showInlineSearch = false;
+                                  _searchQuery = '';
+                                  _searchCtrl.clear();
+                                });
+                              },
+                            ),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.r)),
+                          ),
+                          onChanged: (v) => setState(() {
+                            _searchQuery = v.trim();
+                            if (_searchQuery.isNotEmpty) _selectedDay = null;
+                          }),
+                          onSubmitted: (v) => setState(() {
+                            _searchQuery = v.trim();
+                            if (_searchQuery.isNotEmpty) _selectedDay = null;
+                          }),
+                        ),
+                      ),
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -59,23 +165,185 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        firstDay: DateTime.now(),
+                        firstDay: DateTime.now().subtract(Duration(days: 365)),
                         lastDay: DateTime.now().add(Duration(days: 365)),
-                        focusedDay: DateTime.now(),
+                        focusedDay: _focusedDay,
+                        calendarStyle: CalendarStyle(
+                          // Don't separately highlight today; only use the selected
+                          // decoration so previous days are cleared when a new
+                          // day is selected.
+                          todayDecoration: BoxDecoration(),
+                          todayTextStyle: TextStyle(color: Colors.black87),
+                          selectedDecoration: BoxDecoration(
+                            color: Colors.orange.shade100,
+                            shape: BoxShape.circle,
+                          ),
+                          selectedTextStyle: TextStyle(color: Colors.black),
+                        ),
+                        calendarBuilders: CalendarBuilders(
+                          markerBuilder: (context, date, events) {
+                            if (_searchQuery.isEmpty) return const SizedBox.shrink();
+                            final q = _searchQuery.toLowerCase();
+                            final hasMatch = _appointments.any((a) =>
+                                isSameDay(a.date, date) &&
+                                (a.title.toLowerCase().contains(q) ||
+                                    a.leftLabel.toLowerCase().contains(q) ||
+                                    a.centerLabel.toLowerCase().contains(q) ||
+                                    a.rightLabel.toLowerCase().contains(q)));
+                            if (!hasMatch) return const SizedBox.shrink();
+
+                            return Align(
+                              alignment: Alignment.bottomCenter,
+                              child: Container(
+                                margin: EdgeInsets.only(bottom: 6.h),
+                                width: 8.w,
+                                height: 8.w,
+                                decoration: BoxDecoration(
+                                  color: Colors.orange,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                        onDaySelected: (selectedDay, focusedDay) {
+                          // while inline search is active, prevent selecting a day
+                          if (_showInlineSearch || _searchQuery.isNotEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Exit search to select a date')),
+                            );
+                            return;
+                          }
+
+                          setState(() {
+                            _selectedDay = selectedDay;
+                            _focusedDay = focusedDay;
+                          });
+
+                          final formatted = DateFormat('EEE, dd MMM yyyy').format(selectedDay);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Selected date: $formatted')),
+                          );
+                        },
+                        onPageChanged: (focusedDay) {
+                          // update focused day when user navigates calendar pages
+                          _focusedDay = focusedDay;
+                        },
                       ),
                     ),
                     SizedBox(height: 12.h),
-                    // Example appointment card (matches provided design)
-                    _buildAppointmentCard(
-                      day: '10',
-                      monthYear: '2025.07',
-                      weekday: 'Sun',
-                      title: 'Appointment',
-                      time: '11:02 PM',
-                      leftLabel: 'Dr Ng',
-                      centerLabel: 'Follow-up Appointment',
-                      rightLabel: 'Ng Ying Qi',
-                    ),
+                    // Appointments: if inline search query is present, show
+                    // matches across all appointments grouped into Upcoming
+                    // and Past. Otherwise show appointments for the selected day.
+                    Builder(builder: (context) {
+                      if (_searchQuery.isNotEmpty) {
+                        final q = _searchQuery.toLowerCase();
+                        final matches = _appointments.where((a) {
+                          return a.title.toLowerCase().contains(q) ||
+                              a.leftLabel.toLowerCase().contains(q) ||
+                              a.centerLabel.toLowerCase().contains(q) ||
+                              a.rightLabel.toLowerCase().contains(q);
+                        }).toList();
+
+                        if (matches.isEmpty) {
+                          return Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8.h),
+                            child: Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(12.w),
+                                child: Text('No appointments match "${_searchQuery}"'),
+                              ),
+                            ),
+                          );
+                        }
+
+                        final today = DateTime.now();
+                        final upcoming = matches.where((a) => !a.date.isBefore(DateTime(today.year, today.month, today.day))).toList();
+                        final past = matches.where((a) => a.date.isBefore(DateTime(today.year, today.month, today.day))).toList();
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (upcoming.isNotEmpty) ...[
+                              Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8.h),
+                                child: Text('Upcoming (${upcoming.length})', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                              ),
+                              ...upcoming.map((a) {
+                                final day = a.date.day.toString().padLeft(2, '0');
+                                final monthYear = '${a.date.year.toString()}.${a.date.month.toString().padLeft(2, '0')}';
+                                final weekday = DateFormat('EEE').format(a.date);
+                                return _buildAppointmentCard(
+                                  day: day,
+                                  monthYear: monthYear,
+                                  weekday: weekday,
+                                  title: a.title,
+                                  time: a.time,
+                                  leftLabel: a.leftLabel,
+                                  centerLabel: a.centerLabel,
+                                  rightLabel: a.rightLabel,
+                                );
+                              }).toList(),
+                            ],
+                            if (past.isNotEmpty) ...[
+                              Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8.h),
+                                child: Text('Past (${past.length})', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                              ),
+                              ...past.map((a) {
+                                final day = a.date.day.toString().padLeft(2, '0');
+                                final monthYear = '${a.date.year.toString()}.${a.date.month.toString().padLeft(2, '0')}';
+                                final weekday = DateFormat('EEE').format(a.date);
+                                return _buildAppointmentCard(
+                                  day: day,
+                                  monthYear: monthYear,
+                                  weekday: weekday,
+                                  title: a.title,
+                                  time: a.time,
+                                  leftLabel: a.leftLabel,
+                                  centerLabel: a.centerLabel,
+                                  rightLabel: a.rightLabel,
+                                );
+                              }).toList(),
+                            ],
+                          ],
+                        );
+                      }
+
+                      // No inline query: show only selected day's appointments
+                      final selected = _selectedDay ?? _focusedDay;
+                      final todays = _appointments.where((a) => isSameDay(a.date, selected)).toList();
+                      if (todays.isEmpty) {
+                        return Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.h),
+                          child: Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(12.w),
+                              child: Text('No appointments on ${DateFormat('EEE, dd MMM yyyy').format(selected)}'),
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: todays.map((a) {
+                          final day = a.date.day.toString().padLeft(2, '0');
+                          final monthYear = '${a.date.year.toString()}.${a.date.month.toString().padLeft(2, '0')}';
+                          final weekday = DateFormat('EEE').format(a.date);
+                          return _buildAppointmentCard(
+                            day: day,
+                            monthYear: monthYear,
+                            weekday: weekday,
+                            title: a.title,
+                            time: a.time,
+                            leftLabel: a.leftLabel,
+                            centerLabel: a.centerLabel,
+                            rightLabel: a.rightLabel,
+                          );
+                        }).toList(),
+                      );
+                    }),
                   ],
                 ),
               ),
@@ -84,6 +352,87 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
         },
       ),
     );
+  }
+
+  void _openSearch() async {
+    final qCtrl = TextEditingController();
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Search appointments'),
+        content: TextField(
+          controller: qCtrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Enter name or title'),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(qCtrl.text.trim()), child: const Text('Search')),
+        ],
+      ),
+    );
+
+    if (result == null || result.trim().isEmpty) return;
+    final q = result.toLowerCase();
+    final matches = _appointments.where((a) {
+      return a.title.toLowerCase().contains(q) ||
+          a.leftLabel.toLowerCase().contains(q) ||
+          a.centerLabel.toLowerCase().contains(q) ||
+          a.rightLabel.toLowerCase().contains(q);
+    }).toList();
+
+    if (matches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No appointments match "$result"')));
+      return;
+    }
+
+    // show matches in bottom sheet; tapping an item will select that date
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return SizedBox(
+          height: 360,
+          child: ListView.separated(
+            itemCount: matches.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (c, i) {
+              final a = matches[i];
+              return ListTile(
+                title: Text(a.title),
+                subtitle: Text('${a.leftLabel} • ${DateFormat('EEE, dd MMM yyyy').format(a.date)} ${a.time}'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  setState(() {
+                    _selectedDay = a.date;
+                    _focusedDay = a.date;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selected ${DateFormat('EEE, dd MMM yyyy').format(a.date)}')));
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _toggleInlineSearch() {
+    setState(() {
+      _showInlineSearch = !_showInlineSearch;
+      if (_showInlineSearch) {
+        // when entering search mode, clear selected day so calendar appears inactive
+        _selectedDay = null;
+      } else {
+        _searchQuery = '';
+        _searchCtrl.clear();
+      }
+    });
+
+    if (_showInlineSearch) {
+      // focus after frame so keyboard opens
+      WidgetsBinding.instance.addPostFrameCallback((_) => _searchFocus.requestFocus());
+    }
   }
 
   Widget _buildAppointmentCard({

@@ -1,132 +1,257 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
 import 'dart:convert';
+
+const String getCaregiverWithRecipientsQuery = r'''
+query GetCaregiverWithRecipients($id: String!) {
+  caregiver_by_pk(id: $id) {
+    id
+    firstName
+    lastName
+    name
+    email
+    phone
+    caregiverType
+    careRecipients {
+      id
+      firstName
+      lastName
+      dateOfBirth
+      gender
+      email
+      phone
+      caregiverId
+      type
+    }
+  }
+}
+''';
+
+/// Helper to fetch care recipients for a caregiver (returns list of recipients)
+Future<List<Map<String, dynamic>>> fetchCareRecipients(
+  GraphQLClient client,
+  String caregiverId,
+) async {
+  final options = QueryOptions(
+    document: gql(getCaregiverWithRecipientsQuery),
+    variables: {'id': caregiverId},
+    fetchPolicy: FetchPolicy.networkOnly,
+  );
+
+  final result = await client.query(options);
+  if (result.hasException) {
+    throw result.exception!;
+  }
+
+  final data = result.data?['caregiver_by_pk'] as Map<String, dynamic>?;
+  if (data == null) return [];
+  final recips = (data['careRecipients'] as List<dynamic>?) ?? [];
+  return recips.cast<Map<String, dynamic>>();
+}
 
 class TestPage extends StatefulWidget {
   const TestPage({super.key});
-
   @override
   State<TestPage> createState() => _TestPageState();
 }
 
 class _TestPageState extends State<TestPage> {
-  bool isLoading = false;
-  String resultText = '';
+  final TextEditingController _idCtrl = TextEditingController();
+  bool _isLoading = false;
+  String? _error;
+  List<Map<String, dynamic>> _recipients = [];
+  Map<String, String>? _caregiverInfo;
 
-  Future<void> testSendEmailFunction() async {
-  setState(() {
-    isLoading = true;
-    resultText = '';
-  });
+  Future<void> _runQuery() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _recipients = [];
+      _caregiverInfo = null;
+    });
 
-  final functions = FirebaseFunctions.instanceFor(region: 'us-central1'); // 你函数的 region
-  final callable = functions.httpsCallable('sendTestEmail');
-
-  try {
-    // Sample payload — adjust these values for your test environment
-    final samplePayload = <String, dynamic>{
-      // `to` can be a single string or an array of strings
-      'to': [
-        // Use an address you control or a test inbox
-        'b240041a@sc.edu.my'
-      ],
-      // Optional fields used by the function
-      'password': 'TempPass123!',
-      'displayName': 'Test Recipient',
-      // If you want the function to write authUid into a Firestore doc, set a recipientId
-      'recipientId': 'test_recipient_doc_id',
-      'subject': 'CareLink Test Email',
-      'text': 'This is a test email from CareLink function. If you received this, the function worked.'
-    };
-
-    final result = await callable.call(samplePayload);
-
-    final data = result.data;
-    String msg;
-    if (data == null) {
-      msg = 'Function returned no data.';
-    } else {
-      // Try to extract a convenient UID if present
-      String? returnedUid;
-      try {
-        if (data is Map) {
-          if (data['uid'] != null) returnedUid = data['uid'].toString();
-          else if (data['uids'] is List && (data['uids'] as List).isNotEmpty) returnedUid = (data['uids'] as List)[0]?.toString();
-          else if (data['recipients'] is List && (data['recipients'] as List).isNotEmpty) {
-            final first = (data['recipients'] as List)[0];
-            if (first is Map && first['createdUser'] is Map && first['createdUser']['uid'] != null) returnedUid = first['createdUser']['uid'].toString();
-          }
-        }
-      } catch (_) {
-        returnedUid = null;
-      }
-
-      // Format the JSON for display; include UID summary at top if available
-      String jsonPart;
-      try {
-        jsonPart = const JsonEncoder.withIndent('  ').convert(data);
-      } catch (_) {
-        jsonPart = data.toString();
-      }
-
-      if (returnedUid != null && returnedUid.isNotEmpty) {
-        msg = 'Returned UID: $returnedUid\n\n$jsonPart';
-      } else {
-        msg = jsonPart;
-      }
+    final client = GraphQLProvider.of(context).value;
+    final caregiverId = _idCtrl.text.trim();
+    if (caregiverId.isEmpty) {
+      setState(() {
+        _error = 'Please enter a caregiver id to query.';
+        _isLoading = false;
+      });
+      return;
     }
 
-    setState(() {
-      resultText = msg;
-    });
-  } on FirebaseFunctionsException catch (e, st) {
-    final msg = 'Error (${e.code}): ${e.message}';
-    setState(() {
-      resultText = msg;
-    });
-    print(st);
-  } catch (e, st) {
-    setState(() {
-      resultText = 'Other error: $e';
-    });
-    print(st);
-  } finally {
-    setState(() {
-      isLoading = false;
-    });
-  }
-}
+    try {
+      final result = await client.query(
+        QueryOptions(
+          document: gql(getCaregiverWithRecipientsQuery),
+          variables: {'id': caregiverId},
+          fetchPolicy: FetchPolicy.networkOnly,
+        ),
+      );
 
+      if (result.hasException) {
+        setState(() {
+          // Show graphql exception summary
+          _error = result.exception.toString();
+        });
+        // log exception
+        debugPrint('GraphQL exception: ${result.exception.toString()}');
+        return;
+      }
+
+      final data = result.data?['caregiver_by_pk'] as Map<String, dynamic>?;
+      // print full result data to console for debugging
+      try {
+        final pretty = const JsonEncoder.withIndent('  ').convert(result.data);
+        debugPrint('GraphQL result:\n$pretty');
+      } catch (_) {
+        debugPrint('GraphQL result: ${result.data}');
+      }
+
+      final recs = (data?['careRecipients'] as List<dynamic>?) ?? [];
+
+      setState(() {
+        _recipients = recs
+            .map((e) => Map<String, dynamic>.from(e as Map<String, dynamic>))
+            .toList();
+        _caregiverInfo = data != null
+            ? {
+                'id': data['id']?.toString() ?? '',
+                'name': (data['name'] ??
+                        '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}')
+                    .toString(),
+                'email': data['email']?.toString() ?? '',
+                'phone': data['phone']?.toString() ?? '',
+                'caregiverType': data['caregiverType']?.toString() ?? '',
+              }
+            : null;
+      });
+    } catch (e, st) {
+      setState(() {
+        _error = e.toString();
+      });
+      debugPrint('Query threw error: $e');
+      debugPrint(st.toString());
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _idCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Test Firebase Function'),
-      ),
+      appBar: AppBar(title: const Text('Test Care Recipients Query')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ElevatedButton(
-              onPressed: isLoading ? null : testSendEmailFunction,
-              child: isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Test sendTestEmail Function'),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              resultText,
-              style: TextStyle(
-                color: resultText.startsWith('Error') ? Colors.red : Colors.green,
+            TextField(
+              controller: _idCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Caregiver ID',
+                hintText: 'Enter caregiver id',
               ),
             ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _isLoading ? null : _runQuery,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Run Query'),
+            ),
+            const SizedBox(height: 12),
+            if (_error != null)
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Text(
+                    'Error:\n\n$_error',
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              )
+            else ...[
+              if (_caregiverInfo != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _caregiverInfo!['name'] ?? '',
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'ID: ${_caregiverInfo!['id'] ?? ''}',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(_caregiverInfo!['email'] ?? ''),
+                          const SizedBox(height: 2),
+                          Text(_caregiverInfo!['phone'] ?? ''),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              if (_recipients.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8.0),
+                  child: Text('No recipients (run a query)'),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _recipients.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, i) {
+                      final r = _recipients[i];
+                      final name =
+                          '${r['firstName'] ?? ''} ${r['lastName'] ?? ''}'
+                              .trim();
+                      final contact =
+                          (r['email'] as String?) ?? (r['phone'] as String?) ?? '';
+                      final type = (r['type'] as String?) ?? '';
+                      final id = (r['id'] as String?) ?? r['id']?.toString() ?? '';
+                      return ListTile(
+                        title: Text(name.isEmpty ? 'No name' : name),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (contact.isNotEmpty) Text(contact),
+                            Text('ID: $id',
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                        trailing: Text(type),
+                      );
+                    },
+                  ),
+                ),
+            ],
           ],
         ),
       ),
     );
   }
-
 }

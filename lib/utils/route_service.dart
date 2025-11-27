@@ -1,5 +1,7 @@
 import 'package:carelink_mobile/screens/home_page.dart';
 import 'package:carelink_mobile/screens/authentication/login_page.dart';
+import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
+import 'package:carelink_mobile/screens/manage_caregiver.dart';
 import 'package:carelink_mobile/screens/medicIne_reminder.dart';
 import 'package:carelink_mobile/screens/authentication/register_care_recipient_page.dart';
 import 'package:carelink_mobile/screens/authentication/register_care_recipient_page.dart';
@@ -68,8 +70,22 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const CareRecipientHomePage(),
     ),
     GoRoute(
-      path: '/show_appointment',
+      path: '/showappointment',
       builder: (context, state) => const ShowAppointmentPage(),
     ),
+
+    GoRoute(
+      path: '/managecaregiver',
+      builder: (context, state) => const ManageCaregiver(),
+    ),
+    GoRoute(
+      path: '/managecarerecipient',
+      builder: (context, state) => const ManageCareRecipient(),
+    ),
+
+    GoRoute(path: '/test',
+    builder: (context, state) => const TestPage(),),
+
+    GoRoute(path: '/medication', builder: (context, state) => const TypeofMedicine()),
   ],
 );
