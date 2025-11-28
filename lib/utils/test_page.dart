@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'dart:convert';
 import 'package:carelink_mobile/utils/secure_auth.dart';
+import 'package:go_router/go_router.dart';
 
 const String getCaregiverWithRecipientsQuery = r'''
 query GetCaregiverWithRecipients($id: String!) {
@@ -67,7 +68,22 @@ class _TestPageState extends State<TestPage> {
   @override
   void initState() {
     super.initState();
-    // Require biometric on page entry for this test page.
+    // Seed test credentials and require biometric on page entry for this test page.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _seedTestCredentialsThenRequire();
+    });
+  }
+
+  /// Seed the secure storage with a test credential, then require biometric.
+  /// NOTE: Hardcoding credentials is only for local testing — do NOT ship this.
+  Future<void> _seedTestCredentialsThenRequire() async {
+    try {
+      await SecureAuth.saveCredentials(email: 'test@cl.com', password: '12345678');
+      debugPrint('Test credentials seeded into secure storage');
+    } catch (e, st) {
+      debugPrint('Failed to seed test credentials: $e');
+      debugPrint(st.toString());
+    }
     _requireBiometricOnEntry();
   }
 
@@ -127,6 +143,12 @@ class _TestPageState extends State<TestPage> {
           if (mounted) Navigator.of(context).maybePop();
           return;
         }
+
+        // If authenticated, navigate to home
+        if (authed && mounted) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Biometric unlocked successfully')));
+          context.go('/home');
+        }
       } catch (e, st) {
         debugPrint('TestPage._requireBiometricOnEntry error: $e');
         debugPrint(st.toString());
@@ -155,6 +177,8 @@ class _TestPageState extends State<TestPage> {
       if (unlocked) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Biometric unlocked successfully')));
         debugPrint('TestPage: biometric unlocked successfully');
+        // Navigate to home on successful biometric test
+        if (mounted) context.go('/home');
       } else {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Biometric authentication failed')));
         debugPrint('TestPage: biometric authentication failed');
