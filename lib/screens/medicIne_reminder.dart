@@ -1,6 +1,7 @@
 import 'package:carelink_mobile/components/status.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:flutter/material.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 enum MedicineType { capsule, tablet, injection, cream }
@@ -27,174 +28,82 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
   void initState() {
     super.initState();
     _selected = widget.initial ?? MedicineType.tablet;
-    _items = _generateItems();
+    // start with an empty list; _fetchMedications will populate it
+    _items = <Map<String, dynamic>>[];
+    // run after first frame so Inherited widgets (GraphQLProvider) are available
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchMedications());
   }
 
-  List<Map<String, dynamic>> _generateItems() {
-    final base = [
-      {
-        'name': 'Aspirin',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Paracetamol',
-        'dose': '500mg',
-        'left': '18',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Calcium',
-        'dose': '500mg',
-        'left': '25',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Ibuprofen',
-        'dose': '200mg',
-        'left': '12',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Amoxicillin',
-        'dose': '250mg',
-        'left': '10',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Metformin',
-        'dose': '500mg',
-        'left': '40',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Simvastatin',
-        'dose': '20mg',
-        'left': '30',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Omeprazole',
-        'dose': '20mg',
-        'left': '15',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Losartan',
-        'dose': '50mg',
-        'left': '22',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Lisinopril',
-        'dose': '10mg',
-        'left': '28',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Atorvastatin',
-        'dose': '10mg',
-        'left': '35',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Cetirizine',
-        'dose': '10mg',
-        'left': '20',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Loratadine',
-        'dose': '10mg',
-        'left': '24',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Prednisone',
-        'dose': '5mg',
-        'left': '8',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Diazepam',
-        'dose': '2mg',
-        'left': '14',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Warfarin',
-        'dose': '3mg',
-        'left': '7',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Ranitidine',
-        'dose': '150mg',
-        'left': '11',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Furosemide',
-        'dose': '40mg',
-        'left': '19',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-      {
-        'name': 'Insulin',
-        'dose': '10 units',
-        'left': '60',
-        'color': const Color(0xFFF7EAD3),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'injection'
-      },
-      {
-        'name': 'Vitamin D',
-        'dose': '1000IU',
-        'left': '45',
-        'color': const Color(0xFFF8D8D8),
-        'asset': 'assets/icons/capsule.png',
-        'type': 'capsule'
-      },
-    ];
+  Future<List<Map<String, dynamic>>> _fetchMedications() async {
+    if (!mounted) return <Map<String, dynamic>>[];
+    try {
+      final client = GraphQLProvider.of(context).value;
+      const String query = r'''
+        query GetMedicationsByCaregiver($caregiverId: String!) {
+          medications_by_caregiver(caregiverId: $caregiverId) {
+          id
+          name
+          description
+          quantity
+          dosageAmount
+          dosageUnit
+          frequency
+          picture
+          careRecipientId
+          doctorId
+          caregiverId
+          status
+          type
+          }
+        }
+      ''';
 
-    return base;
+      final result = await client.query(
+        QueryOptions(
+          document: gql(query),
+          variables: {'caregiverId': 'CG-003'}, // hardcoded for now
+          fetchPolicy: FetchPolicy.networkOnly,
+        ),
+      );
+
+      if (result.hasException) {
+        debugPrint('meds query error: ${result.exception}');
+        return <Map<String, dynamic>>[];
+      }
+
+      final List<dynamic>? meds =
+          result.data?['medications_by_caregiver'] as List<dynamic>?;
+      if (meds == null || meds.isEmpty) {
+        return <Map<String, dynamic>>[];
+      }
+
+      // map server objects to local item structure
+      final mapped = meds.map((m) {
+        final name = m['name'] ?? '';
+        final dosageAmount = m['dosageAmount']?.toString() ?? '';
+        final dosageUnit = m['dosageUnit'] ?? '';
+        final qty = m['quantity']?.toString() ?? '';
+        final type = m['type'] ?? '';
+
+        return {
+          'name': name,
+          'dose': '$dosageAmount$dosageUnit',
+          'left': qty,
+          'color': const Color(0xFFF7EAD3),
+          'asset': 'assets/icons/$type.png',
+          'type': type,
+        };
+      }).toList();
+
+      final mappedList = mapped.cast<Map<String, dynamic>>();
+      setState(() {
+        _items = mappedList;
+      });
+      return mappedList;
+    } catch (e, st) {
+      debugPrint('fetchMedications failed: $e\n$st');
+      return <Map<String, dynamic>>[];
+    }
   }
 
   void _select(MedicineType t) {
@@ -206,7 +115,9 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
 
   // 现在没用到，可以之后接 list
   Widget _buildPile() {
-    final filtered = _items.where((it) => it['type'] == _selected.toString().split('.').last).toList();
+    final filtered = _items
+        .where((it) => it['type'] == _selected.toString().split('.').last)
+        .toList();
 
     if (filtered.isEmpty) {
       return Padding(
@@ -245,11 +156,29 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                     color: Colors.white,
                     shape: BoxShape.circle,
                   ),
-                  child: Image.asset(
-                    it['asset'] as String,
-                    width: 20.w,
-                    height: 20.w,
-                    fit: BoxFit.contain,
+                  child: Builder(
+                    builder: (context) {
+                      final asset = (it['asset'] as String?) ?? '';
+                      if (asset.startsWith('http')) {
+                        return Image.network(
+                          asset,
+                          width: 20.w,
+                          height: 20.w,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => Image.asset(
+                            'assets/icons/capsule.png',
+                            width: 20.w,
+                            height: 20.w,
+                          ),
+                        );
+                      }
+                      return Image.asset(
+                        asset.isNotEmpty ? asset : 'assets/icons/capsule.png',
+                        width: 20.w,
+                        height: 20.w,
+                        fit: BoxFit.contain,
+                      );
+                    },
                   ),
                 ),
                 SizedBox(width: 12.w),
@@ -514,7 +443,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                     SizedBox(height: 12.h),
 
                     /// ✅ Status 卡片靠右，内部内容靠左
-
                     _buildPile(),
 
                     // 这里以后可以接 _buildPile() 或别的内容
