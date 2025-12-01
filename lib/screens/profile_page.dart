@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import 'package:carelink_mobile/utils/secure_auth.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -316,7 +317,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                       const SnackBar(content: Text('Logged out')),
                                     );
                                   }
-                                  Navigator.of(context).popUntil((route) => route.isFirst);
+                                  // Navigate to the login page after logout
+                                  if (mounted) context.go('/login');
                                 }
                               },
                             );

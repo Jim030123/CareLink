@@ -8,14 +8,14 @@ import 'package:carelink_mobile/components/health_card.dart';
 import 'package:carelink_mobile/components/ai_chat_box.dart';
 import 'package:go_router/go_router.dart';
 
-class CareRecipientHomePage extends StatefulWidget {
-  const CareRecipientHomePage({super.key});
+class CaregiverHomePage extends StatefulWidget {
+  const CaregiverHomePage({super.key});
 
   @override
-  State<CareRecipientHomePage> createState() => _CareRecipientHomePageState();
+  State<CaregiverHomePage> createState() => _CaregiverHomePageState();
 }
 
-class _CareRecipientHomePageState extends State<CareRecipientHomePage> {
+class _CaregiverHomePageState extends State<CaregiverHomePage> {
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<double> _appBarOpacity = ValueNotifier(1.0);
   // how many logical pixels to scroll before the appbar becomes fully transparent
@@ -428,7 +428,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> {
             ),
           ),
 
-          
+
           SliverToBoxAdapter(
             child: Container(
               color: Colors.green[200],

@@ -1,5 +1,6 @@
 import 'package:carelink_mobile/components/text_field.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
+import 'package:carelink_mobile/utils/secure_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
@@ -16,12 +17,32 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
+  bool _biometricAvailable = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    try {
+      final creds = await SecureAuth.getCredentials();
+      final hasCred = creds['email'] != null && creds['password'] != null;
+      final can = await SecureAuth.canAuthenticate();
+      setState(() {
+        _biometricAvailable = hasCred && can;
+      });
+    } catch (e) {
+      debugPrint('LoginPage: biometric availability check failed: $e');
+    }
   }
 
   void _onLogin() async {
@@ -33,9 +54,20 @@ class _LoginPageState extends State<LoginPage> {
         email: _emailController.text,
         password: _passController.text,
       );
+      // Save credentials so biometric login becomes available next time.
+      try {
+        // Replace any previously stored credentials with the new account.
+        await SecureAuth.clearCredentials();
+        await SecureAuth.saveCredentials(email: _emailController.text.trim(), password: _passController.text);
+      } catch (e) {
+        debugPrint('LoginPage: failed to replace saved credentials: $e');
+      }
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Login successful')));
+      // update biometric availability state
+      _checkBiometricAvailability();
       // navigate to home via GoRouter
       context.go('/home');
     } catch (e) {
@@ -170,6 +202,26 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             SizedBox(height: 10.h),
+                            if (_biometricAvailable) ...[
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    // attempt biometric authenticate + sign-in
+                                    final uc = await SecureAuth.authenticateAndSignIn(context);
+                                    if (uc != null) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signed in with biometrics')));
+                                        context.go('/home');
+                                      }
+                                    }
+                                  },
+                                  icon: const Icon(Icons.fingerprint),
+                                  label: const Text('Login with biometrics'),
+                                ),
+                              ),
+                              SizedBox(height: 8.h),
+                            ],
                             GestureDetector(
                               onTap: () {
                                 // navigate to register screen via GoRouter

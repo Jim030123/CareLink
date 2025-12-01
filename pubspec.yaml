@@ -51,6 +51,7 @@ dependencies:
   local_auth: ^3.0.0
   cloud_functions: ^6.0.4
   flutter_secure_storage: ^9.2.4
+  lottie: ^3.3.2
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +79,7 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
+    - assets/animations/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

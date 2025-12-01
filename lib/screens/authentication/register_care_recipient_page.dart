@@ -7,6 +7,7 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:carelink_mobile/utils/caregiver_provider.dart';
 import 'dart:math';
 // caregiver provider import removed (not used in this screen)
 
@@ -425,8 +426,9 @@ class _RegisterCareRecipientPageState
                                         // Require caregiver id to associate recipients with the caregiver
                                         // final caregiverId = ref.read(caregiverIdProvider);
 
-                                        // test
-                                        final caregiverId = 'CG-005';
+                                        // use provided caregiverId from the parent widget; fall back to value from provider
+                                        // Provider is defined in `lib/utils/caregiver_provider.dart`
+                                        final caregiverId = widget.caregiverId ?? ref.read(caregiverIdProvider) ?? '';
 
                                         if (caregiverId.isEmpty) {
                                           ScaffoldMessenger.of(

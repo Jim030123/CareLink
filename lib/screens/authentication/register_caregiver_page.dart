@@ -286,7 +286,6 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
             email
             phone
             caregiverType
-            careRecipientId
           }
         }
         ''';
@@ -298,7 +297,6 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
         'email': data['email'],
         'phone': data['phone'],
         'caregiverType': 'Primary',
-        'careRecipientId': null,
       };
 
       final insertResult = await client.mutate(
