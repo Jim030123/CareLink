@@ -12,6 +12,7 @@ import 'package:carelink_mobile/screens/authentication/register_page.dart';
 import 'package:carelink_mobile/screens/show_appointment.dart';
 import 'package:carelink_mobile/utils/test_page.dart';
 import 'package:carelink_mobile/screens/profile_page.dart';
+import 'package:carelink_mobile/utils/test_page_2.dart';
 import 'package:go_router/go_router.dart';
 import 'package:carelink_mobile/screens/not_found_page.dart';
 
@@ -97,7 +98,7 @@ final GoRouter appRouter = GoRouter(
     ),
 
     GoRoute(path: '/test',
-    builder: (context, state) => const TestPage(),),
+    builder: (context, state) => const TestPage2(),),
 
     GoRoute(path: '/medication', builder: (context, state) => const TypeofMedicine()),
   ],

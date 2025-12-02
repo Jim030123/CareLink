@@ -133,7 +133,7 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
       // store generated caregiver id in Riverpod state so downstream pages
       // can read it without relying on router extras.
       try {
-        ref.read(caregiverIdProvider.notifier).state = generatedCode;
+        ref.read(currentUserIdProvider.notifier).state = generatedCode;
       } catch (e) {
         debugPrint('Failed to write caregiverIdProvider: $e');
       }

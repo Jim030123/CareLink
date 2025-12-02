@@ -423,12 +423,8 @@ class _RegisterCareRecipientPageState
                                           'Recipients to insert: $recipients',
                                         );
 
-                                        // Require caregiver id to associate recipients with the caregiver
-                                        // final caregiverId = ref.read(caregiverIdProvider);
-
-                                        // use provided caregiverId from the parent widget; fall back to value from provider
-                                        // Provider is defined in `lib/utils/caregiver_provider.dart`
-                                        final caregiverId = widget.caregiverId ?? ref.read(caregiverIdProvider) ?? '';
+                                  
+                                        final caregiverId = widget.caregiverId ?? ref.read(currentUserIdProvider) ?? '';
 
                                         if (caregiverId.isEmpty) {
                                           ScaffoldMessenger.of(

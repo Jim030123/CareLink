@@ -16,6 +16,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // Enable core library desugaring for libraries that use newer Java APIs
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -61,4 +63,10 @@ dependencies {
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // Required for some plugins (e.g. flutter_local_notifications) that use newer Java APIs
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // AndroidX AppCompat for Activity support (FullScreenActivity)
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    // Material components (optional, used by many UI components)
+    implementation("com.google.android.material:material:1.9.0")
 }

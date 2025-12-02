@@ -1,6 +1,10 @@
 // lib/utils/auth_service.dart
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+
+import 'package:carelink_mobile/utils/secure_auth.dart';
+import 'package:carelink_mobile/utils/graphql_service.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:carelink_mobile/utils/caregiver_provider.dart';
 
 class AuthService {
   AuthService._privateConstructor();
@@ -126,6 +130,4 @@ class AuthService {
     if (user == null) return null;
     return await user.getIdToken(forceRefresh);
   }
-
-
 }

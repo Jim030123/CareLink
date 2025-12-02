@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'firebase_options.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
+import 'package:carelink_mobile/utils/auth_service.dart';
 
 
 Future<void> main() async {
@@ -24,8 +25,20 @@ Future<void> main() async {
 
   await initializeDateFormatting();
 
-  // Create a single client notifier and reuse throughout the app
-  final clientNotifier = createClientNotifier();
+  // Create a single client notifier and reuse throughout the app.
+  // Provide an async idTokenProvider so AuthLink and WebSocket connection
+  // payload can include the Firebase id token when available.
+  final clientNotifier = createClientNotifier(
+    idTokenProvider: () async {
+      try {
+        final user = AuthService.instance.currentUser;
+        if (user == null) return null;
+        return await user.getIdToken();
+      } catch (_) {
+        return null;
+      }
+    },
+  );
 
   runApp(ProviderScope(
     child: GraphQLProvider(
