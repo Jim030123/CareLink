@@ -1,4 +1,3 @@
-
 import 'package:carelink_mobile/utils/route_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -9,25 +8,32 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'firebase_options.dart';
+
+// 这里假设你已经把我给你的 createClient / createClientNotifier
+// 放在了 lib/utils/graphql_service.dart 里
 import 'package:carelink_mobile/utils/graphql_service.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 
-
 Future<void> main() async {
+  // 确保 Widgets 绑定初始化（必须的）
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Hive for graphql_flutter cache
+  // 初始化 Hive（graphql_flutter 的缓存用）
   await initHiveForFlutter();
 
+  // 初始化 Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // 初始化日期本地化（你 app 里有用到 Intl）
   await initializeDateFormatting();
 
-  // Create a single client notifier and reuse throughout the app.
-  // Provide an async idTokenProvider so AuthLink and WebSocket connection
-  // payload can include the Firebase id token when available.
+  // 🔐 创建一个全局复用的 GraphQL Client（带 Auth + Subscriptions）
+  //
+  // idTokenProvider:
+  //   每次需要 token 时，会调用这个函数（异步）
+  //   这里我们从 Firebase 当前用户拿 idToken
   final clientNotifier = createClientNotifier(
     idTokenProvider: () async {
       try {
@@ -38,25 +44,37 @@ Future<void> main() async {
         return null;
       }
     },
+
+    // ✅ HTTP 基础地址（Query / Mutation）
+    baseUrl: 'http://10.209.91.100:25001/graphql',
+
+    // ✅ WebSocket 地址（Subscription）
+    // 使用后端正在监听的路径：/graphql
+    websocketUrl: 'ws://10.209.91.100:25001/graphql',
+
+    // 可以显式写上，默认就是 true
+    enableSubscriptions: true,
   );
 
-  runApp(ProviderScope(
-    child: GraphQLProvider(
-      client: clientNotifier,
-      child: MyApp(),
+  // Riverpod + GraphQLProvider 一起包住整个 App
+  runApp(
+    ProviderScope(
+      child: GraphQLProvider(
+        client: clientNotifier,
+        child: const MyApp(),
+      ),
     ),
-  ));
+  );
 }
 
-// router is provided by `lib/utils/route_service.dart` as `appRouter`
-
+// router 是从 lib/utils/route_service.dart 里导出的 appRouter
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     const Color accentColor = Color(0xFFF4CBA1);
+
     return OrientationBuilder(
       builder: (context, orientation) {
         return ScreenUtilInit(
@@ -71,9 +89,11 @@ class MyApp extends StatelessWidget {
               title: 'CareLink',
               theme: ThemeData(
                 scaffoldBackgroundColor: const Color(0xFFFFF8F0),
-                colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFCEEDB)),
+                colorScheme:
+                    ColorScheme.fromSeed(seedColor: const Color(0xFFFCEEDB)),
                 appBarTheme: const AppBarTheme(
-                  backgroundColor: Colors.transparent, // AppBar 背景透明
+                  backgroundColor: Colors
+                      .transparent, // AppBar 背景透明（你原本的设定，保留）
                 ),
                 dividerColor: Colors.transparent,
                 visualDensity: VisualDensity.adaptivePlatformDensity,
@@ -81,12 +101,14 @@ class MyApp extends StatelessWidget {
                 textTheme: GoogleFonts.robotoTextTheme(
                   Theme.of(context).textTheme,
                 ),
-                // Set ElevatedButton default style app-wide
+                // 全局 ElevatedButton 主题
                 elevatedButtonTheme: ElevatedButtonThemeData(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: accentColor,
                     foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.w)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20.w),
+                    ),
                     elevation: 2,
                   ),
                 ),

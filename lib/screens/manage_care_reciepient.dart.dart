@@ -47,7 +47,30 @@ class _ManageCareRecipientState extends State<ManageCareRecipient> {
       });
       return;
     }
-
+const String getCaregiverWithRecipientsQuery = r'''
+query GetCaregiverWithRecipients($id: String!) {
+  caregiver_by_pk(id: $id) {
+    id
+    firstName
+    lastName
+    name
+    email
+    phone
+    caregiverType
+    careRecipients {
+      id
+      firstName
+      lastName
+      dateOfBirth
+      gender
+      email
+      phone
+      caregiverId
+      type
+    }
+  }
+}
+''';
     try {
       final result = await client.query(QueryOptions(
         document: gql(getCaregiverWithRecipientsQuery),
