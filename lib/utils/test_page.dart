@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'dart:async';
-import 'dart:math' as math;
+// import 'dart:math' as math; // removed (was used by previous subscription retry logic)
 
 
 const String getMedicationsByCaregiverQuery = r'''
@@ -91,7 +91,6 @@ class _TestPageState extends State<TestPage> {
     // Auto-run the medications query for the hardcoded caregiver id
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _runMedQuery();
-      _startMedSubscription(_idCtrl.text.trim());
     });
 
     // Resubscribe when caregiver id changes (debounced)
@@ -101,7 +100,6 @@ class _TestPageState extends State<TestPage> {
         final id = _idCtrl.text.trim();
         if (id.isEmpty) return;
         _runMedQuery();
-        _startMedSubscription(id);
       });
     });
 
@@ -112,7 +110,7 @@ class _TestPageState extends State<TestPage> {
   bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _medications = [];
-  StreamSubscription<QueryResult>? _medSub;
+  // StreamSubscription<QueryResult>? _medSub; // removed: using Subscription widget instead
   Timer? _idChangeTimer;
 
   // Broadcast stream controller to drive UI updates like a real-time stream
@@ -121,7 +119,7 @@ class _TestPageState extends State<TestPage> {
   @override
   void dispose() {
     _idCtrl.dispose();
-    _medSub?.cancel();
+    // using Subscription widget; no manual subscription to cancel
     _idChangeTimer?.cancel();
     _medStreamCtrl.close();
     super.dispose();
@@ -132,6 +130,64 @@ class _TestPageState extends State<TestPage> {
       _medStreamCtrl.add(List<Map<String, dynamic>>.from(_medications));
     } catch (e) {
       debugPrint('emitMedications error: $e');
+    }
+  }
+
+  /// Apply a subscription payload (event envelope) to the local _medications list.
+  void _applyMedUpdate(Map<String, dynamic> payload) {
+    try {
+      debugPrint('applyMedUpdate payload: $payload');
+      final String? eventType = payload['eventType']?.toString();
+      final String? deletedId = payload['deletedId']?.toString() ?? payload['deleted_id']?.toString();
+      final medRaw = payload['medication'];
+      final Map<String, dynamic>? med = medRaw is Map ? Map<String, dynamic>.from(medRaw) : null;
+
+      // Fallbacks: some servers use different field names or send only an id
+      final String? altEvent = payload['event']?.toString();
+      final String? altType = payload['type']?.toString();
+      final String resolvedEventType = (eventType ?? altEvent ?? altType ?? '').toUpperCase();
+
+      // If medication object present and has deleted flag, treat as delete
+      final bool medMarkedDeleted = med != null && (med['deleted'] == true || (med['status'] as String?)?.toLowerCase() == 'deleted');
+      // If payload itself is just an id (e.g. { id: '...' }), consider it a delete event
+      final bool payloadIsOnlyId = (payload.keys.length == 1 && payload.containsKey('id')) || (payload['id'] is String && med == null && deletedId == null && resolvedEventType.isEmpty && !medMarkedDeleted);
+
+      // Candidate id to remove if deletion is detected
+      final String? idCandidate = deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
+      debugPrint('applyMedUpdate: resolvedEventType=$resolvedEventType, medMarkedDeleted=$medMarkedDeleted, payloadIsOnlyId=$payloadIsOnlyId, idCandidate=$idCandidate');
+
+      setState(() {
+        if ((resolvedEventType == 'CREATED' || resolvedEventType == 'CREATE') && med != null) {
+          _medications.insert(0, med);
+        } else if ((resolvedEventType == 'UPDATED' || resolvedEventType == 'UPDATE') && med != null) {
+          final idx = _medications.indexWhere((m) => m['id'] == med['id']);
+          if (idx != -1) _medications[idx] = med;
+        } else if (resolvedEventType.contains('DELET') || medMarkedDeleted || payloadIsOnlyId) {
+          // deletion by explicit deletedId, by medication.deleted flag, or payload==id
+          final String? idToRemove = deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
+          if (idToRemove != null) {
+            _medications.removeWhere((m) => m['id'] == idToRemove);
+          }
+        } else {
+          // If no explicit eventType, but medication object present, upsert it
+          if (med != null) {
+            final idx = _medications.indexWhere((m) => m['id'] == med['id']);
+            if (idx >= 0) _medications[idx] = med;
+            else _medications.insert(0, med);
+          }
+        }
+      });
+      _emitMedications();
+
+      if ((eventType == 'DELETED') && mounted) {
+        final disp = (med?['name'] ?? deletedId ?? '').toString();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Medication deleted: $disp'), duration: const Duration(seconds: 2)));
+        });
+      }
+    } catch (e) {
+      debugPrint('applyMedUpdate failed: $e');
     }
   }
 
@@ -187,145 +243,7 @@ class _TestPageState extends State<TestPage> {
     }
   }
 
-  void _startMedSubscription(String caregiverId, [int attempt = 0]) {
-    if (caregiverId.isEmpty || !mounted) return;
-    try {
-      _medSub?.cancel();
-      final client = GraphQLProvider.of(context).value;
-      debugPrint('med sub: starting for caregiverId=$caregiverId attempt=$attempt');
-      final stream = client.subscribe(SubscriptionOptions(document: gql(medicationUpdatedSub), variables: {'caregiverId': caregiverId}));
-      _medSub = stream.listen((QueryResult result) {
-        if (result.hasException) {
-          debugPrint('med sub exception: ${result.exception}');
-          return;
-        }
-        debugPrint('med sub raw payload: ${result.data}');
 
-        final payload = result.data;
-        debugPrint('med sub result.data keys: ${payload?.keys}');
-
-        // Handle multiple server payload shapes. Prefer the envelope shape:
-        // { medicationUpdated: { eventType, deletedId, medication: { ... } } }
-        // but also accept older/alternative shapes like { eventType, deletedId }
-        // or a bare object { id, name, ... } or minimal { id }.
-        Map<String, dynamic>? data;
-        String? eventType;
-        String? deletedId;
-
-        if (payload != null) {
-          final top = Map<String, dynamic>.from(payload as Map);
-
-          // Envelope form: medicationUpdated -> { eventType, deletedId, medication }
-          if (top['medicationUpdated'] is Map) {
-            final env = Map<String, dynamic>.from(top['medicationUpdated'] as Map);
-            eventType = env['eventType']?.toString() ?? env['event']?.toString();
-            deletedId = env['deletedId']?.toString() ?? env['deleted_id']?.toString();
-            if (env['medication'] is Map) {
-              data = Map<String, dynamic>.from(env['medication'] as Map);
-            } else if (env['deletedId'] != null) {
-              data = {'id': env['deletedId']};
-            }
-          } else {
-            // Non-envelope: try to interpret top directly
-            // Could be an envelope without wrapper, an event-like object, or the medication itself
-            if (top.containsKey('eventType') || top.containsKey('deletedId') || top.containsKey('deleted_id')) {
-              eventType = top['eventType']?.toString() ?? top['event']?.toString();
-              deletedId = top['deletedId']?.toString() ?? top['deleted_id']?.toString();
-              // if medication sub-object present
-              if (top['medication'] is Map) data = Map<String, dynamic>.from(top['medication'] as Map);
-              else if (top.containsKey('id')) data = top;
-            } else if (top.containsKey('id')) {
-              // assume this is the medication object itself
-              data = top;
-            }
-          }
-        }
-
-        if (data == null) {
-          debugPrint('med sub: unhandled payload shape, ignoring. payload=$payload');
-          return;
-        }
-
-        final id = (data['id'] ?? data['deletedId'] ?? data['deleted_id'])?.toString();
-        if (id == null || id.isEmpty) {
-          debugPrint('med sub: payload missing id/deletedId, payload=$payload');
-          return;
-        }
-        final d = data; // non-null alias for analyzer
-
-        // Determine deletion state
-        bool isDeleted = false;
-
-        if (eventType != null && eventType.toString().toUpperCase().contains('DELET')) {
-          isDeleted = true;
-          if (deletedId == null) deletedId = id;
-        }
-
-        // Fallback heuristics
-        if (!isDeleted) {
-          if (d['deleted'] == true) isDeleted = true;
-          if ((d['status'] as String?)?.toLowerCase() == 'deleted') isDeleted = true;
-          if ((d.keys.length == 1) && d.containsKey('id')) {
-            // server sent only id -> treat as delete
-            isDeleted = true;
-            deletedId = id;
-          }
-        }
-
-        setState(() {
-          if (isDeleted) {
-            final remId = deletedId ?? id;
-            _medications.removeWhere((e) => e['id']?.toString() == remId);
-          } else {
-              final med = {
-                'id': id,
-                'name': d['name'] ?? '',
-                'dosageAmount': d['dosageAmount'],
-                'dosageUnit': d['dosageUnit'],
-                'quantity': d['quantity'],
-                'type': d['type'],
-                'status': d['status'],
-              };
-            final idx = _medications.indexWhere((e) => e['id']?.toString() == id);
-            if (idx >= 0) {
-              _medications[idx] = med;
-            } else {
-              _medications.insert(0, med);
-            }
-          }
-        });
-        _emitMedications();
-
-        if (isDeleted && mounted) {
-          final disp = (data['name'] ?? id).toString();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Medication deleted: $disp'), duration: const Duration(seconds: 2)));
-          });
-        }
-      }, onError: (e) {
-        debugPrint('med subscription error: $e');
-        if (!mounted) return;
-        final next = attempt + 1;
-        final seconds = math.min(60, math.pow(2, next).toInt());
-        debugPrint('med sub: scheduling retry #$next in ${seconds}s');
-        Future.delayed(Duration(seconds: seconds), () {
-          if (mounted) _startMedSubscription(caregiverId, next);
-        });
-      }, onDone: () {
-        debugPrint('med subscription done (onDone called)');
-        if (!mounted) return;
-        final next = attempt + 1;
-        final seconds = math.min(60, math.pow(2, next).toInt());
-        debugPrint('med sub: onDone scheduling retry #$next in ${seconds}s');
-        Future.delayed(Duration(seconds: seconds), () {
-          if (mounted) _startMedSubscription(caregiverId, next);
-        });
-      });
-    } catch (e, st) {
-      debugPrint('startMedSubscription failed: $e\n$st');
-    }
-  }
 
   Future<Map<String, dynamic>?> _upsertMedication(Map<String, dynamic> input) async {
     try {
@@ -615,28 +533,37 @@ class _TestPageState extends State<TestPage> {
               ]),
               const SizedBox(height: 12),
               if (_error != null) Expanded(child: SingleChildScrollView(child: Text('Error:\n\n$_error', style: const TextStyle(color: Colors.red)))),
-              Expanded(
-                child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: _medStreamCtrl.stream,
-                  initialData: _medications,
-                  builder: (context, snap) {
-                    final meds = snap.data ?? [];
-                    if (meds.isEmpty && _error == null) {
-                      return const Padding(padding: EdgeInsets.only(top: 8.0), child: Text('No medications loaded (run a query)'));
+
+              // Subscription widget: when result.data != null it means server pushed an event
+              Subscription(
+                options: SubscriptionOptions(
+                  document: gql(medicationUpdatedSub),
+                  variables: {'caregiverId': _idCtrl.text.trim()},
+                ),
+                builder: (result) {
+                  if (result.hasException) {
+                    debugPrint('med sub exception: ${result.exception}');
+                  }
+                  if (result.data != null) {
+                    final payload = result.data!['medicationUpdated'];
+                    if (payload != null) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _applyMedUpdate(Map<String, dynamic>.from(payload as Map<String, dynamic>));
+                      });
                     }
-                    if (_error != null) {
-                      return SingleChildScrollView(child: Text('Error:\n\n$_error', style: const TextStyle(color: Colors.red)));
-                    }
-                    return ListView.separated(
-                      itemCount: meds.length,
+                  }
+                  // Always render the list from local state
+                  return Expanded(
+                    child: ListView.separated(
+                      itemCount: _medications.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 6),
                       itemBuilder: (context, i) {
-                        final m = meds[i];
+                        final m = _medications[i];
                         return _medicationCard(m);
                       },
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
               ),
             ]
           ),
