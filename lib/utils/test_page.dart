@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'dart:async';
-// import 'dart:math' as math; // removed (was used by previous subscription retry logic)
-
 
 const String getMedicationsByCaregiverQuery = r'''
 query GetMedicationsByCaregiver($caregiverId: String!) {
@@ -85,15 +83,29 @@ class TestPage extends StatefulWidget {
 
 class _TestPageState extends State<TestPage> {
   final TextEditingController _idCtrl = TextEditingController(text: 'CG-003');
+
+  bool _isLoading = false;
+  String? _error;
+  List<Map<String, dynamic>> _medications = [];
+  Timer? _idChangeTimer;
+
+  // 广播 stream（如果之后要别的 widget 监听，这里已经准备好）
+  final StreamController<List<Map<String, dynamic>>> _medStreamCtrl =
+      StreamController<List<Map<String, dynamic>>>.broadcast();
+
+  // 记录上一次处理过的订阅事件 key，用来防止重复 apply
+  String? _lastMedEventKey;
+
   @override
   void initState() {
     super.initState();
-    // Auto-run the medications query for the hardcoded caregiver id
+
+    // 初次进页面自动拉一次 list
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _runMedQuery();
     });
 
-    // Resubscribe when caregiver id changes (debounced)
+    // caregiverId 输入防抖 + 自动刷新
     _idCtrl.addListener(() {
       _idChangeTimer?.cancel();
       _idChangeTimer = Timer(const Duration(milliseconds: 400), () {
@@ -102,24 +114,11 @@ class _TestPageState extends State<TestPage> {
         _runMedQuery();
       });
     });
-
-    // Start a safe polling fallback: query every 15 seconds while this page is active.
-    // This ensures UI updates even when subscription messages are not delivered.
   }
-
-  bool _isLoading = false;
-  String? _error;
-  List<Map<String, dynamic>> _medications = [];
-  // StreamSubscription<QueryResult>? _medSub; // removed: using Subscription widget instead
-  Timer? _idChangeTimer;
-
-  // Broadcast stream controller to drive UI updates like a real-time stream
-  final StreamController<List<Map<String, dynamic>>> _medStreamCtrl = StreamController<List<Map<String, dynamic>>>.broadcast();
 
   @override
   void dispose() {
     _idCtrl.dispose();
-    // using Subscription widget; no manual subscription to cancel
     _idChangeTimer?.cancel();
     _medStreamCtrl.close();
     super.dispose();
@@ -133,47 +132,107 @@ class _TestPageState extends State<TestPage> {
     }
   }
 
-  /// Apply a subscription payload (event envelope) to the local _medications list.
+  /// 去重包装：只有“新事件”才调用 _applyMedUpdate
+  void _handleMedUpdate(Map<String, dynamic> payload) {
+    try {
+      final String? rawEventType =
+          payload['eventType']?.toString() ?? payload['event']?.toString();
+      final String eventType = (rawEventType ?? '').toUpperCase();
+
+      final String? timestamp = payload['timestamp']?.toString();
+
+      final medRaw = payload['medication'];
+      final String? medId = medRaw is Map
+          ? (medRaw['id']?.toString())
+          : null;
+
+      final String? deletedId =
+          payload['deletedId']?.toString() ??
+              payload['deleted_id']?.toString() ??
+              payload['id']?.toString();
+
+      // 用 eventType + timestamp + (deletedId / medId) 作为唯一 key
+      final String key =
+          '${eventType}_${timestamp ?? ''}_${deletedId ?? medId ?? ''}';
+
+      if (key.isNotEmpty && _lastMedEventKey == key) {
+        // 同一事件已经处理过，忽略
+        debugPrint('⚠️ duplicate med event ignored, key=$key');
+        return;
+      }
+
+      _lastMedEventKey = key;
+
+      _applyMedUpdate(payload);
+    } catch (e) {
+      debugPrint('handleMedUpdate failed: $e');
+      // fallback：出错就直接 apply
+      _applyMedUpdate(payload);
+    }
+  }
+
+  /// 把订阅收到的 payload 应用到本地 _medications 列表
   void _applyMedUpdate(Map<String, dynamic> payload) {
     try {
       debugPrint('applyMedUpdate payload: $payload');
       final String? eventType = payload['eventType']?.toString();
-      final String? deletedId = payload['deletedId']?.toString() ?? payload['deleted_id']?.toString();
+      final String? deletedId =
+          payload['deletedId']?.toString() ?? payload['deleted_id']?.toString();
       final medRaw = payload['medication'];
-      final Map<String, dynamic>? med = medRaw is Map ? Map<String, dynamic>.from(medRaw) : null;
+      final Map<String, dynamic>? med = medRaw is Map
+          ? Map<String, dynamic>.from(medRaw)
+          : null;
 
-      // Fallbacks: some servers use different field names or send only an id
       final String? altEvent = payload['event']?.toString();
       final String? altType = payload['type']?.toString();
-      final String resolvedEventType = (eventType ?? altEvent ?? altType ?? '').toUpperCase();
+      final String resolvedEventType = (eventType ?? altEvent ?? altType ?? '')
+          .toUpperCase();
 
-      // If medication object present and has deleted flag, treat as delete
-      final bool medMarkedDeleted = med != null && (med['deleted'] == true || (med['status'] as String?)?.toLowerCase() == 'deleted');
-      // If payload itself is just an id (e.g. { id: '...' }), consider it a delete event
-      final bool payloadIsOnlyId = (payload.keys.length == 1 && payload.containsKey('id')) || (payload['id'] is String && med == null && deletedId == null && resolvedEventType.isEmpty && !medMarkedDeleted);
+      final bool medMarkedDeleted =
+          med != null &&
+          (med['deleted'] == true ||
+              (med['status'] as String?)?.toLowerCase() == 'deleted');
 
-      // Candidate id to remove if deletion is detected
-      final String? idCandidate = deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
-      debugPrint('applyMedUpdate: resolvedEventType=$resolvedEventType, medMarkedDeleted=$medMarkedDeleted, payloadIsOnlyId=$payloadIsOnlyId, idCandidate=$idCandidate');
+      final bool payloadIsOnlyId =
+          (payload.keys.length == 1 && payload.containsKey('id')) ||
+          (payload['id'] is String &&
+              med == null &&
+              deletedId == null &&
+              resolvedEventType.isEmpty &&
+              !medMarkedDeleted);
+
+      final String? idCandidate =
+          deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
+      debugPrint(
+        'applyMedUpdate: resolvedEventType=$resolvedEventType, medMarkedDeleted=$medMarkedDeleted, payloadIsOnlyId=$payloadIsOnlyId, idCandidate=$idCandidate',
+      );
 
       setState(() {
-        if ((resolvedEventType == 'CREATED' || resolvedEventType == 'CREATE') && med != null) {
+        if ((resolvedEventType == 'CREATED' || resolvedEventType == 'CREATE') &&
+            med != null) {
           _medications.insert(0, med);
-        } else if ((resolvedEventType == 'UPDATED' || resolvedEventType == 'UPDATE') && med != null) {
+        } else if ((resolvedEventType == 'UPDATED' ||
+                resolvedEventType == 'UPDATE') &&
+            med != null) {
           final idx = _medications.indexWhere((m) => m['id'] == med['id']);
           if (idx != -1) _medications[idx] = med;
-        } else if (resolvedEventType.contains('DELET') || medMarkedDeleted || payloadIsOnlyId) {
-          // deletion by explicit deletedId, by medication.deleted flag, or payload==id
-          final String? idToRemove = deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
+        } else if (resolvedEventType.contains('DELET') ||
+            medMarkedDeleted ||
+            payloadIsOnlyId) {
+          final String? idToRemove =
+              deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
           if (idToRemove != null) {
             _medications.removeWhere((m) => m['id'] == idToRemove);
           }
         } else {
-          // If no explicit eventType, but medication object present, upsert it
+          // 没明确 eventType，但有 medication 对象，当作 upsert
           if (med != null) {
             final idx = _medications.indexWhere((m) => m['id'] == med['id']);
-            if (idx >= 0) _medications[idx] = med;
-            else _medications.insert(0, med);
+            if (idx >= 0) {
+              _medications[idx] = med;
+            } else {
+              _medications.insert(0, med);
+            }
           }
         }
       });
@@ -183,7 +242,12 @@ class _TestPageState extends State<TestPage> {
         final disp = (med?['name'] ?? deletedId ?? '').toString();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Medication deleted: $disp'), duration: const Duration(seconds: 2)));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Medication deleted: $disp'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
         });
       }
     } catch (e) {
@@ -196,6 +260,7 @@ class _TestPageState extends State<TestPage> {
       _isLoading = true;
       _error = null;
       _medications = [];
+      _lastMedEventKey = null; // 每次重拉列表，重置一下事件 key
     });
 
     final client = GraphQLProvider.of(context).value;
@@ -221,13 +286,18 @@ class _TestPageState extends State<TestPage> {
         setState(() {
           _error = result.exception.toString();
         });
-        debugPrint('GraphQL medications exception: ${result.exception.toString()}');
+        debugPrint(
+          'GraphQL medications exception: ${result.exception.toString()}',
+        );
         return;
       }
 
-      final meds = (result.data?['medications_by_caregiver'] as List<dynamic>?) ?? [];
+      final meds =
+          (result.data?['medications_by_caregiver'] as List<dynamic>?) ?? [];
       setState(() {
-        _medications = meds.map((e) => Map<String, dynamic>.from(e as Map<String, dynamic>)).toList();
+        _medications = meds
+            .map((e) => Map<String, dynamic>.from(e as Map<String, dynamic>))
+            .toList();
       });
       _emitMedications();
     } catch (e, st) {
@@ -243,9 +313,9 @@ class _TestPageState extends State<TestPage> {
     }
   }
 
-
-
-  Future<Map<String, dynamic>?> _upsertMedication(Map<String, dynamic> input) async {
+  Future<Map<String, dynamic>?> _upsertMedication(
+    Map<String, dynamic> input,
+  ) async {
     try {
       final client = GraphQLProvider.of(context).value;
       final isCreate = input['id'] == null || input['id'].toString().isEmpty;
@@ -265,7 +335,9 @@ class _TestPageState extends State<TestPage> {
         setState(() => _medications.insert(0, optimistic));
         _emitMedications();
       } else {
-        final idx = _medications.indexWhere((e) => e['id']?.toString() == input['id']?.toString());
+        final idx = _medications.indexWhere(
+          (e) => e['id']?.toString() == input['id']?.toString(),
+        );
         if (idx >= 0) {
           previous = Map<String, dynamic>.from(_medications[idx]);
           final optimistic = {
@@ -277,18 +349,28 @@ class _TestPageState extends State<TestPage> {
             'type': input['type'] ?? previous['type'],
             'status': input['status'] ?? previous['status'],
           };
-          setState(() => _medications[idx] = optimistic);
+            _medications[idx] = optimistic;
+          setState(() {});
           _emitMedications();
         }
       }
 
-      final res = await client.mutate(MutationOptions(document: gql(upsertMedicationMutation), variables: {'object': input}));
+      final res = await client.mutate(
+        MutationOptions(
+          document: gql(upsertMedicationMutation),
+          variables: {'object': input},
+        ),
+      );
       if (res.hasException) {
         debugPrint('upsert medication error: ${res.exception}');
         setState(() {
-          if (isCreate && tempId != null) _medications.removeWhere((e) => e['id'] == tempId);
+          if (isCreate && tempId != null) {
+            _medications.removeWhere((e) => e['id'] == tempId);
+          }
           if (!isCreate && previous != null) {
-            final idx = _medications.indexWhere((e) => e['id']?.toString() == previous!['id']?.toString());
+            final idx = _medications.indexWhere(
+              (e) => e['id']?.toString() == previous!['id']?.toString(),
+            );
             if (idx >= 0) _medications[idx] = previous;
           }
         });
@@ -308,12 +390,20 @@ class _TestPageState extends State<TestPage> {
           'type': data['type'],
           'status': data['status'],
         };
-        final tidx = tempId == null ? -1 : _medications.indexWhere((e) => e['id'] == tempId);
-        if (tidx >= 0) _medications[tidx] = mapped;
-        else {
-          final idx = _medications.indexWhere((e) => e['id']?.toString() == mapped['id']?.toString());
-          if (idx >= 0) _medications[idx] = mapped;
-          else _medications.insert(0, mapped);
+        final tidx = tempId == null
+            ? -1
+            : _medications.indexWhere((e) => e['id'] == tempId);
+        if (tidx >= 0) {
+          _medications[tidx] = mapped;
+        } else {
+          final idx = _medications.indexWhere(
+            (e) => e['id']?.toString() == mapped['id']?.toString(),
+          );
+          if (idx >= 0) {
+            _medications[idx] = mapped;
+          } else {
+            _medications.insert(0, mapped);
+          }
         }
       });
       _emitMedications();
@@ -328,7 +418,12 @@ class _TestPageState extends State<TestPage> {
     if (id.isEmpty) return false;
     final client = GraphQLProvider.of(context).value;
     try {
-      final res = await client.mutate(MutationOptions(document: gql(deleteMedicationMutation), variables: {'id': id}));
+      final res = await client.mutate(
+        MutationOptions(
+          document: gql(deleteMedicationMutation),
+          variables: {'id': id},
+        ),
+      );
       if (res.hasException) {
         debugPrint('delete error: ${res.exception}');
         return false;
@@ -342,11 +437,11 @@ class _TestPageState extends State<TestPage> {
         return false;
       }
 
-      // Remove from local list if still present
-      setState(() => _medications.removeWhere((e) => e['id']?.toString() == id));
+      setState(
+        () => _medications.removeWhere((e) => e['id']?.toString() == id),
+      );
       _emitMedications();
 
-      // Refetch authoritative list to ensure client and server are in sync
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _runMedQuery();
       });
@@ -360,9 +455,15 @@ class _TestPageState extends State<TestPage> {
 
   Future<void> _showEditMedSheet(Map<String, dynamic> m) async {
     final nameCtrl = TextEditingController(text: m['name']?.toString() ?? '');
-    final dosageAmountCtrl = TextEditingController(text: m['dosageAmount']?.toString() ?? '');
-    final dosageUnitCtrl = TextEditingController(text: m['dosageUnit']?.toString() ?? '');
-    final qtyCtrl = TextEditingController(text: m['quantity']?.toString() ?? '');
+    final dosageAmountCtrl = TextEditingController(
+      text: m['dosageAmount']?.toString() ?? '',
+    );
+    final dosageUnitCtrl = TextEditingController(
+      text: m['dosageUnit']?.toString() ?? '',
+    );
+    final qtyCtrl = TextEditingController(
+      text: m['quantity']?.toString() ?? '',
+    );
     final typeCtrl = TextEditingController(text: m['type']?.toString() ?? '');
 
     await showModalBottomSheet(
@@ -370,27 +471,57 @@ class _TestPageState extends State<TestPage> {
       isScrollControlled: true,
       builder: (ctx) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
           child: Container(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
-                Row(children: [
-                  Expanded(child: TextField(controller: dosageAmountCtrl, decoration: const InputDecoration(labelText: 'Dosage Amount'))),
-                  const SizedBox(width: 8),
-                  Expanded(child: TextField(controller: dosageUnitCtrl, decoration: const InputDecoration(labelText: 'Dosage Unit'))),
-                ]),
-                TextField(controller: qtyCtrl, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number),
-                TextField(controller: typeCtrl, decoration: const InputDecoration(labelText: 'Type')),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: dosageAmountCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Dosage Amount',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: dosageUnitCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Dosage Unit',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TextField(
+                  controller: qtyCtrl,
+                  decoration: const InputDecoration(labelText: 'Quantity'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: typeCtrl,
+                  decoration: const InputDecoration(labelText: 'Type'),
+                ),
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () async {
                     final input = {
                       'id': m['id'],
                       'name': nameCtrl.text.trim(),
-                      'dosageAmount': double.tryParse(dosageAmountCtrl.text.trim()),
+                      'dosageAmount': double.tryParse(
+                        dosageAmountCtrl.text.trim(),
+                      ),
                       'dosageUnit': dosageUnitCtrl.text.trim(),
                       'quantity': int.tryParse(qtyCtrl.text.trim()) ?? 0,
                       'type': typeCtrl.text.trim(),
@@ -425,7 +556,13 @@ class _TestPageState extends State<TestPage> {
         decoration: BoxDecoration(
           color: const Color(0xFFF7EAD3),
           borderRadius: BorderRadius.circular(12),
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -437,7 +574,11 @@ class _TestPageState extends State<TestPage> {
                 shape: BoxShape.circle,
               ),
               child: const Center(
-                child: Icon(Icons.medical_services, size: 20, color: Colors.black54),
+                child: Icon(
+                  Icons.medical_services,
+                  size: 20,
+                  color: Colors.black54,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -445,10 +586,24 @@ class _TestPageState extends State<TestPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  if (dose.isNotEmpty) Text('Dose: $dose', style: const TextStyle(fontSize: 13)),
-                  if (qty.isNotEmpty) Text('$qty Left', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  if (dose.isNotEmpty)
+                    Text('Dose: $dose', style: const TextStyle(fontSize: 13)),
+                  if (qty.isNotEmpty)
+                    Text(
+                      '$qty Left',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -460,7 +615,10 @@ class _TestPageState extends State<TestPage> {
                   children: [
                     Text(type, style: const TextStyle(fontSize: 12)),
                     const SizedBox(height: 4),
-                    Text((m['status'] as String?) ?? '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(
+                      (m['status'] as String?) ?? '',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                   ],
                 ),
                 PopupMenuButton<String>(
@@ -474,23 +632,35 @@ class _TestPageState extends State<TestPage> {
                           title: const Text('Delete medication'),
                           content: Text('Delete "${m['name'] ?? ''}"?'),
                           actions: [
-                            TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Cancel')),
-                            TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Delete')),
+                            TextButton(
+                              onPressed: () => Navigator.of(dctx).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(dctx).pop(true),
+                              child: const Text('Delete'),
+                            ),
                           ],
                         ),
                       );
                       if (should == true) {
                         final id = (m['id']?.toString() ?? '');
-                        // optimistic remove
                         final backup = Map<String, dynamic>.from(m);
-                        setState(() => _medications.removeWhere((e) => e['id']?.toString() == id));
+                        setState(
+                          () => _medications.removeWhere(
+                            (e) => e['id']?.toString() == id,
+                          ),
+                        );
                         _emitMedications();
                         final ok = await _deleteMedicationById(id);
                         if (!ok) {
-                          // rollback
                           setState(() => _medications.insert(0, backup));
                           _emitMedications();
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete')));
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Failed to delete')),
+                            );
+                          }
                         }
                       }
                     }
@@ -510,6 +680,8 @@ class _TestPageState extends State<TestPage> {
 
   @override
   Widget build(BuildContext context) {
+    final caregiverId = _idCtrl.text.trim();
+
     return Scaffold(
       appBar: AppBar(title: const Text('Medications (test)')),
       body: SafeArea(
@@ -520,52 +692,87 @@ class _TestPageState extends State<TestPage> {
             children: [
               TextField(
                 controller: _idCtrl,
-                decoration: const InputDecoration(labelText: 'Caregiver ID', hintText: 'Enter caregiver id'),
+                decoration: const InputDecoration(
+                  labelText: 'Caregiver ID',
+                  hintText: 'Enter caregiver id',
+                ),
               ),
               const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _runMedQuery,
-                    child: _isLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Show Medications'),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 12),
-              if (_error != null) Expanded(child: SingleChildScrollView(child: Text('Error:\n\n$_error', style: const TextStyle(color: Colors.red)))),
-
-              // Subscription widget: when result.data != null it means server pushed an event
-              Subscription(
-                options: SubscriptionOptions(
-                  document: gql(medicationUpdatedSub),
-                  variables: {'caregiverId': _idCtrl.text.trim()},
-                ),
-                builder: (result) {
-                  if (result.hasException) {
-                    debugPrint('med sub exception: ${result.exception}');
-                  }
-                  if (result.data != null) {
-                    final payload = result.data!['medicationUpdated'];
-                    if (payload != null) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _applyMedUpdate(Map<String, dynamic>.from(payload as Map<String, dynamic>));
-                      });
-                    }
-                  }
-                  // Always render the list from local state
-                  return Expanded(
-                    child: ListView.separated(
-                      itemCount: _medications.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 6),
-                      itemBuilder: (context, i) {
-                        final m = _medications[i];
-                        return _medicationCard(m);
-                      },
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _runMedQuery,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Show Medications'),
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
-            ]
+              const SizedBox(height: 12),
+              if (_error != null)
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Text(
+                      'Error:\n\n$_error',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                )
+              else if (caregiverId.isEmpty)
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _medications.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (context, i) =>
+                        _medicationCard(_medications[i]),
+                  ),
+                )
+              else
+                Subscription(
+                  key: ValueKey('medSub:$caregiverId'),
+                  options: SubscriptionOptions(
+                    document: gql(medicationUpdatedSub),
+                    variables: {'caregiverId': caregiverId},
+                  ),
+                  builder: (result) {
+                    if (result.hasException) {
+                      debugPrint('❌ med sub exception: ${result.exception}');
+                    }
+
+                    if (result.data != null) {
+                      debugPrint('🔔 med sub DATA RECEIVED: ${result.data}');
+
+                      final payload = result.data!['medicationUpdated'];
+                      if (payload != null) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _handleMedUpdate(
+                            Map<String, dynamic>.from(
+                              payload as Map<String, dynamic>,
+                            ),
+                          );
+                        });
+                      }
+                    }
+
+                    return Expanded(
+                      child: ListView.separated(
+                        itemCount: _medications.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 6),
+                        itemBuilder: (context, i) {
+                          final m = _medications[i];
+                          return _medicationCard(m);
+                        },
+                      ),
+                    );
+                  },
+                ),
+            ],
           ),
         ),
       ),
