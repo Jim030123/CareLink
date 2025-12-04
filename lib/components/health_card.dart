@@ -13,14 +13,14 @@ class HealthCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const HealthCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.value,
     required this.icon,
     this.color = Colors.white,
     this.iconColor,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +37,7 @@ class HealthCard extends StatelessWidget {
           splashColor: Colors.black12,
           onTap: onTap,
           child: Container(
-            
+
             padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 12.w),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

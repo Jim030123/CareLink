@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class AppointmentCalendar extends StatefulWidget {
-  const AppointmentCalendar({Key? key}) : super(key: key);
+  const AppointmentCalendar({super.key});
 
   @override
-  _AppointmentCalendarState createState() => _AppointmentCalendarState();
+  @override
+  State<AppointmentCalendar> createState() => _AppointmentCalendarState();
 }
 
 class _AppointmentCalendarState extends State<AppointmentCalendar> {
@@ -32,7 +33,9 @@ class _AppointmentCalendarState extends State<AppointmentCalendar> {
             debugPrint('Selected Date (DateTime): $selectedDay');
 
             // Also print ISO 8601 if you prefer a string format:
-            debugPrint('Selected Date (ISO8601): ${selectedDay.toIso8601String()}');
+            debugPrint(
+              'Selected Date (ISO8601): ${selectedDay.toIso8601String()}',
+            );
           },
           headerStyle: const HeaderStyle(
             formatButtonVisible: false,

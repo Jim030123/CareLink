@@ -8,10 +8,37 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:table_calendar/table_calendar.dart';
 
-
 enum MedicineType { capsule, tablet, injection, cream }
 
 typedef MedicineChanged = void Function(MedicineType type);
+
+/// GraphQL subscription：实时监听护理员的用药变更
+const String medicationUpdatedSub = r'''
+subscription OnMedicationUpdated($caregiverId: String!) {
+  medicationUpdated(caregiverId: $caregiverId) {
+    eventType
+    caregiverId
+    timestamp
+    deletedId
+    medication {
+      id
+      name
+      description
+      quantity
+      dosageAmount
+      dosageUnit
+      frequency
+      picture
+      careRecipientId
+      doctorId
+      caregiverId
+      status
+      type
+      deleted
+    }
+  }
+}
+''';
 
 class TypeofMedicine extends StatefulWidget {
   const TypeofMedicine({super.key, this.initial, this.onChanged});
@@ -28,20 +55,22 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
   int _selectedSegment = 1; // 0=Schedule,1=Medicine
   late List<Map<String, dynamic>> _items;
   late DateTime _selectedScheduleDate;
-  // local schedule entries (for quick local UI testing)
   late List<Map<String, dynamic>> _schedules;
-  // GraphQL subscription
-  // No realtime subscription or stream controller — using simple CRUD refresh
+
+  // 当前登录用户对应的 caregiverId（从 user_service 查出来）
+  String? _caregiverId;
+
+  // 上一次处理过的订阅事件 key → 用来防止同一条事件被重复 apply
+  String? _lastMedEventKey;
 
   @override
   void initState() {
     super.initState();
     _selected = widget.initial ?? MedicineType.capsule;
-    // start with an empty list; _fetchMedications will populate it
     _items = <Map<String, dynamic>>[];
     _selectedScheduleDate = DateTime.now();
     _schedules = <Map<String, dynamic>>[];
-    // run after first frame so Inherited widgets (GraphQLProvider) are available
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchMedications();
     });
@@ -49,15 +78,155 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
 
   @override
   void dispose() {
-    // no subscriptions to cancel
     super.dispose();
   }
 
-  // Realtime subscriptions removed to simplify to non-realtime CRUD
+  /// 把后端的 Medication object 映射成本地 _items 里的结构
+  Map<String, dynamic> _mapMedicationToItem(Map<String, dynamic> m) {
+    final name = m['name'] ?? '';
+    final dosageAmount = m['dosageAmount']?.toString() ?? '';
+    final dosageUnit = m['dosageUnit'] ?? '';
+    final qty = m['quantity']?.toString() ?? '';
+    final type = m['type'] ?? '';
 
-  Future<Map<String, dynamic>?> _upsertMedication(Map<String, dynamic> input) async {
+    return {
+      'id': m['id'],
+      'name': name,
+      'dose': '$dosageAmount$dosageUnit',
+      'left': qty,
+      'color': const Color(0xFFF7EAD3),
+      'asset': 'assets/icons/$type.png',
+      'type': type,
+    };
+  }
+
+  /// 去重包装：只有“新事件”才调用 _applyMedUpdate
+  void _handleMedUpdate(Map<String, dynamic> payload) {
+    try {
+      final String? rawEventType =
+          payload['eventType']?.toString() ?? payload['event']?.toString();
+      final String eventType = (rawEventType ?? '').toUpperCase();
+      final String? timestamp = payload['timestamp']?.toString();
+
+      final medRaw = payload['medication'];
+      final String? medId = medRaw is Map ? (medRaw['id']?.toString()) : null;
+
+      final String? deletedId =
+          payload['deletedId']?.toString() ??
+          payload['deleted_id']?.toString() ??
+          payload['id']?.toString();
+
+      final String key =
+          '${eventType}_${timestamp ?? ''}_${deletedId ?? medId ?? ''}';
+
+      if (key.isNotEmpty && _lastMedEventKey == key) {
+        debugPrint('⚠️ duplicate med event ignored, key=$key');
+        return;
+      }
+
+      _lastMedEventKey = key;
+      _applyMedUpdate(payload);
+    } catch (e) {
+      debugPrint('handleMedUpdate failed: $e');
+      _applyMedUpdate(payload);
+    }
+  }
+
+  /// 把 subscription 收到的 payload 应用到 _items
+  void _applyMedUpdate(Map<String, dynamic> payload) {
+    try {
+      debugPrint('applyMedUpdate payload: $payload');
+
+      final String? eventType = payload['eventType']?.toString();
+      final String? deletedId =
+          payload['deletedId']?.toString() ?? payload['deleted_id']?.toString();
+      final medRaw = payload['medication'];
+      final Map<String, dynamic>? med = medRaw is Map
+          ? Map<String, dynamic>.from(medRaw)
+          : null;
+
+      final String? altEvent = payload['event']?.toString();
+      final String? altType = payload['type']?.toString();
+      final String resolvedEventType = (eventType ?? altEvent ?? altType ?? '')
+          .toUpperCase();
+
+      final bool medMarkedDeleted =
+          med != null &&
+          (med['deleted'] == true ||
+              (med['status'] as String?)?.toLowerCase() == 'deleted');
+
+      final bool payloadIsOnlyId =
+          (payload.keys.length == 1 && payload.containsKey('id')) ||
+          (payload['id'] is String &&
+              med == null &&
+              deletedId == null &&
+              resolvedEventType.isEmpty &&
+              !medMarkedDeleted);
+
+      final String? idCandidate =
+          deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
+      debugPrint(
+        'applyMedUpdate: resolvedEventType=$resolvedEventType, medMarkedDeleted=$medMarkedDeleted, payloadIsOnlyId=$payloadIsOnlyId, idCandidate=$idCandidate',
+      );
+
+      setState(() {
+        if ((resolvedEventType == 'CREATED' || resolvedEventType == 'CREATE') &&
+            med != null) {
+          final mapped = _mapMedicationToItem(med);
+          final idx = _items.indexWhere(
+            (e) => e['id']?.toString() == mapped['id']?.toString(),
+          );
+          if (idx >= 0) {
+            _items[idx] = mapped;
+          } else {
+            _items.insert(0, mapped);
+          }
+        } else if ((resolvedEventType == 'UPDATED' ||
+                resolvedEventType == 'UPDATE') &&
+            med != null) {
+          final mapped = _mapMedicationToItem(med);
+          final idx = _items.indexWhere(
+            (e) => e['id']?.toString() == mapped['id']?.toString(),
+          );
+          if (idx >= 0) {
+            _items[idx] = mapped;
+          } else {
+            _items.insert(0, mapped);
+          }
+        } else if (resolvedEventType.contains('DELET') ||
+            medMarkedDeleted ||
+            payloadIsOnlyId) {
+          final String? idToRemove =
+              deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
+          if (idToRemove != null) {
+            _items.removeWhere((m) => m['id']?.toString() == idToRemove);
+          }
+        } else {
+          // 没有明确的 eventType，但有 medication → 当作 upsert
+          if (med != null) {
+            final mapped = _mapMedicationToItem(med);
+            final idx = _items.indexWhere(
+              (e) => e['id']?.toString() == mapped['id']?.toString(),
+            );
+            if (idx >= 0) {
+              _items[idx] = mapped;
+            } else {
+              _items.insert(0, mapped);
+            }
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('applyMedUpdate failed: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>?> _upsertMedication(
+    Map<String, dynamic> input,
+  ) async {
     try {
       final client = GraphQLProvider.of(context).value;
+      final messenger = ScaffoldMessenger.of(context);
       const String mutation = r'''
         mutation UpsertMedication($object: medication_insert_input!) {
           insert_medication_one(object: $object, on_conflict: {constraint: medication_pkey, update_columns: [name, description, quantity, dosageAmount, dosageUnit, frequency, picture, careRecipientId, type, doctorId, caregiverId, status]}) {
@@ -77,109 +246,118 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
         }
       ''';
 
-      // Optimistic UI: insert/update locally before server responds
       final isCreate = input['id'] == null || input['id'].toString().isEmpty;
       Map<String, dynamic>? previous;
       String? tempId;
 
       if (isCreate) {
         tempId = 'temp-${DateTime.now().millisecondsSinceEpoch}';
-        final name = input['name'] ?? '';
-        final dosageAmount = (input['dosageAmount'] ?? '').toString();
-        final dosageUnit = input['dosageUnit'] ?? '';
-        final qty = (input['quantity'] ?? '').toString();
-        final type = input['type'] ?? '';
-        final optimistic = {
+        final optimisticMed = _mapMedicationToItem({
           'id': tempId,
-          'name': name,
-          'dose': '$dosageAmount$dosageUnit',
-          'left': qty,
-          'color': const Color(0xFFF7EAD3),
-          'asset': 'assets/icons/$type.png',
-          'type': type,
-        };
+          'name': input['name'] ?? '',
+          'dosageAmount': input['dosageAmount'],
+          'dosageUnit': input['dosageUnit'],
+          'quantity': input['quantity'],
+          'type': input['type'],
+        });
         setState(() {
-          _items.insert(0, optimistic);
+          _items.insert(0, optimisticMed);
         });
       } else {
-        // update: keep previous for rollback
-        final idx = _items.indexWhere((e) => e['id']?.toString() == input['id']?.toString());
+        final idx = _items.indexWhere(
+          (e) => e['id']?.toString() == input['id']?.toString(),
+        );
         if (idx >= 0) {
           previous = Map<String, dynamic>.from(_items[idx]);
-          final name = input['name'] ?? previous['name'] ?? '';
-          final dosageAmount = (input['dosageAmount'] ?? previous['dosageAmount'] ?? '').toString();
-          final dosageUnit = input['dosageUnit'] ?? previous['dosageUnit'] ?? '';
-          final qty = (input['quantity'] ?? previous['quantity'] ?? '').toString();
-          final type = input['type'] ?? previous['type'] ?? '';
-          final optimistic = {
+          final optimisticMed = _mapMedicationToItem({
             'id': input['id'],
-            'name': name,
-            'dose': '$dosageAmount$dosageUnit',
-            'left': qty,
-            'color': const Color(0xFFF7EAD3),
-            'asset': 'assets/icons/$type.png',
-            'type': type,
-          };
+            'name': input['name'] ?? previous['name'],
+            'dosageAmount': input['dosageAmount'] ?? previous['dosageAmount'],
+            'dosageUnit': input['dosageUnit'] ?? previous['dosageUnit'],
+            'quantity': input['quantity'] ?? previous['quantity'],
+            'type': input['type'] ?? previous['type'],
+          });
           setState(() {
-            _items[idx] = optimistic;
+            _items[idx] = optimisticMed;
           });
         }
       }
 
-      final res = await client.mutate(MutationOptions(document: gql(mutation), variables: {'object': input}));
+      final res = await client.mutate(
+        MutationOptions(document: gql(mutation), variables: {'object': input}),
+      );
+
+      if (!mounted) return null;
+
       if (res.hasException) {
         debugPrint('upsertMed error: ${res.exception}');
-        // rollback optimistic update
-        setState(() {
-          if (isCreate && tempId != null) {
-            _items.removeWhere((e) => e['id'] == tempId);
-          } else if (previous != null) {
-            final idx = _items.indexWhere((e) => e['id']?.toString() == previous?['id']?.toString());
-            if (idx >= 0) _items[idx] = previous;
-          }
-        });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: ${res.exception.toString()}')));
+        if (mounted) {
+          setState(() {
+            if (isCreate && tempId != null) {
+              _items.removeWhere((e) => e['id'] == tempId);
+            } else if (previous != null) {
+              final idx = _items.indexWhere(
+                (e) => e['id']?.toString() == previous?['id']?.toString(),
+              );
+              if (idx >= 0) _items[idx] = previous;
+            }
+          });
+        }
+        if (messenger.mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Failed to save: ${res.exception}')),
+          );
+        }
         return null;
       }
 
       final data = res.data?['insert_medication_one'] as Map<String, dynamic>?;
 
       if (data == null) {
-        // unexpected response: rollback
-        setState(() {
-          if (isCreate && tempId != null) {
-            _items.removeWhere((e) => e['id'] == tempId);
-          } else if (previous != null) {
-            final idx = _items.indexWhere((e) => e['id']?.toString() == previous?['id']?.toString());
-            if (idx >= 0) _items[idx] = previous;
-          }
-        });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to save: empty server response')));
+        if (mounted) {
+          setState(() {
+            if (isCreate && tempId != null) {
+              _items.removeWhere((e) => e['id'] == tempId);
+            } else if (previous != null) {
+              final idx = _items.indexWhere(
+                (e) => e['id']?.toString() == previous?['id']?.toString(),
+              );
+              if (idx >= 0) _items[idx] = previous;
+            }
+          });
+        }
+        if (messenger.mounted) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Failed to save: empty response')),
+          );
+        }
         return null;
       }
 
-      // Replace temp id with real id if created
       if (isCreate && tempId != null) {
-        setState(() {
-          final idx = _items.indexWhere((e) => e['id'] == tempId);
-          if (idx >= 0) {
-            _items[idx] = {
-              'id': data['id'],
-              'name': data['name'] ?? _items[idx]['name'],
-              'dose': ((data['dosageAmount']?.toString() ?? '') + (data['dosageUnit'] ?? '')).trim(),
-              'left': (data['quantity']?.toString() ?? '0'),
-              'color': const Color(0xFFF7EAD3),
-              'asset': 'assets/icons/${data['type'] ?? _items[idx]['type']}.png',
-              'type': data['type'] ?? _items[idx]['type'],
-            };
-          }
-        });
+        final mapped = _mapMedicationToItem(data);
+        if (mounted) {
+          setState(() {
+            final idx = _items.indexWhere((e) => e['id'] == tempId);
+            if (idx >= 0) {
+              _items[idx] = mapped;
+            } else {
+              _items.insert(0, mapped);
+            }
+          });
+        }
       }
 
       return data;
     } catch (e, st) {
       debugPrint('upsertMed exception: $e\n$st');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+      // messenger may not be available if capture failed, so safe-get
+      try {
+        final messenger = ScaffoldMessenger.of(context);
+        if (messenger.mounted) {
+          messenger.showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+        }
+      } catch (_) {}
       return null;
     }
   }
@@ -191,52 +369,63 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
       const String query = r'''
         query GetMedicationsByCaregiver($caregiverId: String!) {
           medications_by_caregiver(caregiverId: $caregiverId) {
-          id
-          name
-          description
-          quantity
-          dosageAmount
-          dosageUnit
-          frequency
-          picture
-          careRecipientId
-          doctorId
-          caregiverId
-          status
-          type
+            id
+            name
+            description
+            quantity
+            dosageAmount
+            dosageUnit
+            frequency
+            picture
+            careRecipientId
+            doctorId
+            caregiverId
+            status
+            type
           }
         }
       ''';
 
-      // Retrieve current user by uid and extract caregiver id
       final uid = AuthService.instance.currentUser?.uid;
       if (uid == null) {
         debugPrint('meds query skipped: no current uid');
         return <Map<String, dynamic>>[];
       }
 
-        final user = await fetchUserByUid(uid);
-        debugPrint('fetchMedications: fetched user: $user');
-        // Prefer `id` (database primary key) if backend uses that as the
-        // caregiver identifier; otherwise fall back to caregiverId fields.
-        final caregiverId = user == null
+      final user = await fetchUserByUid(uid);
+      if (!mounted) return <Map<String, dynamic>>[];
+      debugPrint('fetchMedications: fetched user: $user');
+
+      final caregiverId = user == null
           ? null
-          : (user['id'] ?? user['caregiverId'] ?? user['caregiver_id'] ?? user['caregiverid'])?.toString();
+          : (user['id'] ??
+                    user['caregiverId'] ??
+                    user['caregiver_id'] ??
+                    user['caregiverid'])
+                ?.toString();
 
       if (caregiverId == null || caregiverId.isEmpty) {
         debugPrint('meds query skipped: no caregiverId found on user');
         return <Map<String, dynamic>>[];
       }
 
+      // 存起来给 Subscription 用
+      if (mounted) {
+        setState(() {
+          _caregiverId = caregiverId;
+          _lastMedEventKey = null; // 每次全量刷新，重置事件 key
+        });
+      }
+
       final result = await client.query(
         QueryOptions(
           document: gql(query),
-          variables: {
-            'caregiverId': caregiverId,
-          },
+          variables: {'caregiverId': caregiverId},
           fetchPolicy: FetchPolicy.networkOnly,
         ),
       );
+
+      if (!mounted) return <Map<String, dynamic>>[];
 
       if (result.hasException) {
         debugPrint('meds query error: ${result.exception}');
@@ -246,34 +435,25 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
       final List<dynamic>? meds =
           result.data?['medications_by_caregiver'] as List<dynamic>?;
       if (meds == null || meds.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _items = <Map<String, dynamic>>[];
+          });
+        }
         return <Map<String, dynamic>>[];
       }
 
-      // map server objects to local item structure
-      final mapped = meds.map((m) {
-        final name = m['name'] ?? '';
-        final dosageAmount = m['dosageAmount']?.toString() ?? '';
-        final dosageUnit = m['dosageUnit'] ?? '';
-        final qty = m['quantity']?.toString() ?? '';
-        final type = m['type'] ?? '';
+      final mapped = meds
+          .map((e) => _mapMedicationToItem(Map<String, dynamic>.from(e)))
+          .toList();
 
-        return {
-          'id': m['id'],
-          'name': name,
-          'dose': '$dosageAmount$dosageUnit',
-          'left': qty,
-          'color': const Color(0xFFF7EAD3),
-          'asset': 'assets/icons/$type.png',
-          'type': type,
-        };
-      }).toList();
-
-      final mappedList = mapped.cast<Map<String, dynamic>>();
-      setState(() {
-        _items = mappedList;
-      });
-      debugPrint('fetchMedications: loaded ${mappedList.length} meds');
-      return mappedList;
+      if (mounted) {
+        setState(() {
+          _items = mapped;
+        });
+      }
+      debugPrint('fetchMedications: loaded ${mapped.length} meds');
+      return mapped;
     } catch (e, st) {
       debugPrint('fetchMedications failed: $e\n$st');
       return <Map<String, dynamic>>[];
@@ -283,13 +463,16 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
   Future<void> _deleteMedicine(String id, int localIndex) async {
     if (id.toString().isEmpty) {
       setState(() {
-        if (localIndex >= 0 && localIndex < _items.length) _items.removeAt(localIndex);
+        if (localIndex >= 0 && localIndex < _items.length) {
+          _items.removeAt(localIndex);
+        }
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted item')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Deleted item')));
       return;
     }
 
-    // Optimistic delete: remove locally first and allow undo via Snackbar
     Map<String, dynamic>? removed;
     if (localIndex >= 0 && localIndex < _items.length) {
       removed = _items[localIndex];
@@ -305,68 +488,83 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
       }
     ''';
 
-    // show snackbar with undo option
     final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(SnackBar(
-      content: const Text('Deleted item'),
-      action: SnackBarAction(label: 'Undo', onPressed: () {
-        // reinstate locally (server-side delete already requested)
-        if (removed != null) {
-          setState(() {
-            _items.insert(localIndex.clamp(0, _items.length), removed!);
-          });
-        }
-      }),
-      duration: const Duration(seconds: 4),
-    ));
+    if (messenger.mounted) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Deleted item'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () {
+              if (removed != null) {
+                if (mounted) {
+                  setState(() {
+                    _items.insert(localIndex.clamp(0, _items.length), removed!);
+                  });
+                }
+              }
+            },
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
 
     try {
-      final res = await client.mutate(MutationOptions(document: gql(mutation), variables: {'id': id.toString()}));
+      final res = await client.mutate(
+        MutationOptions(
+          document: gql(mutation),
+          variables: {'id': id.toString()},
+        ),
+      );
       if (res.hasException) {
         debugPrint('deleteMed error: ${res.exception}');
-        // on failure, reinsert locally
-        if (removed != null) {
+        if (removed != null && mounted) {
           setState(() {
             _items.insert(localIndex.clamp(0, _items.length), removed!);
           });
         }
-        messenger.showSnackBar(SnackBar(content: Text('Failed to delete: ${res.exception.toString()}')));
+        if (messenger.mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Failed to delete: ${res.exception}')),
+          );
+        }
         return;
       }
 
-      // Accept several server shapes for delete response
       final dyn = res.data?['delete_medication_by_pk'];
       debugPrint('deleteMed response raw: $dyn');
-      final bool success = dyn == true || (dyn is String && dyn.isNotEmpty) || dyn == null;
+      final bool success =
+          dyn == true || (dyn is String && dyn.isNotEmpty) || dyn == null;
       if (!success) {
-        if (removed != null) {
+        if (removed != null && mounted) {
           setState(() {
             _items.insert(localIndex.clamp(0, _items.length), removed!);
           });
         }
-        messenger.showSnackBar(const SnackBar(content: Text('Delete failed on server')));
+        if (messenger.mounted) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Delete failed on server')),
+          );
+        }
         return;
       }
 
-      // Server delete succeeded; subscription (if active) will notify other clients.
-      // As a more robust fallback (in case server doesn't emit a delete subscription
-      // event or other clients don't receive it), refresh the medications list so
-      // local UI stays in sync.
       try {
         await _fetchMedications();
       } catch (e, st) {
         debugPrint('post-delete refetch failed: $e\n$st');
       }
-
-      return;
     } catch (e, st) {
       debugPrint('deleteMed exception: $e\n$st');
-      if (removed != null) {
+      if (removed != null && mounted) {
         setState(() {
           _items.insert(localIndex.clamp(0, _items.length), removed!);
         });
       }
-      messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      if (messenger.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      }
       return;
     }
   }
@@ -378,11 +576,13 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
     widget.onChanged?.call(t);
   }
 
-  // Render pile view. Accepts optional `items` snapshot for reactive updates
+  /// 把原来的 pile 包成一个 widget，方便外面用 Subscription 包裹
   Widget _buildPile([List<Map<String, dynamic>>? items]) {
     final source = items ?? _items;
     final selectedKey = _selected.toString().split('.').last;
-    final filtered = source.where((it) => (it['type'] ?? '') == selectedKey).toList();
+    final filtered = source
+        .where((it) => (it['type'] ?? '') == selectedKey)
+        .toList();
 
     if (filtered.isEmpty) {
       return Padding(
@@ -420,11 +620,11 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
                 color: Colors.black12,
                 blurRadius: 4,
-                offset: const Offset(0, 2),
+                offset: Offset(0, 2),
               ),
             ],
           ),
@@ -507,22 +707,22 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
               ),
             ),
           ),
-            ...insufficient.asMap().entries.map((entry) {
+          ...insufficient.asMap().entries.map((entry) {
             final idx = entry.key;
             final it = entry.value;
-            final globalIndex = _items.indexWhere((e) => e['id']?.toString() == it['id']?.toString());
+            final globalIndex = _items.indexWhere(
+              (e) => e['id']?.toString() == it['id']?.toString(),
+            );
             return Slidable(
               key: Key('insuff-${it['name'] ?? ''}-$idx'),
               endActionPane: ActionPane(
                 motion: const ScrollMotion(),
                 children: [
                   SizedBox(width: 8.w),
-
                   SlidableAction(
                     onPressed: (ctx) {
                       _showEditMedicineSheet(globalIndex);
                     },
-
                     backgroundColor: Colors.blueAccent,
                     alignment: Alignment.center,
                     foregroundColor: Colors.white,
@@ -534,7 +734,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-
                   SizedBox(width: 8.w),
                   SlidableAction(
                     onPressed: (ctx) async {
@@ -574,8 +773,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
               ),
               child: buildCard(it, overrideColor: insuffColor),
             );
-          }).toList(),
-
+          }),
         ],
         if (sufficient.isNotEmpty) ...[
           Padding(
@@ -588,7 +786,9 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
           ...sufficient.asMap().entries.map((entry) {
             final idx = entry.key;
             final it = entry.value;
-            final globalIndex = _items.indexWhere((e) => e['id']?.toString() == it['id']?.toString());
+            final globalIndex = _items.indexWhere(
+              (e) => e['id']?.toString() == it['id']?.toString(),
+            );
             return Slidable(
               key: Key('suff-${it['name'] ?? ''}-$idx'),
               endActionPane: ActionPane(
@@ -647,7 +847,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
               ),
               child: buildCard(it),
             );
-          }).toList(),
+          }),
         ],
       ],
     );
@@ -687,7 +887,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
               formatButtonVisible: false,
               titleCentered: true,
             ),
-            calendarStyle: CalendarStyle(outsideDaysVisible: false),
+            calendarStyle: const CalendarStyle(outsideDaysVisible: false),
           ),
           SizedBox(height: 8.h),
           Text(
@@ -699,9 +899,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
     );
   }
 
-  // Placeholder: Schedule view (upcoming scheduled meds)
   Widget _buildSchedule() {
-    // Show schedules for the currently selected date
     final daySchedules = _schedules.where((s) {
       final d = s['date'] as DateTime;
       return d.year == _selectedScheduleDate.year &&
@@ -747,20 +945,20 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                   Expanded(child: Text(s['name'] as String)),
                   Text(
                     '${s['time'] ?? ''}',
-                    style: TextStyle(color: Colors.white70),
+                    style: const TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }
 
   void _showAddScheduleSheet() {
     final nameCtrl = TextEditingController();
-    TimeOfDay selectedTime = TimeOfDay(hour: 8, minute: 0);
+    TimeOfDay selectedTime = const TimeOfDay(hour: 8, minute: 0);
 
     showModalBottomSheet(
       context: context,
@@ -872,19 +1070,27 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
     final pictureCtrl = TextEditingController();
     final careRecipientCtrl = TextEditingController();
     final doctorCtrl = TextEditingController();
+
     final uid = AuthService.instance.currentUser?.uid;
     String? caregiverIdVal;
     if (uid != null) {
       final user = await fetchUserByUid(uid);
+      if (!mounted) return;
       caregiverIdVal = user == null
           ? null
-          : (user['caregiverId'] ?? user['caregiver_id'] ?? user['caregiverid'] ?? user['id'])?.toString();
+          : (user['caregiverId'] ??
+                    user['caregiver_id'] ??
+                    user['caregiverid'] ??
+                    user['id'])
+                ?.toString();
     }
 
     final caregiverCtrl = TextEditingController(text: caregiverIdVal ?? '');
     final statusCtrl = TextEditingController(text: 'active');
 
     String selectedType = _selected.toString().split('.').last;
+
+    if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -912,12 +1118,16 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                       SizedBox(height: 12.h),
                       TextField(
                         controller: nameCtrl,
-                        decoration: const InputDecoration(labelText: 'Medicine name'),
+                        decoration: const InputDecoration(
+                          labelText: 'Medicine name',
+                        ),
                       ),
                       SizedBox(height: 8.h),
                       TextField(
                         controller: descriptionCtrl,
-                        decoration: const InputDecoration(labelText: 'Description'),
+                        decoration: const InputDecoration(
+                          labelText: 'Description',
+                        ),
                         maxLines: 2,
                       ),
                       SizedBox(height: 8.h),
@@ -926,7 +1136,9 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                           Expanded(
                             child: TextField(
                               controller: qtyCtrl,
-                              decoration: const InputDecoration(labelText: 'Quantity'),
+                              decoration: const InputDecoration(
+                                labelText: 'Quantity',
+                              ),
                               keyboardType: TextInputType.number,
                             ),
                           ),
@@ -934,8 +1146,13 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                           Expanded(
                             child: TextField(
                               controller: dosageAmountCtrl,
-                              decoration: const InputDecoration(labelText: 'Dosage Amount'),
-                              keyboardType: TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                labelText: 'Dosage Amount',
+                              ),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
                             ),
                           ),
                         ],
@@ -943,17 +1160,23 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                       SizedBox(height: 8.h),
                       TextField(
                         controller: dosageUnitCtrl,
-                        decoration: const InputDecoration(labelText: 'Dosage Unit (e.g. mg)'),
+                        decoration: const InputDecoration(
+                          labelText: 'Dosage Unit (e.g. mg)',
+                        ),
                       ),
                       SizedBox(height: 8.h),
                       TextField(
                         controller: frequencyCtrl,
-                        decoration: const InputDecoration(labelText: 'Frequency (e.g. once a day)'),
+                        decoration: const InputDecoration(
+                          labelText: 'Frequency (e.g. once a day)',
+                        ),
                       ),
                       SizedBox(height: 8.h),
                       TextField(
                         controller: pictureCtrl,
-                        decoration: const InputDecoration(labelText: 'Picture URL / asset'),
+                        decoration: const InputDecoration(
+                          labelText: 'Picture URL / asset',
+                        ),
                       ),
                       SizedBox(height: 8.h),
                       Row(
@@ -961,14 +1184,18 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                           Expanded(
                             child: TextField(
                               controller: careRecipientCtrl,
-                              decoration: const InputDecoration(labelText: 'Care Recipient ID'),
+                              decoration: const InputDecoration(
+                                labelText: 'Care Recipient ID',
+                              ),
                             ),
                           ),
                           SizedBox(width: 8.w),
                           Expanded(
                             child: TextField(
                               controller: doctorCtrl,
-                              decoration: const InputDecoration(labelText: 'Doctor ID'),
+                              decoration: const InputDecoration(
+                                labelText: 'Doctor ID',
+                              ),
                             ),
                           ),
                         ],
@@ -979,26 +1206,33 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                           Expanded(
                             child: TextField(
                               controller: caregiverCtrl,
-                              decoration: const InputDecoration(labelText: 'Caregiver ID'),
+                              decoration: const InputDecoration(
+                                labelText: 'Caregiver ID',
+                              ),
                             ),
                           ),
                           SizedBox(width: 8.w),
                           Expanded(
                             child: TextField(
                               controller: statusCtrl,
-                              decoration: const InputDecoration(labelText: 'Status'),
+                              decoration: const InputDecoration(
+                                labelText: 'Status',
+                              ),
                             ),
                           ),
                         ],
                       ),
                       SizedBox(height: 8.h),
-                      // type selector
                       DropdownButtonFormField<String>(
                         value: selectedType,
                         items: ['capsule', 'tablet', 'injection', 'cream']
-                            .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                            .map(
+                              (t) => DropdownMenuItem(value: t, child: Text(t)),
+                            )
                             .toList(),
-                        onChanged: (v) => setModalState(() => selectedType = v ?? selectedType),
+                        onChanged: (v) => setModalState(
+                          () => selectedType = v ?? selectedType,
+                        ),
                         decoration: const InputDecoration(labelText: 'Type'),
                       ),
                       SizedBox(height: 12.h),
@@ -1008,13 +1242,17 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                           if (name.isEmpty) return;
 
                           final qty = qtyCtrl.text.trim();
-                          final dosageAmount = double.tryParse(dosageAmountCtrl.text.trim());
+                          final dosageAmount = double.tryParse(
+                            dosageAmountCtrl.text.trim(),
+                          );
                           final dosageUnit = dosageUnitCtrl.text.trim();
 
                           final input = {
                             'name': name,
                             'description': descriptionCtrl.text.trim(),
-                            'quantity': qty.isNotEmpty ? int.tryParse(qty) ?? 0 : 0,
+                            'quantity': qty.isNotEmpty
+                                ? int.tryParse(qty) ?? 0
+                                : 0,
                             'dosageAmount': dosageAmount,
                             'dosageUnit': dosageUnit,
                             'frequency': frequencyCtrl.text.trim(),
@@ -1028,17 +1266,9 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
 
                           final created = await _upsertMedication(input);
                           if (created != null) {
-                            final med = {
-                              'id': created['id'],
-                              'name': created['name'] ?? name,
-                              'dose': ((created['dosageAmount']?.toString() ?? '') + (created['dosageUnit'] ?? '')).trim(),
-                              'left': (created['quantity']?.toString() ?? '0'),
-                              'color': const Color(0xFFF7EAD3),
-                              'asset': 'assets/icons/${created['type'] ?? selectedType}.png',
-                              'type': created['type'] ?? selectedType,
-                            };
+                            final mapped = _mapMedicationToItem(created);
                             setState(() {
-                              _items.add(med);
+                              _items.add(mapped);
                             });
                           }
                           Navigator.of(ctx).pop();
@@ -1119,7 +1349,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                   },
                   child: const Text('Save'),
                 ),
-
               ],
             ),
           ),
@@ -1128,20 +1357,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
     );
   }
 
-  // (History removed) - history UI was intentionally removed per request
-
-  Widget _buildSegmentContent() {
-    switch (_selectedSegment) {
-      case 0:
-        return _buildSchedule();
-      case 1:
-        return _buildPile();
-      default:
-        return _buildSchedule();
-    }
-  }
-
-  /// ✅ 去掉 Expanded，避免在不确定的宽度下出 flex 错
   Widget statusRow({required String label, required Color color}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1152,7 +1367,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
           height: 8.h,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            // 下面阴影
             boxShadow: [
               BoxShadow(
                 color: Colors.black12,
@@ -1279,9 +1493,57 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
     );
   }
 
+  /// Medicine segment：这里接上 GraphQL Subscription
+  Widget _buildMedicineWithSubscription() {
+    // 还没拿到 caregiverId 的时候，就先用本地 list（不会 crash）
+    if (_caregiverId == null || _caregiverId!.isEmpty) {
+      return _buildPile();
+    }
+
+    return Subscription(
+      key: ValueKey('medSub:$_caregiverId'),
+      options: SubscriptionOptions(
+        document: gql(medicationUpdatedSub),
+        variables: {'caregiverId': _caregiverId},
+      ),
+      builder: (result) {
+        if (result.hasException) {
+          debugPrint('❌ med sub exception: ${result.exception}');
+        }
+
+        if (result.data != null) {
+          debugPrint('🔔 med sub DATA RECEIVED: ${result.data}');
+          final payload = result.data!['medicationUpdated'];
+          if (payload != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _handleMedUpdate(
+                Map<String, dynamic>.from(payload as Map<String, dynamic>),
+              );
+            });
+          }
+        }
+
+        // 不管有没事件，UI 一律从 _items 渲染
+        return _buildPile();
+      },
+    );
+  }
+
+  Widget _buildSegmentContent() {
+    switch (_selectedSegment) {
+      case 0:
+        return _buildSchedule();
+      case 1:
+        return _buildMedicineWithSubscription();
+      default:
+        return _buildSchedule();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isSchedule = _selectedSegment == 0;
+
     return Scaffold(
       appBar: const PageAppBar(
         title: 'Medicine Reminder',
@@ -1298,8 +1560,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(height: 8.h),
-
-                    /// Type of Medication 卡片（Schedule 时改为日历）
                     (_selectedSegment == 0)
                         ? _buildCalendar()
                         : Container(
@@ -1366,13 +1626,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                             ),
                           ),
                     SizedBox(height: 12.h),
-
-                    /// ✅ Status 卡片靠右，内部内容靠左
                     _buildSegmentContent(),
-
-                    // 这里以后可以接 _buildPile() 或别的内容
-                    // SizedBox(height: 16.h),
-                    // _buildPile(),
                   ],
                 ),
               ),
@@ -1390,9 +1644,8 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(height: 10.h),
-                  Status_Card(),
+                  const StatusCard(),
                   SizedBox(height: 10.h),
-
                   Row(
                     mainAxisSize: MainAxisSize.max,
                     children: [
@@ -1401,7 +1654,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
-                            final bool isSchedule = _selectedSegment == 0;
                             if (isSchedule) {
                               _showAddScheduleSheet();
                             } else {

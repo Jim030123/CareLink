@@ -1,5 +1,3 @@
-import 'dart:ffi';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
@@ -193,7 +191,6 @@ class RegisterPage extends StatelessWidget {
                             SizedBox(height: 16.h),
 
                             ElevatedButton(
-
                               onPressed: () {
                                 context.push(
                                   '/register/caregiver',

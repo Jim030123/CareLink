@@ -21,9 +21,13 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _email = user.email ?? _email;
-      _name = user.displayName ?? (user.email != null ? user.email!.split('@').first : _name);
+      _name =
+          user.displayName ??
+          (user.email != null ? user.email!.split('@').first : _name);
     }
   }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -133,22 +137,36 @@ class _ProfilePageState extends State<ProfilePage> {
                               SizedBox(height: 8.h),
                               ElevatedButton(
                                 onPressed: () {
-                                  final nameController = TextEditingController(text: _name);
-                                  final emailController = TextEditingController(text: _email);
+                                  final nameController = TextEditingController(
+                                    text: _name,
+                                  );
+                                  final emailController = TextEditingController(
+                                    text: _email,
+                                  );
                                   showModalBottomSheet(
                                     context: context,
                                     isScrollControlled: true,
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
+                                      borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(16.r),
+                                      ),
                                     ),
                                     builder: (ctx) {
                                       return Padding(
-                                        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+                                        padding: EdgeInsets.only(
+                                          bottom: MediaQuery.of(
+                                            ctx,
+                                          ).viewInsets.bottom,
+                                        ),
                                         child: Padding(
-                                          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 16.w,
+                                            vertical: 12.h,
+                                          ),
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Center(
                                                 child: Container(
@@ -156,46 +174,82 @@ class _ProfilePageState extends State<ProfilePage> {
                                                   height: 4.h,
                                                   decoration: BoxDecoration(
                                                     color: Colors.grey[300],
-                                                    borderRadius: BorderRadius.circular(2.r),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          2.r,
+                                                        ),
                                                   ),
                                                 ),
                                               ),
                                               SizedBox(height: 12.h),
-                                              Text('Edit Profile', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                                              Text(
+                                                'Edit Profile',
+                                                style: TextStyle(
+                                                  fontSize: 16.sp,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
                                               SizedBox(height: 12.h),
                                               TextField(
                                                 controller: nameController,
-                                                decoration: InputDecoration(labelText: 'Name'),
+                                                decoration: InputDecoration(
+                                                  labelText: 'Name',
+                                                ),
                                               ),
                                               SizedBox(height: 8.h),
                                               TextField(
                                                 controller: emailController,
-                                                decoration: InputDecoration(labelText: 'Email'),
-                                                keyboardType: TextInputType.emailAddress,
+                                                decoration: InputDecoration(
+                                                  labelText: 'Email',
+                                                ),
+                                                keyboardType:
+                                                    TextInputType.emailAddress,
                                               ),
                                               SizedBox(height: 16.h),
                                               Row(
-                                                mainAxisAlignment: MainAxisAlignment.end,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.end,
                                                 children: [
                                                   TextButton(
-                                                    onPressed: () => Navigator.of(ctx).pop(),
-                                                    child: Text('Cancel', style: TextStyle(fontSize: 14.sp)),
+                                                    onPressed: () =>
+                                                        Navigator.of(ctx).pop(),
+                                                    child: Text(
+                                                      'Cancel',
+                                                      style: TextStyle(
+                                                        fontSize: 14.sp,
+                                                      ),
+                                                    ),
                                                   ),
                                                   SizedBox(width: 8.w),
                                                   ElevatedButton(
                                                     onPressed: () {
                                                       setState(() {
-                                                        _name = nameController.text.trim();
-                                                        _email = emailController.text.trim();
+                                                        _name = nameController
+                                                            .text
+                                                            .trim();
+                                                        _email = emailController
+                                                            .text
+                                                            .trim();
                                                       });
                                                       Navigator.of(ctx).pop();
                                                       if (mounted) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
-                                                          const SnackBar(content: Text('Profile updated')),
+                                                        ScaffoldMessenger.of(
+                                                          context,
+                                                        ).showSnackBar(
+                                                          const SnackBar(
+                                                            content: Text(
+                                                              'Profile updated',
+                                                            ),
+                                                          ),
                                                         );
                                                       }
                                                     },
-                                                    child: Text('Save', style: TextStyle(fontSize: 14.sp)),
+                                                    child: Text(
+                                                      'Save',
+                                                      style: TextStyle(
+                                                        fontSize: 14.sp,
+                                                      ),
+                                                    ),
                                                   ),
                                                 ],
                                               ),
@@ -293,32 +347,47 @@ class _ProfilePageState extends State<ProfilePage> {
                                   context: context,
                                   builder: (ctx) => AlertDialog(
                                     title: const Text('Confirm Log Out'),
-                                    content: const Text('Are you sure you want to log out?'),
+                                    content: const Text(
+                                      'Are you sure you want to log out?',
+                                    ),
                                     actions: [
                                       TextButton(
-                                        onPressed: () => Navigator.of(ctx).pop(false),
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(false),
                                         child: const Text('Cancel'),
                                       ),
                                       TextButton(
-                                        onPressed: () => Navigator.of(ctx).pop(true),
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(true),
                                         child: const Text('Log Out'),
                                       ),
                                     ],
                                   ),
                                 );
                                 if (confirmed == true) {
+                                  // Capture ScaffoldMessenger before async gap
+                                  final messenger = ScaffoldMessenger.of(
+                                    context,
+                                  );
+
                                   // Clear stored credentials and sign out
                                   await SecureAuth.clearCredentials();
                                   try {
                                     await FirebaseAuth.instance.signOut();
                                   } catch (_) {}
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Logged out')),
+
+                                  // Show snackbar using captured messenger if still mounted
+                                  if (messenger.mounted) {
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Logged out'),
+                                      ),
                                     );
                                   }
-                                  // Navigate to the login page after logout
-                                  if (mounted) context.go('/login');
+
+                                  // Navigate to the login page after logout if this State is still mounted
+                                  if (!mounted) return;
+                                  context.go('/login');
                                 }
                               },
                             );
@@ -333,8 +402,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ),
-
-
                 ],
               ),
             ),

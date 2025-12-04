@@ -1,9 +1,3 @@
-/// Utility for generating secure, configurable passwords.
-//
-// Usage:
-// ```dart
-// final pw = PasswordGenerator.generate(length: 14);
-// ```
 import 'dart:math';
 
 class PasswordGenerator {

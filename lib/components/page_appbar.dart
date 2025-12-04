@@ -15,14 +15,14 @@ class PageAppBar extends StatelessWidget implements PreferredSizeWidget {
   final double height;
 
   const PageAppBar({
-    Key? key,
+    super.key,
     required this.title,
     this.showBack = false,
     this.showSearch = false,
     this.onSearch,
     this.logo,
     this.height = 68,
-  }) : super(key: key);
+  });
 
   @override
   Size get preferredSize => Size.fromHeight(height.h + ScreenUtil().statusBarHeight);

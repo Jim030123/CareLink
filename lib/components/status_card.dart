@@ -3,7 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// A small card that shows statuses such as Active / Inactive.
 class StatusCard extends StatelessWidget {
-    const StatusCard({Key? key}) : super(key: key);
+    const StatusCard({super.key});
 
     @override
     Widget build(BuildContext context) {
@@ -53,8 +53,7 @@ class _StatusRow extends StatelessWidget {
     final String label;
     final Color color;
 
-    const _StatusRow({Key? key, required this.label, required this.color})
-            : super(key: key);
+    const _StatusRow({required this.label, required this.color});
 
     @override
     Widget build(BuildContext context) {

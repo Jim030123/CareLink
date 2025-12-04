@@ -1,9 +1,10 @@
+// ignore_for_file: unused_field
+
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'dart:convert';
-import 'package:carelink_mobile/utils/test_page.dart';
 
 class ManageCareRecipient extends StatefulWidget {
   const ManageCareRecipient({super.key});
@@ -253,13 +254,12 @@ query GetCaregiverWithRecipients($id: String!) {
                     final name = '${r['firstName'] ?? ''} ${r['lastName'] ?? ''}'.trim();
                     final contact = (r['email'] as String?) ?? (r['phone'] as String?) ?? '';
                     final relationship = (r['type'] as String?) ?? '';
-                    return call_secondaryCaregiverCard(
+                    return callSecondaryCaregiverCard(
                       context: context,
                       name: name.isEmpty ? 'No name' : name,
                       relationship: relationship,
                       contact: contact,
                       onEdit: () {
-                        // TODO: open recipient edit / details
                       },
                     );
                   }
@@ -277,7 +277,7 @@ query GetCaregiverWithRecipients($id: String!) {
 }
 
 /// Reusable secondary caregiver card widget builder.
-Widget call_secondaryCaregiverCard({
+Widget callSecondaryCaregiverCard({
   required BuildContext context,
   required String name,
   String? contact,

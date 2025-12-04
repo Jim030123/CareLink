@@ -3,7 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 
 class CareRecipientForm extends StatefulWidget {
-  CareRecipientForm({
+  const CareRecipientForm({
     super.key,
     required this.controllers,
     required this.formKey,
@@ -133,7 +133,7 @@ class _CareRecipientFormState extends State<CareRecipientForm> {
         final it = list[i];
         final id = it['id'] as String?;
         final label = it['label'] as String? ?? '';
-        final uid = (id ?? 'null') + '##' + i.toString();
+        final uid = '${id ?? 'null'}##$i';
         withUid.add({'uid': uid, 'id': id, 'label': label});
       }
 
@@ -341,8 +341,9 @@ class _CareRecipientFormState extends State<CareRecipientForm> {
               },
               hint: const Text('Select type'),
               validator: (v) {
-                if (v == null || v.isEmpty)
+                if (v == null || v.isEmpty) {
                   return 'Please select care recipient type';
+                }
                 return null;
               },
               decoration: const InputDecoration(
@@ -357,10 +358,10 @@ class _CareRecipientFormState extends State<CareRecipientForm> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: widget.onPrevious,
-                      child: const Text('Previous'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                       ),
+                      child: const Text('Previous'),
                     ),
                   ),
                 if (widget.index > 0) SizedBox(width: 8.w),

@@ -4,26 +4,15 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import '../../components/care_recipient_form.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:carelink_mobile/utils/graphql_service.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:carelink_mobile/utils/caregiver_provider.dart';
 import 'dart:math';
-// caregiver provider import removed (not used in this screen)
 
-/// Step: Care Recipient Account — select how many elderly persons the user will manage.
-///
-/// Callbacks:
-/// - onBack: VoidCallback? (defaults to Navigator.pop)
-/// - onNext: ValueChanged<int>? receives the selected count
-/// - onLogin: VoidCallback? (defaults to pushReplacementNamed('/login'))
 class RegisterCareRecipientPage extends ConsumerStatefulWidget {
-  /// number of care recipients to render
   final int count;
-
-  /// optional caregiver identifier (email or id) used to associate recipients
-  /// with the caregiver in the backend. If you don't provide this, the
-  /// insertion code will show a helpful SnackBar.
   final String? caregiverId;
 
   const RegisterCareRecipientPage({
@@ -39,15 +28,12 @@ class RegisterCareRecipientPage extends ConsumerStatefulWidget {
 
 class _RegisterCareRecipientPageState
     extends ConsumerState<RegisterCareRecipientPage> {
-  // number of care recipients (comes from widget.count)
   late int _count;
-  // currently visible recipient index
   int _activeIndex = 0;
-  // controllers and form keys for each recipient
+
   final List<Map<String, TextEditingController>> _controllers = [];
   final List<GlobalKey<FormState>> _formKeys = [];
 
-  // saving flag to prevent duplicate submissions
   bool _saving = false;
 
   @override
@@ -60,17 +46,12 @@ class _RegisterCareRecipientPageState
         'last': TextEditingController(),
         'email': TextEditingController(),
         'phone': TextEditingController(),
-        // date of birth controller
         'dob': TextEditingController(),
-        // persist gender selection per-recipient
         'gender': TextEditingController(),
-        // will be filled by the form when user selects a care-recipient type
         'type': TextEditingController(),
       });
       _formKeys.add(GlobalKey<FormState>());
     }
-
-    // intentionally left empty: no startup SnackBar required
   }
 
   @override
@@ -93,8 +74,15 @@ class _RegisterCareRecipientPageState
     ).join();
   }
 
+  /// 安全弹 SnackBar：内部自己检查 mounted
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<bool> _onWillPop() async {
-    // Show confirmation dialog. Return true to allow pop.
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -150,7 +138,6 @@ class _RegisterCareRecipientPageState
     );
   }
 
-  // moved form UI into component `CareRecipientForm`
   @override
   Widget build(BuildContext context) {
     final Color card = Colors.white;
@@ -172,53 +159,39 @@ class _RegisterCareRecipientPageState
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // step indicator and card
+                        // 顶部卡片
                         Container(
                           padding: EdgeInsets.all(16.w),
-
                           decoration: BoxDecoration(
                             color: Colors.white,
-
                             borderRadius: BorderRadius.circular(16.w),
-
                             boxShadow: const [
                               BoxShadow(
                                 color: Colors.black12,
-
                                 blurRadius: 8,
-
                                 offset: Offset(0, 4),
                               ),
                             ],
                           ),
-
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
-
                             children: [
                               Row(
                                 children: [
                                   SvgPicture.asset(
                                     'assets/icons/logo.svg',
-
                                     width: 60.w,
-
                                     height: 60.h,
                                   ),
-
                                   Expanded(
                                     child: Center(
                                       child: Container(
                                         margin: EdgeInsets.only(right: 60.w),
-
                                         child: Text(
                                           'Register',
-
                                           textAlign: TextAlign.center,
-
                                           style: TextStyle(
                                             fontSize: 25.sp,
-
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -227,49 +200,36 @@ class _RegisterCareRecipientPageState
                                   ),
                                 ],
                               ),
-
                               SizedBox(height: 16.h),
-
                               Row(
                                 children: [
                                   Align(
                                     alignment: Alignment.topCenter,
-
                                     child: Container(
                                       padding: EdgeInsets.symmetric(
                                         horizontal: 16.w,
-
                                         vertical: 8.h,
                                       ),
-
                                       decoration: BoxDecoration(
-                                        color: Color(0xFFF4CBA1),
-
+                                        color: const Color(0xFFF4CBA1),
                                         borderRadius: BorderRadius.circular(
                                           16.w,
                                         ),
                                       ),
-
                                       child: Text(
                                         '4',
-
                                         style: TextStyle(fontSize: 24.sp),
                                       ),
                                     ),
                                   ),
-
                                   SizedBox(width: 8.w),
-
                                   Expanded(
                                     child: Container(
                                       alignment: Alignment.topLeft,
-
                                       padding: EdgeInsets.symmetric(
                                         horizontal: 16.w,
-
                                         vertical: 8.h,
                                       ),
-
                                       child: Text(
                                         'Care Recipient Detail',
                                         textAlign: TextAlign.center,
@@ -283,50 +243,33 @@ class _RegisterCareRecipientPageState
                                   ),
                                 ],
                               ),
-
                               SizedBox(height: 16.h),
-
                               Align(
                                 alignment: Alignment.centerLeft,
-
                                 child: Container(
                                   width: constraints.maxWidth,
-
                                   padding: EdgeInsets.symmetric(
                                     horizontal: 16.w,
-
                                     vertical: 8.h,
                                   ),
-
                                   decoration: BoxDecoration(
-                                    color: Color(0xFFFFF8F0),
-
+                                    color: const Color(0xFFFFF8F0),
                                     borderRadius: BorderRadius.circular(16.w),
                                   ),
-
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
-
                                     children: [
                                       Icon(
                                         Icons.lightbulb_outline,
-
                                         size: 24.sp,
-
                                         color: Colors.orange,
                                       ),
-
                                       SizedBox(width: 8.w),
-
                                       Flexible(
-                                        // 防止长文字溢出
                                         child: Text(
                                           'Please fill in the details for each care recipient.',
-
                                           textAlign: TextAlign.justify,
-
                                           softWrap: true,
-
                                           style: TextStyle(fontSize: 15.sp),
                                         ),
                                       ),
@@ -340,7 +283,7 @@ class _RegisterCareRecipientPageState
 
                         SizedBox(height: 16.h),
 
-                        // counter controls
+                        // counter + form
                         Container(
                           padding: EdgeInsets.all(16.w),
                           decoration: BoxDecoration(
@@ -354,7 +297,6 @@ class _RegisterCareRecipientPageState
                               ),
                             ],
                           ),
-
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -390,6 +332,7 @@ class _RegisterCareRecipientPageState
                                             )
                                           : null,
                                       onNextOrSave: () async {
+                                        // 还没到最后一个 recipient，直接切换页
                                         if (_activeIndex < _count - 1) {
                                           setState(
                                             () =>
@@ -398,6 +341,7 @@ class _RegisterCareRecipientPageState
                                           return;
                                         }
 
+                                        // 收集表单数据
                                         final recipients = _controllers
                                             .map(
                                               (m) => {
@@ -409,7 +353,6 @@ class _RegisterCareRecipientPageState
                                                     .trim(),
                                                 'phone': m['phone']!.text
                                                     .trim(),
-                                                // include date of birth if provided (widget uses YYYY-MM-DD)
                                                 'dateOfBirth':
                                                     m['dob']?.text.trim() ?? '',
                                                 'gender': m['gender']!.text
@@ -423,44 +366,42 @@ class _RegisterCareRecipientPageState
                                           'Recipients to insert: $recipients',
                                         );
 
-                                  
-                                        final caregiverId = widget.caregiverId ?? ref.read(currentUserIdProvider) ?? '';
+                                        final caregiverId =
+                                            widget.caregiverId ??
+                                            ref.read(currentUserIdProvider) ??
+                                            '';
 
                                         if (caregiverId.isEmpty) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Missing caregiver identifier. Cannot insert recipients.',
-                                              ),
-                                            ),
+                                          _showSnack(
+                                            'Missing caregiver identifier. Cannot insert recipients.',
                                           );
                                           return;
                                         }
 
-                                        // query the index with id number 2
+                                        // Capture client and messenger before any awaits
+                                        final client = createClient();
+                                        final messenger = ScaffoldMessenger.of(
+                                          context,
+                                        );
+
+                                        // 这里的 generatedCode 没被用到，如果只是 debug 可以保留
                                         final generatedCode =
                                             await fetchGeneratedCode(
-                                              context,
+                                              client,
+                                              messenger: messenger,
                                               id: 2,
                                             );
                                         debugPrint(
                                           'Generated Code = $generatedCode',
                                         );
 
-                                        if (_saving)
+                                        if (_saving) {
                                           return; // prevent duplicate taps
+                                        }
 
                                         setState(() => _saving = true);
                                         try {
-                                          final client = GraphQLProvider.of(
-                                            context,
-                                          ).value;
 
-                                          // NOTE: Replace the mutation below with your middleware's
-                                          // exact mutation and input types. This is a placeholder
-                                          // demonstrating how to pass variables to the server.
                                           const String mutation = r'''
 mutation InsertRecipients($objects: [CareRecipientInput!]!) {
   insert_care_recipient(objects: $objects) {
@@ -474,9 +415,6 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
 }
 ''';
 
-                                          // Build recipients list compatible with GraphQL input
-                                          // Call `fetchGeneratedCode` once per recipient so the
-                                          // backend increments its index per query.
                                           final List<Map<String, dynamic>>
                                           recipientsList = [];
 
@@ -486,10 +424,10 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                             i++
                                           ) {
                                             final r = recipients[i];
-                                            // fetch a generated code for this recipient
                                             final perCode =
                                                 await fetchGeneratedCode(
-                                                  context,
+                                                  client,
+                                                  messenger: messenger,
                                                   id: 2,
                                                 );
                                             final clientId =
@@ -530,7 +468,7 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                               'generatedCode for #${i + 1}: $perCode',
                                             );
                                             debugPrint(
-                                              'Built recipient id=${clientId}, name=${item['firstName']} ${item['lastName']}',
+                                              'Built recipient id=$clientId, name=${item['firstName']} ${item['lastName']}',
                                             );
                                           }
 
@@ -549,14 +487,8 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                             debugPrint(
                                               result.exception.toString(),
                                             );
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'Insert failed: ${result.exception.toString()}',
-                                                ),
-                                              ),
+                                            _showSnack(
+                                              'Insert failed: ${result.exception.toString()}',
                                             );
                                             return;
                                           }
@@ -564,8 +496,6 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                           final insertPayload = result
                                               .data?['insert_care_recipient'];
 
-                                          // `insert_care_recipient` may return either a Hasura-style
-                                          // object with `returning` or a plain List of inserted rows.
                                           final inserted =
                                               (insertPayload is Map &&
                                                   insertPayload['returning'] !=
@@ -575,28 +505,22 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
 
                                           debugPrint('Inserted: $inserted');
 
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Recipients saved successfully',
-                                              ),
-                                            ),
+                                          _showSnack(
+                                            'Recipients saved successfully',
                                           );
-                                          // Attempt to create user accounts for recipients
+
+                                          // 创建 Firebase 帐号 + 发送 email
                                           try {
                                             final functions =
                                                 FirebaseFunctions.instanceFor(
                                                   region: 'us-central1',
                                                 );
+
                                             for (final r in recipientsList) {
                                               final email = (r['email'] ?? '')
                                                   .toString();
                                               if (email.isEmpty) continue;
 
-                                              // generate a simple password - you may want to replace
-                                              // with a more secure generator or send an invite link
                                               final password =
                                                   _generatePassword();
 
@@ -604,7 +528,7 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                                   .httpsCallable(
                                                     'sendTestEmail',
                                                   );
-                                              // build a clear email subject and body including the temporary password
+
                                               final subject =
                                                   'CareLink account created — action required';
 
@@ -617,7 +541,6 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                                   'Download the app or sign in at: https://your-app-url.example\n\n'
                                                   'Regards,\nCareLink Team';
 
-                                              // Optional HTML version (simple): replace or remove if not needed
                                               final html =
                                                   '''
 <p>Hello ${r['firstName']} ${r['lastName']},</p>
@@ -630,29 +553,25 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
 <p>Regards,<br/>CareLink Team</p>
 ''';
 
-                                              // send recipient id, email, displayName and password to cloud function
                                               final resp = await callable.call(<
                                                 String,
                                                 dynamic
                                               >{
-                                                // creation info + email payload
                                                 'recipientId': r['id'],
                                                 'email': email,
                                                 'displayName':
                                                     '${r['firstName']} ${r['lastName']}',
                                                 'password': password,
-                                                // email fields (function can use these)
                                                 'to': email,
                                                 'subject': subject,
                                                 'text': text,
                                                 'html': html,
                                               });
 
-                                              // Optionally handle `resp.data` to retrieve creation status
                                               debugPrint(
                                                 'createUserForRecipient resp: ${resp.data}',
                                               );
-                                              // Parse the response and attach returned UID to recipient object
+
                                               try {
                                                 final respData = resp.data;
                                                 String? returnedUid;
@@ -696,12 +615,10 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                                     'Attached authUid=$returnedUid to recipient id=${r['id']}',
                                                   );
 
-                                                  // Now update the Postgres `user_account` table via GraphQL
+                                                  // 同步 Firebase -> Postgres 并更新 user_account
                                                   try {
-                                                    // Ensure backend sync from Firebase -> Postgres so
-                                                    // the newly-created uid is present before update.
                                                     try {
-                                                      final syncMutation = r'''
+                                                      const syncMutation = r'''
                                                         mutation SyncUsersToPostgres {
                                                           syncUsersToPostgres {
                                                             success
@@ -727,14 +644,8 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                                         debugPrint(
                                                           'syncUsersToPostgres mutation error: ${syncResult.exception}',
                                                         );
-                                                        ScaffoldMessenger.of(
-                                                          context,
-                                                        ).showSnackBar(
-                                                          const SnackBar(
-                                                            content: Text(
-                                                              'Warning: user sync failed (continuing).',
-                                                            ),
-                                                          ),
+                                                        _showSnack(
+                                                          'Warning: user sync failed (continuing).',
                                                         );
                                                       } else {
                                                         final syncData = syncResult
@@ -758,16 +669,11 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
                                                       debugPrint(
                                                         'syncUsersToPostgres call failed: $e\n$st',
                                                       );
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Text(
-                                                            'Warning: user sync failed (continuing).',
-                                                          ),
-                                                        ),
+                                                      _showSnack(
+                                                        'Warning: user sync failed (continuing).',
                                                       );
                                                     }
+
                                                     const String
                                                     updateUserMutation = r'''
 mutation UpdateUser($uid: String!, $new_id: String!, $userType: String!) {
@@ -803,14 +709,8 @@ mutation UpdateUser($uid: String!, $new_id: String!, $userType: String!) {
                                                       debugPrint(
                                                         'Failed to update user_account for uid=$returnedUid: ${updateResult.exception}',
                                                       );
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Text(
-                                                            'Failed to link account in backend',
-                                                          ),
-                                                        ),
+                                                      _showSnack(
+                                                        'Failed to link account in backend',
                                                       );
                                                     } else {
                                                       debugPrint(
@@ -834,41 +734,26 @@ mutation UpdateUser($uid: String!, $new_id: String!, $userType: String!) {
                                               }
                                             }
                                           } catch (e) {
-                                            // Not fatal — function may not exist in some environments
                                             debugPrint(
                                               'Account creation (cloud function) failed: $e',
                                             );
-
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Accounts not created: cloud function unavailable',
-                                                ),
-                                              ),
+                                            _showSnack(
+                                              'Accounts not created: cloud function unavailable',
                                             );
                                           }
-                                          // Navigate to registration complete page after save flow finishes
+
+                                          // 完成后跳转到完成页
                                           if (!mounted) return;
                                           context.go(
                                             '/register/registercomplete',
                                           );
-                                          // Advance or close — here we pop back to previous page
                                         } catch (e) {
                                           debugPrint('Request failed: $e');
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Request failed: $e',
-                                              ),
-                                            ),
-                                          );
+                                          _showSnack('Request failed: $e');
                                         } finally {
-                                          if (mounted)
+                                          if (mounted) {
                                             setState(() => _saving = false);
+                                          }
                                         }
                                       },
                                     ),
@@ -894,19 +779,21 @@ mutation UpdateUser($uid: String!, $new_id: String!, $userType: String!) {
 
                         SizedBox(height: 16.h),
 
-                        // Back / Next buttons
+                        // Back 按钮
                         Row(
                           children: [
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: () async {
                                   final ok = await _onWillPop();
-                                  if (ok) Navigator.of(context).maybePop();
+                                  if (!mounted) return;
+                                  if (ok) {
+                                    Navigator.of(context).maybePop();
+                                  }
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
                                 ),
-
                                 child: Text(
                                   'Back',
                                   style: TextStyle(

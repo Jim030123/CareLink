@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 
 Future<String?> fetchGeneratedCode(
-  BuildContext context, {
+  GraphQLClient client, {
+  ScaffoldMessengerState? messenger,
   required int id,
 }) async {
-  final client = GraphQLProvider.of(context).value;
+  // messenger is optional; callers can pass `ScaffoldMessenger.of(context)`
+  // if they want in-function SnackBars. This function no longer accepts
+  // a BuildContext so it can be safely awaited without crossing widget
+  // context lifespan boundaries.
 
   final idxResult = await client.query(
     QueryOptions(
@@ -26,17 +30,25 @@ Future<String?> fetchGeneratedCode(
 
   if (idxResult.hasException) {
     final msg = idxResult.exception.toString();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Index fetch failed: $msg')),
-    );
+    try {
+      if (messenger != null && messenger.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Index fetch failed: $msg')),
+        );
+      }
+    } catch (_) {}
     return null;
   }
 
   final data = idxResult.data?['index_table_by_pk'];
   if (data == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Index not found')),
-    );
+    try {
+      if (messenger != null && messenger.mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Index not found')),
+        );
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -63,9 +75,13 @@ Future<String?> fetchGeneratedCode(
 
   if (mutationResult.hasException) {
     final msg = mutationResult.exception.toString();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Index increment failed: $msg')),
-    );
+    try {
+      if (messenger != null && messenger.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Index increment failed: $msg')),
+        );
+      }
+    } catch (_) {}
     return null;
   }
 

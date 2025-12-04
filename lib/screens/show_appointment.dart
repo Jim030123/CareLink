@@ -53,7 +53,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
         rightLabel: 'John Doe',
       ),
       Appointment(
-        date: DateTime.now(),
+        date: DateTime.now().subtract(Duration(days: 10)),
         title: 'Follow-up Appointment',
         time: '11:02 PM',
         leftLabel: 'Dr Ng',
@@ -85,6 +85,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
     _searchFocus.dispose();
     super.dispose();
   }
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: PageAppBar(
@@ -252,7 +253,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                             child: Card(
                               child: Padding(
                                 padding: EdgeInsets.all(12.w),
-                                child: Text('No appointments match "${_searchQuery}"'),
+                                child: Text('No appointments match "$_searchQuery"'),
                               ),
                             ),
                           );
@@ -284,7 +285,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                                   centerLabel: a.centerLabel,
                                   rightLabel: a.rightLabel,
                                 );
-                              }).toList(),
+                              }),
                             ],
                             if (past.isNotEmpty) ...[
                               Padding(
@@ -305,7 +306,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                                   centerLabel: a.centerLabel,
                                   rightLabel: a.rightLabel,
                                 );
-                              }).toList(),
+                              }),
                             ],
                           ],
                         );
@@ -354,68 +355,6 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
     );
   }
 
-  void _openSearch() async {
-    final qCtrl = TextEditingController();
-    final result = await showDialog<String?>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Search appointments'),
-        content: TextField(
-          controller: qCtrl,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Enter name or title'),
-          onSubmitted: (v) => Navigator.of(ctx).pop(v),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(qCtrl.text.trim()), child: const Text('Search')),
-        ],
-      ),
-    );
-
-    if (result == null || result.trim().isEmpty) return;
-    final q = result.toLowerCase();
-    final matches = _appointments.where((a) {
-      return a.title.toLowerCase().contains(q) ||
-          a.leftLabel.toLowerCase().contains(q) ||
-          a.centerLabel.toLowerCase().contains(q) ||
-          a.rightLabel.toLowerCase().contains(q);
-    }).toList();
-
-    if (matches.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No appointments match "$result"')));
-      return;
-    }
-
-    // show matches in bottom sheet; tapping an item will select that date
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) {
-        return SizedBox(
-          height: 360,
-          child: ListView.separated(
-            itemCount: matches.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (c, i) {
-              final a = matches[i];
-              return ListTile(
-                title: Text(a.title),
-                subtitle: Text('${a.leftLabel} • ${DateFormat('EEE, dd MMM yyyy').format(a.date)} ${a.time}'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  setState(() {
-                    _selectedDay = a.date;
-                    _focusedDay = a.date;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selected ${DateFormat('EEE, dd MMM yyyy').format(a.date)}')));
-                },
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
 
   void _toggleInlineSearch() {
     setState(() {

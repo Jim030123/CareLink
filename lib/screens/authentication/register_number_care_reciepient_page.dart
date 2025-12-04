@@ -3,15 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../utils/caregiver_provider.dart';
-import 'register_care_recipient_page.dart';
 
-/// Step: Care Recipient Account — select how many elderly persons the user will manage.
-///
-/// Callbacks:
-/// - onBack: VoidCallback? (defaults to Navigator.pop)
-/// - onNext: ValueChanged<int>? receives the selected count
-/// - onLogin: VoidCallback? (defaults to pushReplacementNamed('/login'))
 class NumberCareReciepientPage extends ConsumerStatefulWidget {
   const NumberCareReciepientPage({
     super.key,
@@ -77,7 +69,6 @@ class _NumberCareReciepientPageState
   @override
   Widget build(BuildContext context) {
     final Color card = Colors.white;
-    final Color accent = const Color(0xFFF4CBA1);
 
     return Scaffold(
       body: LayoutBuilder(

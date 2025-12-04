@@ -20,16 +20,24 @@ class _LoginPageState extends State<LoginPage> {
   bool _biometricAvailable = false;
 
   @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passController.dispose();
     super.dispose();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _checkBiometricAvailability();
+  /// 统一弹 SnackBar，内部自己做 mounted 检查
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -37,6 +45,7 @@ class _LoginPageState extends State<LoginPage> {
       final creds = await SecureAuth.getCredentials();
       final hasCred = creds['email'] != null && creds['password'] != null;
       final can = await SecureAuth.canAuthenticate();
+      if (!mounted) return;
       setState(() {
         _biometricAvailable = hasCred && can;
       });
@@ -45,7 +54,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _onLogin() async {
+  Future<void> _onLogin() async {
     // Validate form fields first; if invalid, show field errors and stop.
     if (!_formKey.currentState!.validate()) return;
 
@@ -54,33 +63,46 @@ class _LoginPageState extends State<LoginPage> {
         email: _emailController.text,
         password: _passController.text,
       );
+
       // Save credentials so biometric login becomes available next time.
       try {
-        // Replace any previously stored credentials with the new account.
         await SecureAuth.clearCredentials();
-        await SecureAuth.saveCredentials(email: _emailController.text.trim(), password: _passController.text);
+        await SecureAuth.saveCredentials(
+          email: _emailController.text.trim(),
+          password: _passController.text,
+        );
       } catch (e) {
         debugPrint('LoginPage: failed to replace saved credentials: $e');
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Login successful')));
-      // update biometric availability state
-      _checkBiometricAvailability();
+      _showSnack('Login successful');
+
+      await _checkBiometricAvailability();
+
+      if (!mounted) return;
       // navigate to home via GoRouter
       context.go('/home');
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Login failed: $e')));
+      _showSnack('Login failed: $e');
     }
+  }
+
+  Future<void> _onBiometricLogin() async {
+    final result = await SecureAuth.authenticateAndSignIn();
+
+    if (!mounted) return;
+
+    if (!result.isSuccess) {
+      _showSnack(result.message ?? 'Biometric authentication failed');
+      return;
+    }
+
+    _showSnack('Signed in with biometrics');
+    context.go('/home');
   }
 
   @override
   Widget build(BuildContext context) {
-    // initialize responsive helper (adjust design size here if your design uses different base)
-
     final Color background = const Color(0xFFFAF3EC);
 
     return Scaffold(
@@ -101,28 +123,24 @@ class _LoginPageState extends State<LoginPage> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(20.w),
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Care Recipient selected')),
-                    );
+                    _showSnack('Care Recipient selected');
                   },
-                  child: Container(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12.w,
-                        vertical: 6.h,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.person, size: 16.w),
-                          SizedBox(width: 6.w),
-                          Text(
-                            'Care Recipient',
-                            style: TextStyle(fontSize: 18.sp),
-                            softWrap: true,
-                          ),
-                        ],
-                      ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12.w,
+                      vertical: 6.h,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.person, size: 16.w),
+                        SizedBox(width: 6.w),
+                        Text(
+                          'Care Recipient',
+                          style: TextStyle(fontSize: 18.sp),
+                          softWrap: true,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -137,14 +155,12 @@ class _LoginPageState extends State<LoginPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SizedBox(height: 8.h),
-                    // Logo (placeholder icon)
                     SvgPicture.asset(
                       'assets/icons/logo.svg',
                       width: 120.w,
                       height: 120.h,
                     ),
 
-                    // White rounded card with form
                     Container(
                       padding: EdgeInsets.all(16.w),
                       decoration: BoxDecoration(
@@ -168,13 +184,16 @@ class _LoginPageState extends State<LoginPage> {
                               hint: 'Email',
                               keyboardType: TextInputType.emailAddress,
                               validator: (v) {
-                                if (v == null || v.trim().isEmpty) return 'Enter email';
-                                if (!v.contains('@')) return 'Enter a valid email';
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Enter email';
+                                }
+                                if (!v.contains('@')) {
+                                  return 'Enter a valid email';
+                                }
                                 return null;
                               },
                             ),
                             SizedBox(height: 12.h),
-
                             FormTextField(
                               controller: _passController,
                               hint: 'Password',
@@ -194,7 +213,6 @@ class _LoginPageState extends State<LoginPage> {
                               width: double.infinity,
                               child: ElevatedButton(
                                 onPressed: _onLogin,
-
                                 child: Text(
                                   'Login',
                                   style: TextStyle(fontSize: 16.sp),
@@ -206,16 +224,7 @@ class _LoginPageState extends State<LoginPage> {
                               SizedBox(
                                 width: double.infinity,
                                 child: OutlinedButton.icon(
-                                  onPressed: () async {
-                                    // attempt biometric authenticate + sign-in
-                                    final uc = await SecureAuth.authenticateAndSignIn(context);
-                                    if (uc != null) {
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signed in with biometrics')));
-                                        context.go('/home');
-                                      }
-                                    }
-                                  },
+                                  onPressed: _onBiometricLogin,
                                   icon: const Icon(Icons.fingerprint),
                                   label: const Text('Login with biometrics'),
                                 ),
@@ -224,7 +233,6 @@ class _LoginPageState extends State<LoginPage> {
                             ],
                             GestureDetector(
                               onTap: () {
-                                // navigate to register screen via GoRouter
                                 context.go('/register');
                               },
                               child: Text(

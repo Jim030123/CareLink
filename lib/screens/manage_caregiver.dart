@@ -162,13 +162,12 @@ class _ManageCaregiverState extends State<ManageCaregiver> {
                   }
 
                   final c = caregivers[idx - 1];
-                  return call_secondaryCaregiverCard(
+                  return callSecondaryCaregiverCard(
                     context: context,
                     name: c['name']!,
                     relationship: c['relationship']!,
                     contact: c['contact'],
                     onEdit: () {
-                      // TODO: open edit dialog or navigation
                     },
                   );
                 },
@@ -182,7 +181,7 @@ class _ManageCaregiverState extends State<ManageCaregiver> {
 }
 
 /// Reusable secondary caregiver card widget builder.
-Widget call_secondaryCaregiverCard({
+Widget callSecondaryCaregiverCard({
   required BuildContext context,
   required String name,
   String? contact,

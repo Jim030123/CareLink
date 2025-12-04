@@ -7,12 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 // uncomment the import below and the code in _pickFile().
 // import 'package:file_picker/file_picker.dart';
 
-/// A single-step registration page for creating a Doctor account.
-///
-/// Callers can pass callbacks:
-/// - onBack: VoidCallback when Back pressed
-/// - onNext: ValueChanged<Map<String, dynamic>> receives form values when Next pressed and validation passes
-/// - onLogin: VoidCallback when the Login button is tapped
+
 class RegisterDoctorPage extends StatefulWidget {
   const RegisterDoctorPage({
     super.key,

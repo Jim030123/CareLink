@@ -53,7 +53,6 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         icon: Icons.medication, // fallback: Icons.local_pharmacy
         color: Colors.blue.shade600,
         onTap: () {
-          // TODO: wire navigation for Medication
         },
       ),
 
@@ -62,7 +61,6 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         icon: Icons.devices,
         color: Colors.green.shade600,
         onTap: () {
-          // TODO: wire navigation for Remote Monitor
         },
       ),
 
@@ -95,6 +93,7 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         title: 'Activity',
         icon: Icons.directions_run,
         color: Colors.teal,
+        onTap: () => context.push('/test'),
       ),
     ];
   }
@@ -240,7 +239,6 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            // TODO: Implement "See All" action
                           },
                           child: Text(
                             'See All >>',
@@ -370,7 +368,6 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            // TODO: Implement "See All" action
                           },
                           child: Text(
                             'See All >>',

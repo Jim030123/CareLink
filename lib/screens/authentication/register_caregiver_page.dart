@@ -3,7 +3,7 @@
 import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/text_field.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
-import 'package:carelink_mobile/utils/graphql_service.dart';
+import 'package:flutter/foundation.dart';
 // import 'package:carelink_mobile/utils/auth_service.dart';
 // import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -14,11 +14,6 @@ import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 
-/// Create Primary Caregiver Account step
-/// Exposes callbacks:
-/// - onBack: VoidCallback
-/// - onNext: ValueChanged<Map<String, dynamic>> with collected form data
-/// - onLogin: VoidCallback
 class RegisterCaregiverPage extends ConsumerStatefulWidget {
   const RegisterCaregiverPage({
     super.key,
@@ -32,7 +27,8 @@ class RegisterCaregiverPage extends ConsumerStatefulWidget {
   final VoidCallback? onLogin;
 
   @override
-  ConsumerState<RegisterCaregiverPage> createState() => _RegisterCaregiverPageState();
+  ConsumerState<RegisterCaregiverPage> createState() =>
+      _RegisterCaregiverPageState();
 }
 
 class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
@@ -77,7 +73,6 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
     // query if your server exposes one for efficiency.
     try {
       final client = GraphQLProvider.of(context).value;
-
 
       // (sync moved later to after sign-up to ensure uid exists server-side)
 
@@ -125,10 +120,11 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
 
       // help me insert an id column in user_account table through gqlusing the index_table's id ==1
       // 1) read the index row where id == 1 to get the next id
-     final generatedCode = await fetchGeneratedCode(
-  context,
-  id: 1,
-);
+      final generatedCode = await fetchGeneratedCode(
+        GraphQLProvider.of(context).value,
+        messenger: ScaffoldMessenger.of(context),
+        id: 2,
+      );
 
       // store generated caregiver id in Riverpod state so downstream pages
       // can read it without relying on router extras.
@@ -144,7 +140,9 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
       );
 
       final uid = userCredential.user!.uid;
-      print("New UID = $uid");
+      if (kDebugMode) {
+        print("New UID = $uid");
+      }
 
       // ⭐ Minimal-change approach: run the server-side sync after signup
       // so the newly-created Firebase UID is present when Postgres is refreshed.
@@ -166,14 +164,20 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
         );
 
         if (syncResult.hasException) {
-          debugPrint('syncUsersToPostgres mutation error: ${syncResult.exception}');
+          debugPrint(
+            'syncUsersToPostgres mutation error: ${syncResult.exception}',
+          );
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Warning: user sync failed (continuing).')),
+            const SnackBar(
+              content: Text('Warning: user sync failed (continuing).'),
+            ),
           );
         } else {
           final syncData = syncResult.data?['syncUsersToPostgres'];
           if (syncData is Map) {
-            debugPrint('syncUsersToPostgres: success=${syncData['success']}, synced=${syncData['synced']}');
+            debugPrint(
+              'syncUsersToPostgres: success=${syncData['success']}, synced=${syncData['synced']}',
+            );
           } else if (syncData is bool) {
             debugPrint('syncUsersToPostgres: result=$syncData');
           } else {
@@ -183,7 +187,9 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
       } catch (e, st) {
         debugPrint('syncUsersToPostgres call failed: $e\n$st');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Warning: user sync failed (continuing).')),
+          const SnackBar(
+            content: Text('Warning: user sync failed (continuing).'),
+          ),
         );
       }
 
@@ -202,7 +208,9 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
       );
 
       //print the usertableresult
-      print(userTableResult.data);
+      if (kDebugMode) {
+        print(userTableResult.data);
+      }
 
       // If we have a Firebase UID for this user, update the user_account.id
       // where uid matches the Firebase UID to reserve the generatedCode.
@@ -256,8 +264,6 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
         final returnedId =
             updateResult.data?['update_caregiver_account']?['id'] as String?;
         final accountSet = returnedId != null && returnedId.isNotEmpty;
-
-
 
         if (!accountSet) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -505,8 +511,9 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
                                 controller: _phone,
                                 keyboardType: TextInputType.phone,
                                 validator: (v) {
-                                  if (v == null || v.trim().isEmpty)
+                                  if (v == null || v.trim().isEmpty) {
                                     return 'Enter phone number';
+                                  }
                                   return null;
                                 },
                                 hint: 'Phone',
@@ -519,10 +526,12 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
                                 hint: 'Email',
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (v) {
-                                  if (v == null || v.trim().isEmpty)
+                                  if (v == null || v.trim().isEmpty) {
                                     return 'Enter email';
-                                  if (!v.contains('@'))
+                                  }
+                                  if (!v.contains('@')) {
                                     return 'Enter a valid email';
+                                  }
                                   return null;
                                 },
                               ),
@@ -532,10 +541,12 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
                                 hint: 'Password',
                                 obscureText: true,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'Enter password';
-                                  if (v.length < 6)
+                                  }
+                                  if (v.length < 6) {
                                     return 'Password must be at least 6 characters';
+                                  }
                                   return null;
                                 },
                               ),
@@ -545,10 +556,12 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
                                 hint: 'Confirm Password',
                                 obscureText: true,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'Confirm password';
-                                  if (v != _password.text)
+                                  }
+                                  if (v != _password.text) {
                                     return 'Passwords do not match';
+                                  }
                                   return null;
                                 },
                               ),

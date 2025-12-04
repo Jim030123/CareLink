@@ -1,8 +1,9 @@
 import 'package:carelink_mobile/utils/auth_service.dart';
-import 'package:carelink_mobile/utils/graphql_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lottie/lottie.dart';
 
 class HomeResolver extends StatefulWidget {
   const HomeResolver({super.key});
@@ -58,9 +59,12 @@ class _HomeResolverState extends State<HomeResolver> {
       );
 
       final userType = me != null ? (me['userType'] as String?) : null;
-      print('userType: $userType');
 
-      if (userType ==  'Caregiver') {
+      if (kDebugMode) {
+        print('userType: $userType');
+      }
+
+      if (userType == 'Caregiver') {
         if (mounted) context.go('/home/caregiver');
       } else {
         if (mounted) context.go('/home/recipient');
@@ -75,15 +79,25 @@ class _HomeResolverState extends State<HomeResolver> {
 
   @override
   Widget build(BuildContext context) {
-    // Brief loading UI while resolver runs
+    // Show loading UI only while resolving; once _loading is false, return an empty view.
+    if (!_loading) {
+      return const SizedBox.shrink();
+    }
+
+    // Brief loading UI while resolver runs (Lottie animation)
     return Scaffold(
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(),
+            Lottie.asset(
+              'assets/animations/loading.json',
+              width: 160,
+              height: 160,
+              fit: BoxFit.contain,
+            ),
             const SizedBox(height: 12),
-            Text('Routing to your home...'),
+            const Text('Routing to your home...'),
           ],
         ),
       ),

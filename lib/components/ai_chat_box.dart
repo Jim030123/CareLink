@@ -16,7 +16,7 @@ class AIChatBox extends StatefulWidget {
   /// API. If not provided, the chat will use a simple local mock responder.
   final Future<String> Function(String prompt)? onSend;
 
-  const AIChatBox({Key? key, this.onSend}) : super(key: key);
+  const AIChatBox({super.key, this.onSend});
 
   @override
   State<AIChatBox> createState() => _AIChatBoxState();
