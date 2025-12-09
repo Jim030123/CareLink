@@ -83,222 +83,211 @@ class _TestPage2State extends State<TestPage2> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Local Notifications Demo')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Title',
-                hintText: 'Enter notification title',
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Title',
+                  hintText: 'Enter notification title',
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _bodyController,
-              decoration: const InputDecoration(
-                labelText: 'Body',
-                hintText: 'Enter notification body',
+              const SizedBox(height: 8),
+              TextField(
+                controller: _bodyController,
+                decoration: const InputDecoration(
+                  labelText: 'Body',
+                  hintText: 'Enter notification body',
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () async {
-                      // Open date picker then time picker
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDateTime ?? DateTime.now(),
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (date == null) return;
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: _selectedDateTime != null
-                            ? TimeOfDay.fromDateTime(_selectedDateTime!)
-                            : TimeOfDay.now(),
-                      );
-                      if (time == null) return;
-                      setState(() {
-                        _selectedDateTime = DateTime(
-                          date.year,
-                          date.month,
-                          date.day,
-                          time.hour,
-                          time.minute,
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () async {
+                        // Open date picker then time picker
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: _selectedDateTime ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
                         );
-                      });
-                    },
-                    child: AbsorbPointer(
-                      child: TextField(
-                        controller: TextEditingController(
-                          text: _selectedDateTime != null
-                              ? _selectedDateTime!.toIso8601String()
-                              : '',
+                        if (date == null) return;
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: _selectedDateTime != null
+                              ? TimeOfDay.fromDateTime(_selectedDateTime!)
+                              : TimeOfDay.now(),
+                        );
+                        if (time == null) return;
+                        setState(() {
+                          _selectedDateTime = DateTime(
+                            date.year,
+                            date.month,
+                            date.day,
+                            time.hour,
+                            time.minute,
+                          );
+                        });
+                      },
+                      child: AbsorbPointer(
+                        child: TextField(
+                          controller: TextEditingController(
+                            text: _selectedDateTime != null
+                                ? _selectedDateTime!.toIso8601String()
+                                : '',
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Timestamp (pick)',
+                            hintText: 'Tap to pick date & time',
+                          ),
+                          readOnly: true,
                         ),
-                        decoration: const InputDecoration(
-                          labelText: 'Timestamp (pick)',
-                          hintText: 'Tap to pick date & time',
-                        ),
-                        readOnly: true,
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  children: [
-                    const Text('Use now'),
-                    Switch(
-                      value: _includeNowTimestamp,
-                      onChanged: (v) => setState(() {
-                        _includeNowTimestamp = v;
+                  const SizedBox(width: 8),
+                  Column(
+                    children: [
+                      const Text('Use now'),
+                      Switch(
+                        value: _includeNowTimestamp,
+                        onChanged: (v) => setState(() {
+                          _includeNowTimestamp = v;
+                        }),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text('Timezone:'),
+                  const SizedBox(width: 12),
+                  DropdownButton<int?>(
+                    value: _selectedOffsetHours,
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Device local'),
+                      ),
+                      const DropdownMenuItem<int?>(
+                        value: 0,
+                        child: Text('UTC±0'),
+                      ),
+                      // add offsets -12..+14
+                      ...List<DropdownMenuItem<int>>.generate(27, (i) {
+                        final offset = i - 12; // -12..+14
+                        return DropdownMenuItem<int>(
+                          value: offset,
+                          child: Text('UTC${offset >= 0 ? '+' : ''}$offset'),
+                        );
                       }),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text('Timezone:'),
-                const SizedBox(width: 12),
-                DropdownButton<int?>(
-                  value: _selectedOffsetHours,
-                  items: [
-                    const DropdownMenuItem<int?>(
-                      value: null,
-                      child: Text('Device local'),
-                    ),
-                    const DropdownMenuItem<int?>(
-                      value: 0,
-                      child: Text('UTC±0'),
-                    ),
-                    // add offsets -12..+14
-                    ...List<DropdownMenuItem<int>>.generate(27, (i) {
-                      final offset = i - 12; // -12..+14
-                      return DropdownMenuItem<int>(
-                        value: offset,
-                        child: Text('UTC${offset >= 0 ? '+' : ''}$offset'),
-                      );
-                    }),
-                  ],
-                  onChanged: (v) => setState(() => _selectedOffsetHours = v),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () async {
-                final title = _titleController.text.isNotEmpty
-                    ? _titleController.text
-                    : 'No title';
-                final bodyText = _bodyController.text.isNotEmpty
-                    ? _bodyController.text
-                    : 'No body';
-
-                DateTime targetLocal;
-                if (_includeNowTimestamp) {
-                  targetLocal = DateTime.now();
-                } else if (_selectedDateTime != null) {
-                  targetLocal = _selectedDateTime!;
-                } else {
-                  targetLocal = DateTime.now();
-                }
-
-                // Compute absolute UTC moment based on selected timezone choice.
-                DateTime targetAbsoluteUtc;
-                if (_selectedOffsetHours == null) {
-                  // Device local: interpret targetLocal as local time
-                  targetAbsoluteUtc = targetLocal.toUtc();
-                } else {
-                  // Interpret the picked date-time as being in the chosen UTC offset
-                  final offset = _selectedOffsetHours!;
-                  // Construct UTC moment by subtracting the offset hours
-                  targetAbsoluteUtc = DateTime.utc(
-                    targetLocal.year,
-                    targetLocal.month,
-                    targetLocal.day,
-                    targetLocal.hour - offset,
-                    targetLocal.minute,
-                    targetLocal.second,
-                  );
-                }
-
-                final fullBody =
-                    '$bodyText\nTimestamp: ${targetAbsoluteUtc.toIso8601String()}';
-
-                final id = notif.generateNotificationId();
-                if (targetAbsoluteUtc.isAfter(
-                  DateTime.now().toUtc().add(const Duration(seconds: 1)),
-                )) {
-                  // schedule if target is in the future
-                  await notif.scheduleAt(
-                    id: id,
-                    title: title,
-                    body: fullBody,
-                    payload: 'from_testpage2',
-                    target: targetAbsoluteUtc,
-                    fullScreen: false,
-                  );
-                } else {
-                  await notif.showHighPriorityNotification(
-                    id: id,
-                    title: title,
-                    body: fullBody,
-                    payload: 'from_testpage2',
-                    fullScreen: false,
-                  );
-                }
-              },
-              child: const Text('Send Notification (high priority)'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _showFullScreenNotification,
-              child: const Text('Send Full-Screen Notification'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _showImmediateNotification,
-              child: const Text('Show Immediate Notification'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _scheduleNotificationInSeconds(5),
-              child: const Text('Schedule in 5 seconds'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _showPeriodicNotification,
-              child: const Text('Start Periodic (every minute)'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _openNotificationSettings,
-              child: const Text('Open Notification Settings'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _cancelNotification(1),
-              child: const Text('Cancel scheduled id=1'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _cancelAllNotifications,
-              child: const Text('Cancel All Notifications'),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Notes:\n- On Android make sure notification permissions are requested if targeting SDK 33+\n- Scheduled notifications in this demo use a simple local delay (no zoned scheduling).\n  Native timezone lookup is currently disabled; re-enable if you need precise timezone-based scheduling.',
-              textAlign: TextAlign.center,
-            ),
-          ],
+                    ],
+                    onChanged: (v) => setState(() => _selectedOffsetHours = v),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () async {
+                  final title = _titleController.text.isNotEmpty
+                      ? _titleController.text
+                      : 'No title';
+                  final bodyText = _bodyController.text.isNotEmpty
+                      ? _bodyController.text
+                      : 'No body';
+        
+                  DateTime targetLocal;
+                  if (_includeNowTimestamp) {
+                    targetLocal = DateTime.now();
+                  } else if (_selectedDateTime != null) {
+                    targetLocal = _selectedDateTime!;
+                  } else {
+                    targetLocal = DateTime.now();
+                  }
+        
+                  // Compute absolute UTC moment based on selected timezone choice.
+                  DateTime targetAbsoluteUtc;
+                  if (_selectedOffsetHours == null) {
+                    // Device local: interpret targetLocal as local time
+                    targetAbsoluteUtc = targetLocal.toUtc();
+                  } else {
+                    // Interpret the picked date-time as being in the chosen UTC offset
+                    final offset = _selectedOffsetHours!;
+                    // Construct UTC moment by subtracting the offset hours
+                    targetAbsoluteUtc = DateTime.utc(
+                      targetLocal.year,
+                      targetLocal.month,
+                      targetLocal.day,
+                      targetLocal.hour - offset,
+                      targetLocal.minute,
+                      targetLocal.second,
+                    );
+                  }
+        
+                  final fullBody =
+                      '$bodyText\nTimestamp: ${targetAbsoluteUtc.toIso8601String()}';
+        
+                  final id = notif.generateNotificationId();
+                  if (targetAbsoluteUtc.isAfter(
+                    DateTime.now().toUtc().add(const Duration(seconds: 1)),
+                  )) {
+                    // schedule if target is in the future
+                    await notif.scheduleAt(
+                      id: id,
+                      title: title,
+                      body: fullBody,
+                      payload: 'from_testpage2',
+                      target: targetAbsoluteUtc,
+                      fullScreen: false,
+                    );
+                  } else {
+                    await notif.showHighPriorityNotification(
+                      id: id,
+                      title: title,
+                      body: fullBody,
+                      payload: 'from_testpage2',
+                      fullScreen: false,
+                    );
+                  }
+                },
+                child: const Text('Send Notification (high priority)'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _showFullScreenNotification,
+                child: const Text('Send Full-Screen Notification'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _showImmediateNotification,
+                child: const Text('Show Immediate Notification'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => _scheduleNotificationInSeconds(5),
+                child: const Text('Schedule in 5 seconds'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _showPeriodicNotification,
+                child: const Text('Start Periodic (every minute)'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _openNotificationSettings,
+                child: const Text('Open Notification Settings'),
+              ),
+              const SizedBox(height: 12),
+           
+            ],
+          ),
         ),
       ),
     );

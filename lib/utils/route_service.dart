@@ -21,7 +21,7 @@ import '../screens/authentication/register_doctor_page.dart';
 
 /// Central app router exported for use by `main.dart`.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/medication',
   errorBuilder: (context, state) => NotFoundPage(location: state.error?.toString()),
   routes: <GoRoute>[
     // Todo: after login that will save the state

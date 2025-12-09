@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'firebase_options.dart';
 
@@ -14,11 +15,21 @@ import 'firebase_options.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 
+
+
 Future<void> main() async {
   // 确保 Widgets 绑定初始化（必须的）
   WidgetsFlutterBinding.ensureInitialized();
 
   // 初始化 Hive（graphql_flutter 的缓存用）
+  // Load .env for local configuration (HTTP_URL, WS_URL etc.)
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    // ignore: avoid_print
+    debugPrint('.env not found or failed to load — continuing');
+  }
+
   await initHiveForFlutter();
 
   // 初始化 Firebase
@@ -33,6 +44,8 @@ Future<void> main() async {
   //
   // idTokenProvider:
   //   每次需要 token 时，会调用这个函数（异步）
+
+
   //   这里我们从 Firebase 当前用户拿 idToken
   final clientNotifier = createClientNotifier(
     idTokenProvider: () async {
@@ -45,13 +58,14 @@ Future<void> main() async {
       }
     },
 
+
+
     // ✅ HTTP 基础地址（Query / Mutation）
-    baseUrl: 'http://10.209.91.100:25001/graphql',
+    baseUrl:  dotenv.env['HTTP_URL'],
 
     // ✅ WebSocket 地址（Subscription）
     // 使用后端正在监听的路径：/graphql
-    websocketUrl: 'ws://10.209.91.100:25001/graphql',
-
+    websocketUrl: dotenv.env['WS_URL'],
     // 可以显式写上，默认就是 true
     enableSubscriptions: true,
   );

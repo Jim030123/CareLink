@@ -1,8 +1,32 @@
 import 'package:flutter/foundation.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 
 String _defaultBaseUrl() {
-  return 'http://10.209.91.100:25001/graphql';
+  // 1) Try flutter_dotenv
+  final dot = dotenv.env['HTTP_URL'];
+  if (dot != null && dot.isNotEmpty) return dot;
+
+  // 2) Try build-time dart-define
+  const define = String.fromEnvironment('HTTP_URL');
+  if (define.isNotEmpty) return define;
+
+  // 3) Fallback
+  return 'http://10.180.12.100:25001/graphql';
+}
+
+String _defaultWsUrl() {
+  // 1) Try flutter_dotenv
+  final dot = dotenv.env['WS_URL'];
+  if (dot != null && dot.isNotEmpty) return dot;
+
+  // 2) Try build-time dart-define
+  const define = String.fromEnvironment('WS_URL');
+  if (define.isNotEmpty) return define;
+
+  // 3) Derive from HTTP base URL
+  return _deriveWsUri(_defaultBaseUrl(), null);
 }
 
 /// 根据 HTTP URL 推导 WS URL：
@@ -44,6 +68,8 @@ GraphQLClient createClient({
   bool enableSubscriptions = true,
 }) {
   final uriStr = baseUrl ?? _defaultBaseUrl();
+  final wsStr = websocketUrl ?? _defaultWsUrl();
+
   debugPrint('GraphQL: creating client with baseUrl=$uriStr');
 
   final httpLink = HttpLink(uriStr);
@@ -75,7 +101,8 @@ GraphQLClient createClient({
 
   if (enableSubscriptions) {
     try {
-      final wsUri = _deriveWsUri(uriStr, websocketUrl);
+      // prefer explicit websocketUrl, else derived wsStr
+      final wsUri = _deriveWsUri(uriStr, wsStr);
       debugPrint('GraphQL: WebSocket URL = $wsUri');
 
       final socketClientConfig = SocketClientConfig(

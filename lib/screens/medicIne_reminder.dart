@@ -229,7 +229,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
       final messenger = ScaffoldMessenger.of(context);
       const String mutation = r'''
         mutation UpsertMedication($object: medication_insert_input!) {
-          insert_medication_one(object: $object, on_conflict: {constraint: medication_pkey, update_columns: [name, description, quantity, dosageAmount, dosageUnit, frequency, picture, careRecipientId, type, doctorId, caregiverId, status]}) {
+          insert_medication_one(object: $object, on_conflict: {constraint: medication_pkey, update_columns: [name, description, quantity, dosageAmount, dosageUnit, frequency, picture, careRecipientId, type, caregiverId, status]}) {
             id
             name
             quantity
@@ -239,7 +239,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
             picture
             careRecipientId
             type
-            doctorId
             caregiverId
             status
           }
@@ -956,108 +955,138 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
     );
   }
 
-  void _showAddScheduleSheet() {
+  void _showAddScheduleSheet() async {
     final nameCtrl = TextEditingController();
     TimeOfDay selectedTime = const TimeOfDay(hour: 8, minute: 0);
 
-    showModalBottomSheet(
+    final result = await showModalBottomSheet<Map<String, dynamic>?>(
       context: context,
       isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: Container(
-            padding: EdgeInsets.all(16.w),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Add Schedule',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
+        // use StatefulBuilder for local state updates inside the sheet
+        return StatefulBuilder(
+          builder: (ctx2, setModalState) {
+            // local copies if you want to mutate without touching parent directly
+            DateTime _localDate = _selectedScheduleDate;
+            TimeOfDay _localTime = selectedTime;
+
+            // Wrap with SingleChildScrollView to avoid overflow when keyboard opens
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx2).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                child: Container(
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40.w,
+                        height: 4.h,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      SizedBox(height: 12.h),
+                      Text(
+                        'Add Schedule',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 12.h),
+                      TextField(
+                        controller: nameCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Medicine name',
+                        ),
+                        autofocus: true,
+                      ),
+                      SizedBox(height: 12.h),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Date: ${_localDate.toLocal().toString().split(' ').first}',
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final d = await showDatePicker(
+                                context: ctx2,
+                                initialDate: _localDate,
+                                firstDate: DateTime.now().subtract(
+                                  const Duration(days: 365),
+                                ),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 365),
+                                ),
+                              );
+                              if (d != null) {
+                                setModalState(() => _localDate = d);
+                              }
+                            },
+                            child: const Text('Change'),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8.h),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text('Time: ${_localTime.format(ctx2)}'),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final t = await showTimePicker(
+                                context: ctx2,
+                                initialTime: _localTime,
+                              );
+                              if (t != null) {
+                                setModalState(() => _localTime = t);
+                              }
+                            },
+                            child: const Text('Pick'),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12.h),
+                      ElevatedButton(
+                        onPressed: () {
+                          final name = nameCtrl.text.trim();
+                          if (name.isEmpty) return;
+                          final entry = {
+                            'name': name,
+                            'date': _localDate,
+                            'time': _localTime.format(ctx2),
+                            'color': const Color(0xFFB3E5FC),
+                          };
+                          // 返回 entry 给调用者（父 widget）
+                          Navigator.of(ctx2).pop(entry);
+                        },
+                        child: const Text('Save'),
+                      ),
+                      SizedBox(height: 12.h),
+                    ],
                   ),
                 ),
-                SizedBox(height: 12.h),
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Medicine name'),
-                ),
-                SizedBox(height: 12.h),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Date: ${_selectedScheduleDate.toLocal().toString().split(' ').first}',
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final d = await showDatePicker(
-                          context: ctx,
-                          initialDate: _selectedScheduleDate,
-                          firstDate: DateTime.now().subtract(
-                            const Duration(days: 365),
-                          ),
-                          lastDate: DateTime.now().add(
-                            const Duration(days: 365),
-                          ),
-                        );
-                        if (d != null) {
-                          setState(() => _selectedScheduleDate = d);
-                        }
-                      },
-                      child: const Text('Change'),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8.h),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text('Time: ${selectedTime.format(context)}'),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final t = await showTimePicker(
-                          context: ctx,
-                          initialTime: selectedTime,
-                        );
-                        if (t != null) {
-                          selectedTime = t;
-                        }
-                      },
-                      child: const Text('Pick'),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12.h),
-                ElevatedButton(
-                  onPressed: () {
-                    final name = nameCtrl.text.trim();
-                    if (name.isEmpty) return;
-                    final entry = {
-                      'name': name,
-                      'date': _selectedScheduleDate,
-                      'time': selectedTime.format(context),
-                      'color': const Color(0xFFB3E5FC),
-                    };
-                    setState(() {
-                      _schedules.add(entry);
-                    });
-                    Navigator.of(ctx).pop();
-                  },
-                  child: const Text('Save'),
-                ),
-                SizedBox(height: 12.h),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
+
+    // result is the entry (or null if cancelled)
+    if (result != null) {
+      setState(() => _schedules.add(result));
+    }
   }
 
   Future<void> _showAddMedicineSheet() async {
@@ -1069,7 +1098,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
     final frequencyCtrl = TextEditingController();
     final pictureCtrl = TextEditingController();
     final careRecipientCtrl = TextEditingController();
-    final doctorCtrl = TextEditingController();
 
     final uid = AuthService.instance.currentUser?.uid;
     String? caregiverIdVal;
@@ -1092,199 +1120,35 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
 
     if (!mounted) return;
 
-    showModalBottomSheet(
+    // 父组件调用：等待 modal 返回的 createdItem，然后再 setState 加入列表
+    final createdItem = await showModalBottomSheet<Map<String, dynamic>?>(
       context: context,
       isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              ),
-              child: Container(
-                padding: EdgeInsets.all(16.w),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Add Medicine',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: 12.h),
-                      TextField(
-                        controller: nameCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Medicine name',
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      TextField(
-                        controller: descriptionCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                        ),
-                        maxLines: 2,
-                      ),
-                      SizedBox(height: 8.h),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: qtyCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Quantity',
-                              ),
-                              keyboardType: TextInputType.number,
-                            ),
-                          ),
-                          SizedBox(width: 8.w),
-                          Expanded(
-                            child: TextField(
-                              controller: dosageAmountCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Dosage Amount',
-                              ),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 8.h),
-                      TextField(
-                        controller: dosageUnitCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Dosage Unit (e.g. mg)',
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      TextField(
-                        controller: frequencyCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Frequency (e.g. once a day)',
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      TextField(
-                        controller: pictureCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Picture URL / asset',
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: careRecipientCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Care Recipient ID',
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 8.w),
-                          Expanded(
-                            child: TextField(
-                              controller: doctorCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Doctor ID',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 8.h),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: caregiverCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Caregiver ID',
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 8.w),
-                          Expanded(
-                            child: TextField(
-                              controller: statusCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Status',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 8.h),
-                      DropdownButtonFormField<String>(
-                        value: selectedType,
-                        items: ['capsule', 'tablet', 'injection', 'cream']
-                            .map(
-                              (t) => DropdownMenuItem(value: t, child: Text(t)),
-                            )
-                            .toList(),
-                        onChanged: (v) => setModalState(
-                          () => selectedType = v ?? selectedType,
-                        ),
-                        decoration: const InputDecoration(labelText: 'Type'),
-                      ),
-                      SizedBox(height: 12.h),
-                      ElevatedButton(
-                        onPressed: () async {
-                          final name = nameCtrl.text.trim();
-                          if (name.isEmpty) return;
-
-                          final qty = qtyCtrl.text.trim();
-                          final dosageAmount = double.tryParse(
-                            dosageAmountCtrl.text.trim(),
-                          );
-                          final dosageUnit = dosageUnitCtrl.text.trim();
-
-                          final input = {
-                            'name': name,
-                            'description': descriptionCtrl.text.trim(),
-                            'quantity': qty.isNotEmpty
-                                ? int.tryParse(qty) ?? 0
-                                : 0,
-                            'dosageAmount': dosageAmount,
-                            'dosageUnit': dosageUnit,
-                            'frequency': frequencyCtrl.text.trim(),
-                            'picture': pictureCtrl.text.trim(),
-                            'careRecipientId': careRecipientCtrl.text.trim(),
-                            'type': selectedType,
-                            'doctorId': doctorCtrl.text.trim(),
-                            'caregiverId': caregiverCtrl.text.trim(),
-                            'status': statusCtrl.text.trim(),
-                          };
-
-                          final created = await _upsertMedication(input);
-                          if (created != null) {
-                            final mapped = _mapMedicationToItem(created);
-                            setState(() {
-                              _items.add(mapped);
-                            });
-                          }
-                          Navigator.of(ctx).pop();
-                        },
-                        child: const Text('Save'),
-                      ),
-                      SizedBox(height: 12.h),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
+        return _AddMedicineSheet(
+          nameCtrl: nameCtrl,
+          descriptionCtrl: descriptionCtrl,
+          qtyCtrl: qtyCtrl,
+          dosageAmountCtrl: dosageAmountCtrl,
+          dosageUnitCtrl: dosageUnitCtrl,
+          frequencyCtrl: frequencyCtrl,
+          pictureCtrl: pictureCtrl,
+          careRecipientCtrl: careRecipientCtrl,
+          caregiverCtrl: caregiverCtrl,
+          statusCtrl: statusCtrl,
+          initialType: selectedType, // 可选初始值
+          upsertMedication: _upsertMedication, // 函数注入
         );
       },
     );
+
+    // 父组件：收到返回结果后更新 _items
+    if (createdItem != null) {
+      setState(() => _items.add(_mapMedicationToItem(createdItem)));
+    }
   }
 
   void _showEditMedicineSheet(int index) {
@@ -1691,6 +1555,453 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _AddMedicineSheet extends StatefulWidget {
+  final TextEditingController nameCtrl;
+  final TextEditingController descriptionCtrl;
+  final TextEditingController qtyCtrl;
+  final TextEditingController dosageAmountCtrl;
+  final TextEditingController dosageUnitCtrl;
+  final TextEditingController frequencyCtrl;
+  final TextEditingController pictureCtrl;
+  final TextEditingController careRecipientCtrl;
+  final TextEditingController caregiverCtrl;
+  final TextEditingController statusCtrl;
+  final String? initialType;
+  final Future<Map<String, dynamic>?> Function(Map<String, dynamic>)
+  upsertMedication;
+
+  const _AddMedicineSheet({
+    required this.nameCtrl,
+    required this.descriptionCtrl,
+    required this.qtyCtrl,
+    required this.dosageAmountCtrl,
+    required this.dosageUnitCtrl,
+    required this.frequencyCtrl,
+    required this.pictureCtrl,
+    required this.careRecipientCtrl,
+    required this.caregiverCtrl,
+    required this.statusCtrl,
+    required this.upsertMedication,
+    this.initialType,
+  });
+
+  @override
+  State<_AddMedicineSheet> createState() => _AddMedicineSheetState();
+}
+
+class _AddMedicineSheetState extends State<_AddMedicineSheet> {
+  late String selectedType;
+  bool _loading = false;
+  final _formKey = GlobalKey<FormState>();
+  late final ValueNotifier<String?> _selectedRecipient;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedType = widget.initialType ?? 'capsule';
+    _selectedRecipient = ValueNotifier<String?>(
+      widget.careRecipientCtrl.text.trim().isNotEmpty
+          ? widget.careRecipientCtrl.text.trim()
+          : null,
+    );
+  }
+
+  @override
+  void dispose() {
+    _selectedRecipient.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Container(
+          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40.w,
+                height: 4.h,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              SizedBox(height: 12.h),
+              Text(
+                'Add Medicine',
+                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 12.h),
+
+              // 表单开始
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: widget.nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Medicine name',
+                      ),
+                      autofocus: true,
+                      textInputAction: TextInputAction.next,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Please enter name'
+                          : null,
+                    ),
+                    SizedBox(height: 8.h),
+                    TextFormField(
+                      controller: widget.descriptionCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                      ),
+                      maxLines: 2,
+                    ),
+                    SizedBox(height: 8.h),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: widget.qtyCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Quantity',
+                            ),
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.next,
+                          ),
+                        ),
+                        SizedBox(width: 8.w),
+                        Expanded(
+                          child: TextFormField(
+                            controller: widget.dosageAmountCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Dosage Amount',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            textInputAction: TextInputAction.next,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8.h),
+                    TextFormField(
+                      controller: widget.dosageUnitCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Dosage Unit (e.g. mg)',
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    SizedBox(height: 8.h),
+                    TextFormField(
+                      controller: widget.frequencyCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Frequency (e.g. once a day)',
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    SizedBox(height: 8.h),
+                    TextFormField(
+                      controller: widget.pictureCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Picture URL / asset',
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    SizedBox(height: 8.h),
+                    // Care Recipient ID (always shown)
+                    TextFormField(
+                      controller: widget.careRecipientCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Care Recipient ID',
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    SizedBox(height: 8.h),
+                    // If caregiver ID is already provided (injected), hide the
+                    // Caregiver ID field — we still include its value in the
+                    // submitted `input`. Otherwise show both fields.
+                    (() {
+                      final caregiverProvided = widget.caregiverCtrl.text
+                          .trim()
+                          .isNotEmpty;
+                      if (caregiverProvided) {
+                        // When caregiver is known, show a dropdown of care recipients
+                        // fetched from backend and store the selected id into
+                        // `careRecipientCtrl`. We also set `statusCtrl` text to
+                        // the selected recipient name for display/storage.
+                        final caregiverId = widget.caregiverCtrl.text.trim();
+                        return FutureBuilder<QueryResult>(
+                          future: GraphQLProvider.of(context).value.query(
+                            QueryOptions(
+                              document: gql(r'''
+                                query GetCareRecipientsByCaregiver($caregiverId: String!) {
+  care_recipients_by_caregiver(caregiverId: $caregiverId) {
+    id
+    firstName
+    lastName
+    dateOfBirth
+    gender
+    email
+    phone
+    caregiverId
+    type
+
+}
+                                }
+                              '''),
+                              variables: {'caregiverId': caregiverId},
+                              fetchPolicy: FetchPolicy.networkOnly,
+                            ),
+                          ),
+                          builder: (ctx, snap) {
+
+                            final result = snap.data;
+                            if (result == null || result.hasException) {
+                              return Column(
+                                children: [
+                                  Text(
+                                    'Failed to load recipients',
+                                    style: TextStyle(color: Colors.redAccent),
+                                  ),
+                                  SizedBox(height: 8.h),
+                                ],
+                              );
+                            }
+                            // The GraphQL query uses the field
+                            // `care_recipients_by_caregiver` in the response.
+                            // Use that key to extract the returned list. Also
+                            // include a couple of fallbacks for other possible
+                            // field names so the UI won't silently show an
+                            // empty dropdown if the response key differs.
+                            final List<dynamic>? list =
+                                (result.data?['care_recipients_by_caregiver'] ??
+                                        result
+                                            .data?['getCareRecipientsByCaregiverId'] ??
+                                        result
+                                            .data?['getCareRecipientsByCaregiver'])
+                                    as List<dynamic>?;
+                            final items = (list ?? []).map<Map<String, String>>(
+                              (e) {
+                                final first =
+                                    (e['firstName'] ?? e['firstName'] ?? '')
+                                        .toString()
+                                        .trim();
+                                final last =
+                                    (e['lastName'] ?? e['lastName'] ?? '')
+                                        .toString()
+                                        .trim();
+                                final combined = [
+                                  first,
+                                  last,
+                                ].where((s) => s.isNotEmpty).join(' ');
+                                return {
+                                  'id': e['id']?.toString() ?? '',
+                                  'name': combined.isNotEmpty
+                                      ? combined
+                                      : (e['name']?.toString() ?? ''),
+                                };
+                              },
+                            ).toList();
+
+                            // Use ChoiceChips to display recipients by name.
+                            // This is more visible on small screens and matches
+                            // the user's request to "show Name" as a chip.
+                            if (items.isEmpty) {
+                              return const Text('No care recipients');
+                            }
+
+
+
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Padding(
+                                    padding: EdgeInsets.only(bottom: 8.0),
+                                    child: Text('Care Recipient'),
+                                  ),
+
+                                  // Horizontally scrollable chips; selection is driven
+                                  // by a local ValueNotifier to avoid rebuilding the
+                                  // whole sheet (which can steal TextField focus).
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    physics: const BouncingScrollPhysics(),
+                                    child: ValueListenableBuilder<String?>(
+                                      valueListenable: _selectedRecipient,
+                                      builder: (context, selectedId, _) {
+                                        return Row(
+                                          children: items.map<Widget>((m) {
+                                            final id = m['id']?.toString() ?? '';
+                                            final name = (m['name']?.toString().isNotEmpty ==
+                                                    true)
+                                                ? m['name']!.toString()
+                                                : id;
+
+                                            final bool isSelected = id == selectedId;
+
+                                            return Padding(
+                                              padding: const EdgeInsets.only(right: 8.0),
+                                              child: ChoiceChip(
+                                                label: Text(name),
+                                                selected: isSelected,
+                                                selectedColor: Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withOpacity(0.12),
+                                                onSelected: (sel) {
+                                                  if (sel) {
+                                                    _selectedRecipient.value = id;
+                                                    widget.careRecipientCtrl.text = id;
+                                                    widget.statusCtrl.text = name;
+                                                  } else {
+                                                    _selectedRecipient.value = null;
+                                                    widget.careRecipientCtrl.text = '';
+                                                    widget.statusCtrl.text = '';
+                                                  }
+                                                },
+                                              ),
+                                            );
+                                          }).toList(),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: widget.caregiverCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Caregiver ID',
+                              ),
+                              textInputAction: TextInputAction.next,
+                            ),
+                          ),
+                          SizedBox(width: 8.w),
+                          Expanded(
+                            child: TextFormField(
+                              controller: widget.statusCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Status',
+                              ),
+                              textInputAction: TextInputAction.done,
+                            ),
+                          ),
+                        ],
+                      );
+                    })(),
+                    SizedBox(height: 8.h),
+                    DropdownButtonFormField<String>(
+                      value: selectedType,
+                      items: ['capsule', 'tablet', 'injection', 'cream']
+                          .map(
+                            (t) => DropdownMenuItem(value: t, child: Text(t)),
+                          )
+                          .toList(),
+                      onChanged: (v) =>
+                          setState(() => selectedType = v ?? selectedType),
+                      decoration: const InputDecoration(labelText: 'Type'),
+                    ),
+                    SizedBox(height: 12.h),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _loading
+                            ? null
+                            : () async {
+                                // 收起键盘
+                                FocusScope.of(context).unfocus();
+
+                                if (!_formKey.currentState!.validate()) return;
+
+                                setState(() => _loading = true);
+
+                                final qtyText = widget.qtyCtrl.text.trim();
+                                final dosageAmountText = widget
+                                    .dosageAmountCtrl
+                                    .text
+                                    .trim();
+
+                                final input = {
+                                  'name': widget.nameCtrl.text.trim(),
+                                  'description': widget.descriptionCtrl.text
+                                      .trim(),
+                                  'quantity': qtyText.isNotEmpty
+                                      ? int.tryParse(qtyText) ?? 0
+                                      : 0,
+                                  'dosageAmount': dosageAmountText.isNotEmpty
+                                      ? double.tryParse(dosageAmountText)
+                                      : null,
+                                  'dosageUnit': widget.dosageUnitCtrl.text
+                                      .trim(),
+                                  'frequency': widget.frequencyCtrl.text.trim(),
+                                  'picture': widget.pictureCtrl.text.trim(),
+                                  'careRecipientId': widget
+                                      .careRecipientCtrl
+                                      .text
+                                      .trim(),
+                                  'type': selectedType,
+                                  // doctorId intentionally omitted (not needed in UI/backend upsert)
+                                  'caregiverId': widget.caregiverCtrl.text
+                                      .trim(),
+                                  'status': widget.statusCtrl.text.trim(),
+                                };
+
+                                try {
+                                  final created = await widget.upsertMedication(
+                                    input,
+                                  );
+                                  // 返回给父组件
+                                  Navigator.of(context).pop(created);
+                                } catch (e) {
+                                  // 错误处理（你也可以显示 SnackBar 或 AlertDialog）
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Save failed: $e')),
+                                  );
+                                  setState(() => _loading = false);
+                                }
+                              },
+                        child: _loading
+                            ? SizedBox(
+                                height: 16.h,
+                                width: 16.h,
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Save'),
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

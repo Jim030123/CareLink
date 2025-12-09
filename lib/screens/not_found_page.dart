@@ -54,6 +54,7 @@ class NotFoundPage extends StatelessWidget {
             ],
           ),
         ),
+        
       ),
     );
   }

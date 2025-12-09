@@ -104,7 +104,12 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
     final t = (offset / _fadeThreshold).clamp(0.0, 1.0);
     final newOpacity = (1.0 - t);
     if ((_appBarOpacity.value - newOpacity).abs() > 0.01) {
-      _appBarOpacity.value = newOpacity;
+      // Defer the actual notifier update to the next frame to avoid
+      // triggering a markNeedsBuild while the framework is locked
+      // (which can happen when listeners are building).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _appBarOpacity.value = newOpacity;
+      });
     }
   }
 
