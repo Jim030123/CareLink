@@ -1277,7 +1277,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
               boxShadow: isSelected
                   ? [
                       BoxShadow(
-                        color: Colors.orange.withOpacity(0.12),
+                        color: Colors.orange.withOpacity(0.25),
                         blurRadius: 6,
                         offset: const Offset(0, 3),
                       ),
@@ -1598,22 +1598,25 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
   late String selectedType;
   bool _loading = false;
   final _formKey = GlobalKey<FormState>();
-  late final ValueNotifier<String?> _selectedRecipient;
+  late final ValueNotifier<Set<String>> _selectedRecipients;
 
   @override
   void initState() {
     super.initState();
     selectedType = widget.initialType ?? 'capsule';
-    _selectedRecipient = ValueNotifier<String?>(
-      widget.careRecipientCtrl.text.trim().isNotEmpty
-          ? widget.careRecipientCtrl.text.trim()
-          : null,
-    );
+    final initText = widget.careRecipientCtrl.text.trim();
+    _selectedRecipients = ValueNotifier<Set<String>>(initText.isNotEmpty
+      ? initText
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toSet()
+      : <String>{});
   }
 
   @override
   void dispose() {
-    _selectedRecipient.dispose();
+    _selectedRecipients.dispose();
     super.dispose();
   }
 
@@ -1722,14 +1725,8 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                     ),
                     SizedBox(height: 8.h),
                     // Care Recipient ID (always shown)
-                    TextFormField(
-                      controller: widget.careRecipientCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Care Recipient ID',
-                      ),
-                      textInputAction: TextInputAction.next,
-                    ),
-                    SizedBox(height: 8.h),
+
+
                     // If caregiver ID is already provided (injected), hide the
                     // Caregiver ID field — we still include its value in the
                     // submitted `input`. Otherwise show both fields.
@@ -1762,7 +1759,7 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
 }
                                 }
                               '''),
-                              variables: {'caregiverId': caregiverId},
+                              variables: {'caregiverId': 'caregiverId'},
                               fetchPolicy: FetchPolicy.networkOnly,
                             ),
                           ),
@@ -1820,7 +1817,97 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                             // This is more visible on small screens and matches
                             // the user's request to "show Name" as a chip.
                             if (items.isEmpty) {
-                              return const Text('No care recipients');
+                              // Provide 8 mocked recipients for UI testing/dev
+                              final mockItems = List<Map<String, String>>.generate(
+                                8,
+                                (i) => {
+                                  'id': 'mock-${i + 1}',
+                                  'name': 'Recipient ${i + 1}'
+                                },
+                              );
+
+                              return Align(
+                                alignment: Alignment.topLeft,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Padding(
+                                      padding: EdgeInsets.only(bottom: 8.0),
+                                      child: Text('Care Recipient'),
+                                    ),
+
+                                      ValueListenableBuilder<Set<String>>(
+                                        valueListenable: _selectedRecipients,
+                                        builder: (context, selectedIds, _) {
+                                          return Wrap(
+                                            spacing: 8.0,
+                                            runSpacing: 8.0,
+                                            children: mockItems.map<Widget>((m) {
+                                              final id = m['id']?.toString() ?? '';
+                                              final name = (m['name']?.toString().isNotEmpty == true)
+                                                  ? m['name']!.toString()
+                                                  : id;
+
+                                              final bool isSelected = selectedIds.contains(id);
+
+                                              return Container(
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(20),
+                                                  boxShadow: isSelected
+                                                      ? [
+                                                          BoxShadow(
+                                                            color: Colors.orange.withOpacity(0.25),
+                                                            blurRadius: 6,
+                                                            offset: const Offset(0, 3),
+                                                          ),
+                                                        ]
+                                                      : const [
+                                                          BoxShadow(
+                                                            color: Colors.black12,
+                                                            blurRadius: 6,
+                                                            offset: Offset(0, 3),
+                                                          ),
+                                                        ],
+                                                ),
+                                                child: ChoiceChip(
+                                                  label: Text(name),
+                                                  selected: isSelected,
+                                                  backgroundColor: Colors.white,
+                                                  selectedColor: const Color(0xFFFFECB3),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    side: BorderSide(
+                                                      color: isSelected ? Colors.orange : Colors.grey.shade300,
+                                                      width: isSelected ? 1.6 : 1,
+                                                    ),
+                                                  ),
+                                                  elevation: 0,
+                                                  onSelected: (sel) {
+                                                    final newSet = Set<String>.from(selectedIds);
+                                                    if (sel) {
+                                                      newSet.add(id);
+                                                    } else {
+                                                      newSet.remove(id);
+                                                    }
+                                                    _selectedRecipients.value = newSet;
+                                                    widget.careRecipientCtrl.text = newSet.join(',');
+                                                    final names = mockItems
+                                                        .where((x) => newSet.contains(x['id']))
+                                                        .map((x) => x['name'] ?? '')
+                                                        .where((s) => s.isNotEmpty)
+                                                        .toList();
+                                                    widget.statusCtrl.text = names.join(', ');
+                                                  },
+                                                ),
+                                              );
+                                            }).toList(),
+                                          );
+                                        },
+                                      ),
+                                  ],
+                                ),
+                              );
                             }
 
 
@@ -1839,48 +1926,73 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                                   // Horizontally scrollable chips; selection is driven
                                   // by a local ValueNotifier to avoid rebuilding the
                                   // whole sheet (which can steal TextField focus).
-                                  SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    physics: const BouncingScrollPhysics(),
-                                    child: ValueListenableBuilder<String?>(
-                                      valueListenable: _selectedRecipient,
-                                      builder: (context, selectedId, _) {
-                                        return Row(
-                                          children: items.map<Widget>((m) {
-                                            final id = m['id']?.toString() ?? '';
-                                            final name = (m['name']?.toString().isNotEmpty ==
-                                                    true)
-                                                ? m['name']!.toString()
-                                                : id;
+                                  ValueListenableBuilder<Set<String>>(
+                                    valueListenable: _selectedRecipients,
+                                    builder: (context, selectedIds, _) {
+                                      return Wrap(
+                                        spacing: 8.0,
+                                        runSpacing: 8.0,
+                                        children: items.map<Widget>((m) {
+                                          final id = m['id']?.toString() ?? '';
+                                          final name = (m['name']?.toString().isNotEmpty == true)
+                                              ? m['name']!.toString()
+                                              : id;
 
-                                            final bool isSelected = id == selectedId;
+                                          final bool isSelected = selectedIds.contains(id);
 
-                                            return Padding(
-                                              padding: const EdgeInsets.only(right: 8.0),
-                                              child: ChoiceChip(
-                                                label: Text(name),
-                                                selected: isSelected,
-                                                selectedColor: Theme.of(context)
-                                                    .colorScheme
-                                                    .primary
-                                                    .withOpacity(0.12),
-                                                onSelected: (sel) {
-                                                  if (sel) {
-                                                    _selectedRecipient.value = id;
-                                                    widget.careRecipientCtrl.text = id;
-                                                    widget.statusCtrl.text = name;
-                                                  } else {
-                                                    _selectedRecipient.value = null;
-                                                    widget.careRecipientCtrl.text = '';
-                                                    widget.statusCtrl.text = '';
-                                                  }
-                                                },
+                                          return Container(
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(20),
+                                              boxShadow: isSelected
+                                                  ? [
+                                                      BoxShadow(
+                                                        color: Colors.orange.withOpacity(0.25),
+                                                        blurRadius: 6,
+                                                        offset: const Offset(0, 3),
+                                                      ),
+                                                    ]
+                                                  : const [
+                                                      BoxShadow(
+                                                        color: Colors.black12,
+                                                        blurRadius: 6,
+                                                        offset: Offset(0, 3),
+                                                      ),
+                                                    ],
+                                            ),
+                                            child: ChoiceChip(
+                                              label: Text(name),
+                                              selected: isSelected,
+                                              backgroundColor: Colors.white,
+                                              selectedColor: const Color(0xFFFFECB3),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(20),
+                                                side: BorderSide(
+                                                  color: isSelected ? Colors.orange : Colors.grey.shade300,
+                                                  width: isSelected ? 1.6 : 1,
+                                                ),
                                               ),
-                                            );
-                                          }).toList(),
-                                        );
-                                      },
-                                    ),
+                                              elevation: 0,
+                                              onSelected: (sel) {
+                                                final newSet = Set<String>.from(selectedIds);
+                                                if (sel) {
+                                                  newSet.add(id);
+                                                } else {
+                                                  newSet.remove(id);
+                                                }
+                                                _selectedRecipients.value = newSet;
+                                                widget.careRecipientCtrl.text = newSet.join(',');
+                                                final names = items
+                                                    .where((x) => newSet.contains(x['id']))
+                                                    .map((x) => x['name'] ?? '')
+                                                    .where((s) => s.isNotEmpty)
+                                                    .toList();
+                                                widget.statusCtrl.text = names.join(', ');
+                                              },
+                                            ),
+                                          );
+                                        }).toList(),
+                                      );
+                                    },
                                   ),
                                 ],
                               ),
