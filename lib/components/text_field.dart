@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-
 class FormTextField extends StatefulWidget {
   const FormTextField({
     super.key,
     required this.controller,
-    required this.hint,
+    this.hint,
+    this.label,
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
     this.validator,
   });
 
   final TextEditingController controller;
-  final String hint;
-  final bool obscureText;
+  final String? hint;
+  final String? label;
+  final bool? obscureText;
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
 
@@ -27,8 +28,9 @@ class _FormTextFieldState extends State<FormTextField> {
   Widget build(BuildContext context) {
     return _buildTextField(
       controller: widget.controller,
-      hint: widget.hint,
-      obscureText: widget.obscureText,
+      hint: widget.hint ?? '',
+      label: widget.label,
+      obscureText: widget.obscureText ?? false,
       keyboardType: widget.keyboardType,
       validator: widget.validator,
     );
@@ -36,61 +38,33 @@ class _FormTextFieldState extends State<FormTextField> {
 }
 
 Widget _buildTextField({
-
   required TextEditingController controller,
-
   required String hint,
-
+  String? label,
   bool obscureText = false,
-
   TextInputType keyboardType = TextInputType.text,
-
   String? Function(String?)? validator,
-
- }) {
-
+}) {
   final border = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(8.w),
 
-   borderRadius: BorderRadius.circular(8.w),
-
-   borderSide: BorderSide(color: Colors.grey.shade300),
-
+    borderSide: BorderSide(color: Colors.grey.shade300),
   );
-
 
   return TextFormField(
-
-   controller: controller,
-
-   obscureText: obscureText,
-
-   keyboardType: keyboardType,
-
-   decoration: InputDecoration(
-
-    hintText: hint,
-
-    contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-
-    border: border,
-
-    enabledBorder: border,
-
-    focusedBorder: border.copyWith(
-
-     borderSide: const BorderSide(color: Colors.blue),
-
+    controller: controller,
+    obscureText: obscureText,
+    keyboardType: keyboardType,
+    decoration: InputDecoration(
+      hintText: hint,
+      labelText: label,
+      contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+      border: border,
+      enabledBorder: border,
+   
     ),
 
-   ),
-
-   validator:
-
-     validator ??
-
-     (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-
+    validator:
+        validator ?? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
   );
-
- }
-
+}

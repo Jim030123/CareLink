@@ -1,779 +1,194 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
-import 'dart:async';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
-const String getMedicationsByCaregiverQuery = r'''
-query GetMedicationsByCaregiver($caregiverId: String!) {
-  medications_by_caregiver(caregiverId: $caregiverId) {
-    id
-    name
-    description
-    quantity
-    dosageAmount
-    dosageUnit
-    frequency
-    picture
-    careRecipientId
-    doctorId
-    caregiverId
-    status
-    type
-  }
-}
-''';
-
-const String medicationUpdatedSub = r'''
-subscription OnMedicationUpdated($caregiverId: String!) {
-  medicationUpdated(caregiverId: $caregiverId) {
-    eventType
-    caregiverId
-    timestamp
-    deletedId
-    medication {
-      id
-      name
-      description
-      quantity
-      dosageAmount
-      dosageUnit
-      frequency
-      picture
-      careRecipientId
-      doctorId
-      caregiverId
-      status
-      type
-      deleted
-    }
-  }
-}
-''';
-
-const String upsertMedicationMutation = r'''
-mutation UpsertMedication($object: medication_insert_input!) {
-  insert_medication_one(object: $object, on_conflict: {constraint: medication_pkey, update_columns: [name, description, quantity, dosageAmount, dosageUnit, frequency, picture, careRecipientId, type, doctorId, caregiverId, status]}) {
-    id
-    name
-    quantity
-    dosageAmount
-    dosageUnit
-    frequency
-    picture
-    careRecipientId
-    type
-    doctorId
-    caregiverId
-    status
-  }
-}
-''';
-
-const String deleteMedicationMutation = r'''
-mutation DeleteMedication($id: String!) {
-  delete_medication_by_pk(id: $id)
-}
-''';
-
-class TestPage extends StatefulWidget {
-  const TestPage({super.key});
+class WebRTCCallPage extends StatefulWidget {
+  const WebRTCCallPage({super.key});
 
   @override
-  State<TestPage> createState() => _TestPageState();
+  State<WebRTCCallPage> createState() => _WebRTCCallPageState();
 }
 
-class _TestPageState extends State<TestPage> {
-  final TextEditingController _idCtrl = TextEditingController(text: 'CG-003');
+class _WebRTCCallPageState extends State<WebRTCCallPage> {
+  RTCPeerConnection? _pc;
+  MediaStream? _localStream;
+  WebSocketChannel? _channel;
 
-  bool _isLoading = false;
-  String? _error;
-  List<Map<String, dynamic>> _medications = [];
-  Timer? _idChangeTimer;
-
-  // 广播 stream（如果之后要别的 widget 监听，这里已经准备好）
-  final StreamController<List<Map<String, dynamic>>> _medStreamCtrl =
-      StreamController<List<Map<String, dynamic>>>.broadcast();
-
-  // 记录上一次处理过的订阅事件 key，用来防止重复 apply
-  String? _lastMedEventKey;
+  bool _isCaller = false;
+  bool _inCall = false;
 
   @override
   void initState() {
     super.initState();
-
-    // 初次进页面自动拉一次 list
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _runMedQuery();
-    });
-
-    // caregiverId 输入防抖 + 自动刷新
-    _idCtrl.addListener(() {
-      _idChangeTimer?.cancel();
-      _idChangeTimer = Timer(const Duration(milliseconds: 400), () {
-        final id = _idCtrl.text.trim();
-        if (id.isEmpty) return;
-        _runMedQuery();
-      });
-    });
+    _connectSignaling();
   }
 
   @override
   void dispose() {
-    _idCtrl.dispose();
-    _idChangeTimer?.cancel();
-    _medStreamCtrl.close();
+    _localStream?.dispose();
+    _pc?.close();
+    _channel?.sink.close();
     super.dispose();
   }
 
-  void _emitMedications() {
-    try {
-      _medStreamCtrl.add(List<Map<String, dynamic>>.from(_medications));
-    } catch (e) {
-      debugPrint('emitMedications error: $e');
-    }
-  }
+  Future<void> _connectSignaling() async {
+    // TODO: 把这里改成你服务器的 IP/域名
+    _channel = WebSocketChannel.connect(
+      Uri.parse('ws://YOUR_SERVER_IP:8080'),
+    );
 
-  /// 去重包装：只有“新事件”才调用 _applyMedUpdate
-  void _handleMedUpdate(Map<String, dynamic> payload) {
-    try {
-      final String? rawEventType =
-          payload['eventType']?.toString() ?? payload['event']?.toString();
-      final String eventType = (rawEventType ?? '').toUpperCase();
+    _channel!.stream.listen((message) async {
+      final data = jsonDecode(message);
+      final type = data['type'];
 
-      final String? timestamp = payload['timestamp']?.toString();
-
-      final medRaw = payload['medication'];
-      final String? medId = medRaw is Map
-          ? (medRaw['id']?.toString())
-          : null;
-
-      final String? deletedId =
-          payload['deletedId']?.toString() ??
-              payload['deleted_id']?.toString() ??
-              payload['id']?.toString();
-
-      // 用 eventType + timestamp + (deletedId / medId) 作为唯一 key
-      final String key =
-          '${eventType}_${timestamp ?? ''}_${deletedId ?? medId ?? ''}';
-
-      if (key.isNotEmpty && _lastMedEventKey == key) {
-        // 同一事件已经处理过，忽略
-        debugPrint('⚠️ duplicate med event ignored, key=$key');
-        return;
+      if (type == 'offer') {
+        await _onRemoteOffer(data['sdp']);
+      } else if (type == 'answer') {
+        await _onRemoteAnswer(data['sdp']);
+      } else if (type == 'candidate') {
+        await _onRemoteCandidate(data['candidate']);
       }
-
-      _lastMedEventKey = key;
-
-      _applyMedUpdate(payload);
-    } catch (e) {
-      debugPrint('handleMedUpdate failed: $e');
-      // fallback：出错就直接 apply
-      _applyMedUpdate(payload);
-    }
+    });
   }
 
-  /// 把订阅收到的 payload 应用到本地 _medications 列表
-  void _applyMedUpdate(Map<String, dynamic> payload) {
-    try {
-      debugPrint('applyMedUpdate payload: $payload');
-      final String? eventType = payload['eventType']?.toString();
-      final String? deletedId =
-          payload['deletedId']?.toString() ?? payload['deleted_id']?.toString();
-      final medRaw = payload['medication'];
-      final Map<String, dynamic>? med = medRaw is Map
-          ? Map<String, dynamic>.from(medRaw)
-          : null;
-
-      final String? altEvent = payload['event']?.toString();
-      final String? altType = payload['type']?.toString();
-      final String resolvedEventType = (eventType ?? altEvent ?? altType ?? '')
-          .toUpperCase();
-
-      final bool medMarkedDeleted =
-          med != null &&
-          (med['deleted'] == true ||
-              (med['status'] as String?)?.toLowerCase() == 'deleted');
-
-      final bool payloadIsOnlyId =
-          (payload.keys.length == 1 && payload.containsKey('id')) ||
-          (payload['id'] is String &&
-              med == null &&
-              deletedId == null &&
-              resolvedEventType.isEmpty &&
-              !medMarkedDeleted);
-
-      final String? idCandidate =
-          deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
-      debugPrint(
-        'applyMedUpdate: resolvedEventType=$resolvedEventType, medMarkedDeleted=$medMarkedDeleted, payloadIsOnlyId=$payloadIsOnlyId, idCandidate=$idCandidate',
-      );
-
-      setState(() {
-        if ((resolvedEventType == 'CREATED' || resolvedEventType == 'CREATE') &&
-            med != null) {
-          _medications.insert(0, med);
-        } else if ((resolvedEventType == 'UPDATED' ||
-                resolvedEventType == 'UPDATE') &&
-            med != null) {
-          final idx = _medications.indexWhere((m) => m['id'] == med['id']);
-          if (idx != -1) _medications[idx] = med;
-        } else if (resolvedEventType.contains('DELET') ||
-            medMarkedDeleted ||
-            payloadIsOnlyId) {
-          final String? idToRemove =
-              deletedId ?? med?['id']?.toString() ?? payload['id']?.toString();
-          if (idToRemove != null) {
-            _medications.removeWhere((m) => m['id'] == idToRemove);
-          }
-        } else {
-          // 没明确 eventType，但有 medication 对象，当作 upsert
-          if (med != null) {
-            final idx = _medications.indexWhere((m) => m['id'] == med['id']);
-            if (idx >= 0) {
-              _medications[idx] = med;
-            } else {
-              _medications.insert(0, med);
-            }
-          }
+  Future<RTCPeerConnection> _createPeerConnection() async {
+    final config = {
+      'iceServers': [
+        {
+          'urls': ['stun:stun.l.google.com:19302'],
         }
-      });
-      _emitMedications();
+      ]
+    };
 
-      if ((eventType == 'DELETED') && mounted) {
-        final disp = (med?['name'] ?? deletedId ?? '').toString();
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Medication deleted: $disp'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        });
-      }
-    } catch (e) {
-      debugPrint('applyMedUpdate failed: $e');
-    }
-  }
+    final pc = await createPeerConnection(config);
 
-  Future<void> _runMedQuery() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-      _medications = [];
-      _lastMedEventKey = null; // 每次重拉列表，重置一下事件 key
+    // 获取本地音频流（麦克风）
+    _localStream ??= await navigator.mediaDevices.getUserMedia({
+      'audio': true,
+      'video': false,
     });
 
-    final client = GraphQLProvider.of(context).value;
-    final caregiverId = _idCtrl.text.trim();
-    if (caregiverId.isEmpty) {
-      setState(() {
-        _error = 'Please enter a caregiver id to query.';
-        _isLoading = false;
-      });
-      return;
+    for (var track in _localStream!.getTracks()) {
+      pc.addTrack(track, _localStream!);
     }
 
-    try {
-      final result = await client.query(
-        QueryOptions(
-          document: gql(getMedicationsByCaregiverQuery),
-          variables: {'caregiverId': caregiverId},
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-      );
+    // ICE 回调：发现 candidate 就发给对方
+    pc.onIceCandidate = (candidate) {
+      if (candidate == null) return;
+      _sendSignal({
+        'type': 'candidate',
+        'candidate': {
+          'candidate': candidate.candidate,
+          'sdpMid': candidate.sdpMid,
+          'sdpMLineIndex': candidate.sdpMLineIndex,
+        },
+      });
+    };
 
-      if (result.hasException) {
-        setState(() {
-          _error = result.exception.toString();
-        });
-        debugPrint(
-          'GraphQL medications exception: ${result.exception.toString()}',
-        );
-        return;
-      }
+    // 远端流（这里只是为了触发音频播放，不显示视频）
+    pc.onTrack = (event) {
+      // 对于 audio only，只要 track 存在，音频就会通过系统播放
+      debugPrint('Remote track added: ${event.track.kind}');
+    };
 
-      final meds =
-          (result.data?['medications_by_caregiver'] as List<dynamic>?) ?? [];
-      setState(() {
-        _medications = meds
-            .map((e) => Map<String, dynamic>.from(e as Map<String, dynamic>))
-            .toList();
-      });
-      _emitMedications();
-    } catch (e, st) {
-      setState(() {
-        _error = e.toString();
-      });
-      debugPrint('Med query threw error: $e');
-      debugPrint(st.toString());
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    return pc;
   }
 
-  Future<Map<String, dynamic>?> _upsertMedication(
-    Map<String, dynamic> input,
-  ) async {
-    try {
-      final client = GraphQLProvider.of(context).value;
-      final isCreate = input['id'] == null || input['id'].toString().isEmpty;
-      String? tempId;
-      Map<String, dynamic>? previous;
-      if (isCreate) {
-        tempId = 'tmp-${DateTime.now().millisecondsSinceEpoch}';
-        final optimistic = {
-          'id': tempId,
-          'name': input['name'] ?? '',
-          'dosageAmount': input['dosageAmount'],
-          'dosageUnit': input['dosageUnit'],
-          'quantity': input['quantity'],
-          'type': input['type'],
-          'status': input['status'] ?? 'active',
-        };
-        setState(() => _medications.insert(0, optimistic));
-        _emitMedications();
-      } else {
-        final idx = _medications.indexWhere(
-          (e) => e['id']?.toString() == input['id']?.toString(),
-        );
-        if (idx >= 0) {
-          previous = Map<String, dynamic>.from(_medications[idx]);
-          final optimistic = {
-            'id': input['id'],
-            'name': input['name'] ?? previous['name'],
-            'dosageAmount': input['dosageAmount'] ?? previous['dosageAmount'],
-            'dosageUnit': input['dosageUnit'] ?? previous['dosageUnit'],
-            'quantity': input['quantity'] ?? previous['quantity'],
-            'type': input['type'] ?? previous['type'],
-            'status': input['status'] ?? previous['status'],
-          };
-            _medications[idx] = optimistic;
-          setState(() {});
-          _emitMedications();
-        }
-      }
-
-      final res = await client.mutate(
-        MutationOptions(
-          document: gql(upsertMedicationMutation),
-          variables: {'object': input},
-        ),
-      );
-      if (res.hasException) {
-        debugPrint('upsert medication error: ${res.exception}');
-        setState(() {
-          if (isCreate && tempId != null) {
-            _medications.removeWhere((e) => e['id'] == tempId);
-          }
-          if (!isCreate && previous != null) {
-            final idx = _medications.indexWhere(
-              (e) => e['id']?.toString() == previous!['id']?.toString(),
-            );
-            if (idx >= 0) _medications[idx] = previous;
-          }
-        });
-        _emitMedications();
-        return null;
-      }
-
-      final data = res.data?['insert_medication_one'] as Map<String, dynamic>?;
-      if (data == null) return null;
-      setState(() {
-        final mapped = {
-          'id': data['id'],
-          'name': data['name'],
-          'dosageAmount': data['dosageAmount'],
-          'dosageUnit': data['dosageUnit'],
-          'quantity': data['quantity'],
-          'type': data['type'],
-          'status': data['status'],
-        };
-        final tidx = tempId == null
-            ? -1
-            : _medications.indexWhere((e) => e['id'] == tempId);
-        if (tidx >= 0) {
-          _medications[tidx] = mapped;
-        } else {
-          final idx = _medications.indexWhere(
-            (e) => e['id']?.toString() == mapped['id']?.toString(),
-          );
-          if (idx >= 0) {
-            _medications[idx] = mapped;
-          } else {
-            _medications.insert(0, mapped);
-          }
-        }
-      });
-      _emitMedications();
-      return data;
-    } catch (e, st) {
-      debugPrint('upsert exception: $e\n$st');
-      return null;
-    }
+  void _sendSignal(Map<String, dynamic> data) {
+    _channel?.sink.add(jsonEncode(data));
   }
 
-  Future<bool> _deleteMedicationById(String id) async {
-    if (id.isEmpty) return false;
-    final client = GraphQLProvider.of(context).value;
-    try {
-      final res = await client.mutate(
-        MutationOptions(
-          document: gql(deleteMedicationMutation),
-          variables: {'id': id},
-        ),
-      );
-      if (res.hasException) {
-        debugPrint('delete error: ${res.exception}');
-        return false;
-      }
+  Future<void> _startCall() async {
+    _isCaller = true;
+    _pc ??= await _createPeerConnection();
 
-      debugPrint('delete result.data: ${res.data}');
+    final offer = await _pc!.createOffer();
+    await _pc!.setLocalDescription(offer);
 
-      final deleted = res.data?['delete_medication_by_pk'];
-      if (deleted == null || deleted == false) {
-        debugPrint('delete reported false/null from server for id=$id');
-        return false;
-      }
+    _sendSignal({
+      'type': 'offer',
+      'sdp': offer.sdp,
+    });
 
-      setState(
-        () => _medications.removeWhere((e) => e['id']?.toString() == id),
-      );
-      _emitMedications();
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _runMedQuery();
-      });
-
-      return true;
-    } catch (e, st) {
-      debugPrint('delete exception: $e\n$st');
-      return false;
-    }
+    setState(() {
+      _inCall = true;
+    });
   }
 
-  Future<void> _showEditMedSheet(Map<String, dynamic> m) async {
-    final nameCtrl = TextEditingController(text: m['name']?.toString() ?? '');
-    final dosageAmountCtrl = TextEditingController(
-      text: m['dosageAmount']?.toString() ?? '',
-    );
-    final dosageUnitCtrl = TextEditingController(
-      text: m['dosageUnit']?.toString() ?? '',
-    );
-    final qtyCtrl = TextEditingController(
-      text: m['quantity']?.toString() ?? '',
-    );
-    final typeCtrl = TextEditingController(text: m['type']?.toString() ?? '');
+  Future<void> _onRemoteOffer(String sdp) async {
+    _isCaller = false;
+    _pc ??= await _createPeerConnection();
 
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: dosageAmountCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Dosage Amount',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: dosageUnitCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Dosage Unit',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                TextField(
-                  controller: qtyCtrl,
-                  decoration: const InputDecoration(labelText: 'Quantity'),
-                  keyboardType: TextInputType.number,
-                ),
-                TextField(
-                  controller: typeCtrl,
-                  decoration: const InputDecoration(labelText: 'Type'),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () async {
-                    final input = {
-                      'id': m['id'],
-                      'name': nameCtrl.text.trim(),
-                      'dosageAmount': double.tryParse(
-                        dosageAmountCtrl.text.trim(),
-                      ),
-                      'dosageUnit': dosageUnitCtrl.text.trim(),
-                      'quantity': int.tryParse(qtyCtrl.text.trim()) ?? 0,
-                      'type': typeCtrl.text.trim(),
-                      'status': m['status'] ?? 'active',
-                    };
-                    await _upsertMedication(input);
-                    Navigator.of(ctx).pop();
-                  },
-                  child: const Text('Save'),
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    final desc = RTCSessionDescription(sdp, 'offer');
+    await _pc!.setRemoteDescription(desc);
+
+    final answer = await _pc!.createAnswer();
+    await _pc!.setLocalDescription(answer);
+
+    _sendSignal({
+      'type': 'answer',
+      'sdp': answer.sdp,
+    });
+
+    setState(() {
+      _inCall = true;
+    });
   }
 
-  Widget _medicationCard(Map<String, dynamic> m) {
-    final name = (m['name'] as String?) ?? 'No name';
-    final dosageAmount = (m['dosageAmount']?.toString() ?? '');
-    final dosageUnit = (m['dosageUnit'] ?? '');
-    final dose = (('$dosageAmount$dosageUnit')).trim();
-    final qty = (m['quantity']?.toString() ?? '');
-    final type = (m['type'] as String?) ?? '';
+  Future<void> _onRemoteAnswer(String sdp) async {
+    if (_pc == null) return;
+    final desc = RTCSessionDescription(sdp, 'answer');
+    await _pc!.setRemoteDescription(desc);
+  }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF7EAD3),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.medical_services,
-                  size: 20,
-                  color: Colors.black54,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  if (dose.isNotEmpty)
-                    Text('Dose: $dose', style: const TextStyle(fontSize: 13)),
-                  if (qty.isNotEmpty)
-                    Text(
-                      '$qty Left',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(type, style: const TextStyle(fontSize: 12)),
-                    const SizedBox(height: 4),
-                    Text(
-                      (m['status'] as String?) ?? '',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (v) async {
-                    if (v == 'edit') {
-                      await _showEditMedSheet(m);
-                    } else if (v == 'delete') {
-                      final should = await showDialog<bool>(
-                        context: context,
-                        builder: (dctx) => AlertDialog(
-                          title: const Text('Delete medication'),
-                          content: Text('Delete "${m['name'] ?? ''}"?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(dctx).pop(false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.of(dctx).pop(true),
-                              child: const Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (should == true) {
-                        final id = (m['id']?.toString() ?? '');
-                        final backup = Map<String, dynamic>.from(m);
-                        setState(
-                          () => _medications.removeWhere(
-                            (e) => e['id']?.toString() == id,
-                          ),
-                        );
-                        _emitMedications();
-                        final ok = await _deleteMedicationById(id);
-                        if (!ok) {
-                          setState(() => _medications.insert(0, backup));
-                          _emitMedications();
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Failed to delete')),
-                            );
-                          }
-                        }
-                      }
-                    }
-                  },
-                  itemBuilder: (ctx) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+  Future<void> _onRemoteCandidate(Map<String, dynamic> data) async {
+    if (_pc == null) return;
+
+    final candidate = RTCIceCandidate(
+      data['candidate'],
+      data['sdpMid'],
+      data['sdpMLineIndex'],
     );
+    await _pc!.addCandidate(candidate);
+  }
+
+  Future<void> _hangup() async {
+    await _pc?.close();
+    _pc = null;
+    _localStream?.dispose();
+    _localStream = null;
+
+    setState(() {
+      _inCall = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final caregiverId = _idCtrl.text.trim();
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Medications (test)')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: _idCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Caregiver ID',
-                  hintText: 'Enter caregiver id',
-                ),
+      appBar: AppBar(
+        title: const Text('WebRTC Voice Call Demo'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_inCall ? 'In Call' : 'Not in Call'),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _inCall ? null : _startCall,
+              child: const Text('Call'),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _inCall ? _hangup : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _runMedQuery,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Show Medications'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (_error != null)
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Text(
-                      'Error:\n\n$_error',
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ),
-                )
-              else if (caregiverId.isEmpty)
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: _medications.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
-                    itemBuilder: (context, i) =>
-                        _medicationCard(_medications[i]),
-                  ),
-                )
-              else
-                Subscription(
-                  key: ValueKey('medSub:$caregiverId'),
-                  options: SubscriptionOptions(
-                    document: gql(medicationUpdatedSub),
-                    variables: {'caregiverId': caregiverId},
-                  ),
-                  builder: (result) {
-                    if (result.hasException) {
-                      debugPrint('❌ med sub exception: ${result.exception}');
-                    }
-
-                    if (result.data != null) {
-                      debugPrint('🔔 med sub DATA RECEIVED: ${result.data}');
-
-                      final payload = result.data!['medicationUpdated'];
-                      if (payload != null) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          _handleMedUpdate(
-                            Map<String, dynamic>.from(
-                              payload as Map<String, dynamic>,
-                            ),
-                          );
-                        });
-                      }
-                    }
-
-                    return Expanded(
-                      child: ListView.separated(
-                        itemCount: _medications.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 6),
-                        itemBuilder: (context, i) {
-                          final m = _medications[i];
-                          return _medicationCard(m);
-                        },
-                      ),
-                    );
-                  },
-                ),
-            ],
-          ),
+              child: const Text('Hang Up'),
+            ),
+          ],
         ),
       ),
     );

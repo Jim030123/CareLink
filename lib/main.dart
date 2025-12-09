@@ -102,6 +102,7 @@ class MyApp extends StatelessWidget {
               routerConfig: appRouter,
               title: 'CareLink',
               theme: ThemeData(
+
                 scaffoldBackgroundColor: const Color(0xFFFFF8F0),
                 colorScheme:
                     ColorScheme.fromSeed(seedColor: const Color(0xFFFCEEDB)),
@@ -126,6 +127,7 @@ class MyApp extends StatelessWidget {
                     elevation: 2,
                   ),
                 ),
+
               ),
             );
           },

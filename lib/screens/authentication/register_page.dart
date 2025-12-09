@@ -208,9 +208,9 @@ class RegisterPage extends StatelessWidget {
                                 color: Colors.black54,
                               ),
                             ),
-
                             SizedBox(height: 16.h),
-
+                            Divider(color: Colors.grey, thickness: 1),
+                            SizedBox(height: 16.h),
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: accent,
@@ -231,6 +231,8 @@ class RegisterPage extends StatelessWidget {
                                 color: Colors.black54,
                               ),
                             ),
+                            SizedBox(height: 16.h),
+
                           ],
                         ),
                       ),

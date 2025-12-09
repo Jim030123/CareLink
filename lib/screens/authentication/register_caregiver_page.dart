@@ -337,292 +337,277 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
 
     return Scaffold(
       body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SafeArea(
-            child: SingleChildScrollView(
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 16.w,
-                    vertical: 8.h,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(16.w),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16.w),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Row(
-                              children: [
-                                SvgPicture.asset(
-                                  'assets/icons/logo.svg',
-                                  width: 60.w,
-                                  height: 60.h,
-                                ),
-                                Expanded(
-                                  child: Center(
-                                    child: Container(
-                                      margin: EdgeInsets.only(right: 60.w),
-                                      child: Text(
-                                        'Register',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 25.sp,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 16.h),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 16.w,
-                                    vertical: 8.h,
-                                  ),
-
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFFF4CBA1),
-
-                                    borderRadius: BorderRadius.circular(16.w),
-                                  ),
-
-                                  child: Text(
-                                    '2',
-                                    style: TextStyle(fontSize: 24.sp),
-                                  ),
-                                ),
-                                SizedBox(width: 8.w),
-
-                                Expanded(
+        builder: (context, constraints) => SafeArea(
+          child: SingleChildScrollView(
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(16.w),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16.w),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Row(
+                            children: [
+                              SvgPicture.asset(
+                                'assets/icons/logo.svg',
+                                width: 60.w,
+                                height: 60.h,
+                              ),
+                              Expanded(
+                                child: Center(
                                   child: Container(
-                                    alignment: Alignment.topLeft,
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 16.w,
-
-                                      vertical: 8.h,
-                                    ),
-
+                                    margin: EdgeInsets.only(right: 60.w),
                                     child: Text(
-                                      'Create Primary Caregiver',
+                                      'Register',
                                       textAlign: TextAlign.center,
-                                      softWrap: true,
                                       style: TextStyle(
-                                        fontSize: 24.sp,
+                                        fontSize: 25.sp,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                            SizedBox(height: 16.h),
-
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Container(
-                                width: constraints.maxWidth,
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16.h),
+                          Row(
+                            children: [
+                              Container(
                                 padding: EdgeInsets.symmetric(
                                   horizontal: 16.w,
                                   vertical: 8.h,
                                 ),
 
                                 decoration: BoxDecoration(
-                                  color: Color(0xFFFFF8F0),
+                                  color: Color(0xFFF4CBA1),
+
                                   borderRadius: BorderRadius.circular(16.w),
                                 ),
 
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-
-                                  children: [
-                                    Icon(
-                                      Icons.lightbulb_outline,
-                                      size: 24.sp,
-                                      color: Colors.orange,
-                                    ),
-
-                                    SizedBox(width: 8.w),
-
-                                    Flexible(
-                                      // 防止长文字溢出
-                                      child: Text(
-                                        'Allows us to customize the care experience based on the caregiver\'s relationship, preferences, and responsibilities.',
-                                        textAlign: TextAlign.justify,
-                                        softWrap: true,
-                                        style: TextStyle(fontSize: 15.sp),
-                                      ),
-                                    ),
-                                  ],
+                                child: Text(
+                                  '2',
+                                  style: TextStyle(fontSize: 24.sp),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
+                              SizedBox(width: 8.w),
 
-                      SizedBox(height: 14.h),
+                              Expanded(
+                                child: Container(
+                                  alignment: Alignment.topLeft,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 16.w,
 
-                      Container(
-                        padding: EdgeInsets.all(16.w),
-                        decoration: BoxDecoration(
-                          color: card,
-                          borderRadius: BorderRadius.circular(16.w),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            children: [
-                              FormTextField(
-                                controller: _firstName,
-                                hint: 'First Name',
-                              ),
-                              SizedBox(height: 10.h),
-                              FormTextField(
-                                controller: _lastName,
-                                hint: 'Last Name',
-                              ),
-                              SizedBox(height: 10.h),
-                              FormTextField(
-                                controller: _phone,
-                                keyboardType: TextInputType.phone,
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Enter phone number';
-                                  }
-                                  return null;
-                                },
-                                hint: 'Phone',
-                              ),
+                                    vertical: 8.h,
+                                  ),
 
-                              SizedBox(height: 10.h),
-
-                              FormTextField(
-                                controller: _email,
-                                hint: 'Email',
-                                keyboardType: TextInputType.emailAddress,
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Enter email';
-                                  }
-                                  if (!v.contains('@')) {
-                                    return 'Enter a valid email';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              SizedBox(height: 10.h),
-                              FormTextField(
-                                controller: _password,
-                                hint: 'Password',
-                                obscureText: true,
-                                validator: (v) {
-                                  if (v == null || v.isEmpty) {
-                                    return 'Enter password';
-                                  }
-                                  if (v.length < 6) {
-                                    return 'Password must be at least 6 characters';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              SizedBox(height: 10.h),
-                              FormTextField(
-                                controller: _confirm,
-                                hint: 'Confirm Password',
-                                obscureText: true,
-                                validator: (v) {
-                                  if (v == null || v.isEmpty) {
-                                    return 'Confirm password';
-                                  }
-                                  if (v != _password.text) {
-                                    return 'Passwords do not match';
-                                  }
-                                  return null;
-                                },
+                                  child: Text(
+                                    'Create Caregiver Account',
+                                    textAlign: TextAlign.center,
+                                    softWrap: true,
+                                    style: TextStyle(
+                                      fontSize: 24.sp,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                      ),
+                          SizedBox(height: 16.h),
 
-                      SizedBox(height: 18.h),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              width: constraints.maxWidth,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 16.w,
+                                vertical: 8.h,
+                              ),
 
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed:
-                                  widget.onBack ??
-                                  () => Navigator.of(context).maybePop(),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
+                              decoration: BoxDecoration(
+                                color: Color(0xFFFFF8F0),
+                                borderRadius: BorderRadius.circular(16.w),
                               ),
-                              child: Text(
-                                'Back',
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 12.w),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _handleNext,
-                              child: Text(
-                                'Next',
-                                style: TextStyle(fontSize: 14.sp),
+
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+
+                                children: [
+                                  Icon(
+                                    Icons.lightbulb_outline,
+                                    size: 24.sp,
+                                    color: Colors.orange,
+                                  ),
+
+                                  SizedBox(width: 8.w),
+
+                                  Flexible(
+                                    // 防止长文字溢出
+                                    child: Text(
+                                      'Allows us to customize the care experience based on the caregiver\'s relationship, preferences, and responsibilities.',
+                                      textAlign: TextAlign.justify,
+                                      softWrap: true,
+                                      style: TextStyle(fontSize: 15.sp),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ],
                       ),
+                    ),
 
-                      SizedBox(height: 16.h),
+                    SizedBox(height: 14.h),
 
-                      Center(
-                        child: Text(
-                          'Already have account? Login here',
-                          style: TextStyle(
-                            fontSize: 15.sp,
-                            color: Colors.black54,
+                    Container(
+                      padding: EdgeInsets.all(16.w),
+                      decoration: BoxDecoration(
+                        color: card,
+                        borderRadius: BorderRadius.circular(16.w),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: Offset(0, 4),
                           ),
+                        ],
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            FormTextField(
+                              controller: _firstName,
+                              label: 'First Name',
+                            ),
+                            SizedBox(height: 10.h),
+                            FormTextField(
+                              controller: _lastName,
+                              label: 'Last Name',
+                            ),
+                            SizedBox(height: 10.h),
+                            FormTextField(
+                              controller: _phone,
+                              keyboardType: TextInputType.phone,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Enter phone number';
+                                }
+                                return null;
+                              },
+                              label: 'Phone',
+                            ),
+
+                            SizedBox(height: 10.h),
+
+                            FormTextField(
+                              controller: _email,
+                              label: 'Email',
+                              keyboardType: TextInputType.emailAddress,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Enter email';
+                                }
+                                if (!v.contains('@')) {
+                                  return 'Enter a valid email';
+                                }
+                                return null;
+                              },
+                            ),
+                            SizedBox(height: 10.h),
+                            FormTextField(
+                              controller: _password,
+                              label: 'Password',
+                              obscureText: true,
+                              validator: (v) {
+                                if (v == null || v.isEmpty) {
+                                  return 'Enter password';
+                                }
+                                if (v.length < 6) {
+                                  return 'Password must be at least 6 characters';
+                                }
+                                return null;
+                              },
+                            ),
+                            SizedBox(height: 10.h),
+                            FormTextField(
+                              controller: _confirm,
+                              label: 'Confirm Password',
+                              obscureText: true,
+                              validator: (v) {
+                                if (v == null || v.isEmpty) {
+                                  return 'Confirm password';
+                                }
+                                if (v != _password.text) {
+                                  return 'Passwords do not match';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+
+                    SizedBox(height: 18.h),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed:
+                                widget.onBack ??
+                                () => Navigator.of(context).maybePop(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                            ),
+                            child: Text(
+                              'Back',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _handleNext,
+                            child: Text(
+                              'Next',
+                              style: TextStyle(fontSize: 14.sp),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: 16.h),
+                  ],
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }

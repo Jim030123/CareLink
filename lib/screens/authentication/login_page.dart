@@ -35,9 +35,9 @@ class _LoginPageState extends State<LoginPage> {
   /// 统一弹 SnackBar，内部自己做 mounted 检查
   void _showSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -111,41 +111,6 @@ class _LoginPageState extends State<LoginPage> {
         child: Stack(
           children: [
             // Top-right role pill
-            Positioned(
-              right: 16.w,
-              top: 35.h,
-              child: Material(
-                color: Colors.white,
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20.w),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20.w),
-                  onTap: () {
-                    _showSnack('Care Recipient selected');
-                  },
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 12.w,
-                      vertical: 6.h,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.person, size: 16.w),
-                        SizedBox(width: 6.w),
-                        Text(
-                          'Care Recipient',
-                          style: TextStyle(fontSize: 18.sp),
-                          softWrap: true,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
 
             // Center content
             Center(
@@ -182,6 +147,7 @@ class _LoginPageState extends State<LoginPage> {
                             FormTextField(
                               controller: _emailController,
                               hint: 'Email',
+                              label: 'Email',
                               keyboardType: TextInputType.emailAddress,
                               validator: (v) {
                                 if (v == null || v.trim().isEmpty) {
@@ -197,6 +163,7 @@ class _LoginPageState extends State<LoginPage> {
                             FormTextField(
                               controller: _passController,
                               hint: 'Password',
+                              label: 'Password',
                               obscureText: true,
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
@@ -209,17 +176,7 @@ class _LoginPageState extends State<LoginPage> {
                               },
                             ),
                             SizedBox(height: 18.h),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: _onLogin,
-                                child: Text(
-                                  'Login',
-                                  style: TextStyle(fontSize: 16.sp),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 10.h),
+
                             if (_biometricAvailable) ...[
                               SizedBox(
                                 width: double.infinity,
@@ -229,14 +186,27 @@ class _LoginPageState extends State<LoginPage> {
                                   label: const Text('Login with biometrics'),
                                 ),
                               ),
-                              SizedBox(height: 8.h),
+                              SizedBox(height: 10.h),
+
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: _onLogin,
+                                  child: Text(
+                                    'Login',
+                                    style: TextStyle(fontSize: 16.sp),
+                                  ),
+                                ),
+                              ),
                             ],
-                            GestureDetector(
-                              onTap: () {
-                                context.go('/register');
-                              },
+                            SizedBox(height: 10.h),
+                            // 分割线
+                            Divider(color: Colors.grey, thickness: 1),
+
+                            TextButton(
+                              onPressed: () => context.go('/register'),
                               child: Text(
-                                'No account? Register here',
+                                'Don\'t have an account? Register here',
                                 style: TextStyle(
                                   fontSize: 15.sp,
                                   color: Colors.black54,

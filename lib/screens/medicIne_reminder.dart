@@ -87,7 +87,9 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
     final dosageAmount = m['dosageAmount']?.toString() ?? '';
     final dosageUnit = m['dosageUnit'] ?? '';
     final qty = m['quantity']?.toString() ?? '';
-    final type = m['type'] ?? '';
+    final rawType = (m['type'] ?? '').toString();
+    final type = rawType.trim().toLowerCase();
+    final assetName = 'assets/icons/${type.isNotEmpty ? type : 'capsule'}.png';
 
     return {
       'id': m['id'],
@@ -95,7 +97,7 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
       'dose': '$dosageAmount$dosageUnit',
       'left': qty,
       'color': const Color(0xFFF7EAD3),
-      'asset': 'assets/icons/$type.png',
+      'asset': assetName,
       'type': type,
     };
   }
@@ -1097,7 +1099,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
     final dosageUnitCtrl = TextEditingController();
     final frequencyCtrl = TextEditingController();
     final pictureCtrl = TextEditingController();
-    final careRecipientCtrl = TextEditingController();
 
     final uid = AuthService.instance.currentUser?.uid;
     String? caregiverIdVal;
@@ -1136,7 +1137,6 @@ class _TypeofMedicineState extends State<TypeofMedicine> {
           dosageUnitCtrl: dosageUnitCtrl,
           frequencyCtrl: frequencyCtrl,
           pictureCtrl: pictureCtrl,
-          careRecipientCtrl: careRecipientCtrl,
           caregiverCtrl: caregiverCtrl,
           statusCtrl: statusCtrl,
           initialType: selectedType, // 可选初始值
@@ -1568,7 +1568,6 @@ class _AddMedicineSheet extends StatefulWidget {
   final TextEditingController dosageUnitCtrl;
   final TextEditingController frequencyCtrl;
   final TextEditingController pictureCtrl;
-  final TextEditingController careRecipientCtrl;
   final TextEditingController caregiverCtrl;
   final TextEditingController statusCtrl;
   final String? initialType;
@@ -1583,7 +1582,6 @@ class _AddMedicineSheet extends StatefulWidget {
     required this.dosageUnitCtrl,
     required this.frequencyCtrl,
     required this.pictureCtrl,
-    required this.careRecipientCtrl,
     required this.caregiverCtrl,
     required this.statusCtrl,
     required this.upsertMedication,
@@ -1604,20 +1602,30 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
   void initState() {
     super.initState();
     selectedType = widget.initialType ?? 'capsule';
-    final initText = widget.careRecipientCtrl.text.trim();
-    _selectedRecipients = ValueNotifier<Set<String>>(initText.isNotEmpty
-      ? initText
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toSet()
-      : <String>{});
   }
 
   @override
   void dispose() {
     _selectedRecipients.dispose();
     super.dispose();
+  }
+
+  void _fillMockData() {
+    setState(() {
+      widget.nameCtrl.text = 'Paracetamol';
+      widget.descriptionCtrl.text = 'Pain reliever for fever and headache.';
+      widget.qtyCtrl.text = '30';
+      widget.dosageAmountCtrl.text = '500';
+      widget.dosageUnitCtrl.text = 'mg';
+      widget.frequencyCtrl.text = 'Once a day';
+      widget.pictureCtrl.text = 'assets/icons/capsule.png';
+      widget.statusCtrl.text = 'Active';
+      widget.caregiverCtrl.text = widget.caregiverCtrl.text.isNotEmpty
+          ? widget.caregiverCtrl.text
+          : 'CG-003';
+      selectedType = 'capsule';
+      _selectedRecipients.value = <String>{'mock-1'};
+    });
   }
 
   @override
@@ -1730,312 +1738,35 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                     // If caregiver ID is already provided (injected), hide the
                     // Caregiver ID field — we still include its value in the
                     // submitted `input`. Otherwise show both fields.
-                    (() {
-                      final caregiverProvided = widget.caregiverCtrl.text
-                          .trim()
-                          .isNotEmpty;
-                      if (caregiverProvided) {
-                        // When caregiver is known, show a dropdown of care recipients
-                        // fetched from backend and store the selected id into
-                        // `careRecipientCtrl`. We also set `statusCtrl` text to
-                        // the selected recipient name for display/storage.
-                        final caregiverId = widget.caregiverCtrl.text.trim();
-                        return FutureBuilder<QueryResult>(
-                          future: GraphQLProvider.of(context).value.query(
-                            QueryOptions(
-                              document: gql(r'''
-                                query GetCareRecipientsByCaregiver($caregiverId: String!) {
-  care_recipients_by_caregiver(caregiverId: $caregiverId) {
-    id
-    firstName
-    lastName
-    dateOfBirth
-    gender
-    email
-    phone
-    caregiverId
-    type
-
-}
-                                }
-                              '''),
-                              variables: {'caregiverId': 'caregiverId'},
-                              fetchPolicy: FetchPolicy.networkOnly,
-                            ),
-                          ),
-                          builder: (ctx, snap) {
-
-                            final result = snap.data;
-                            if (result == null || result.hasException) {
-                              return Column(
-                                children: [
-                                  Text(
-                                    'Failed to load recipients',
-                                    style: TextStyle(color: Colors.redAccent),
-                                  ),
-                                  SizedBox(height: 8.h),
-                                ],
-                              );
-                            }
-                            // The GraphQL query uses the field
-                            // `care_recipients_by_caregiver` in the response.
-                            // Use that key to extract the returned list. Also
-                            // include a couple of fallbacks for other possible
-                            // field names so the UI won't silently show an
-                            // empty dropdown if the response key differs.
-                            final List<dynamic>? list =
-                                (result.data?['care_recipients_by_caregiver'] ??
-                                        result
-                                            .data?['getCareRecipientsByCaregiverId'] ??
-                                        result
-                                            .data?['getCareRecipientsByCaregiver'])
-                                    as List<dynamic>?;
-                            final items = (list ?? []).map<Map<String, String>>(
-                              (e) {
-                                final first =
-                                    (e['firstName'] ?? e['firstName'] ?? '')
-                                        .toString()
-                                        .trim();
-                                final last =
-                                    (e['lastName'] ?? e['lastName'] ?? '')
-                                        .toString()
-                                        .trim();
-                                final combined = [
-                                  first,
-                                  last,
-                                ].where((s) => s.isNotEmpty).join(' ');
-                                return {
-                                  'id': e['id']?.toString() ?? '',
-                                  'name': combined.isNotEmpty
-                                      ? combined
-                                      : (e['name']?.toString() ?? ''),
-                                };
-                              },
-                            ).toList();
-
-                            // Use ChoiceChips to display recipients by name.
-                            // This is more visible on small screens and matches
-                            // the user's request to "show Name" as a chip.
-                            if (items.isEmpty) {
-                              // Provide 8 mocked recipients for UI testing/dev
-                              final mockItems = List<Map<String, String>>.generate(
-                                8,
-                                (i) => {
-                                  'id': 'mock-${i + 1}',
-                                  'name': 'Recipient ${i + 1}'
-                                },
-                              );
-
-                              return Align(
-                                alignment: Alignment.topLeft,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.start,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Padding(
-                                      padding: EdgeInsets.only(bottom: 8.0),
-                                      child: Text('Care Recipient'),
-                                    ),
-
-                                      ValueListenableBuilder<Set<String>>(
-                                        valueListenable: _selectedRecipients,
-                                        builder: (context, selectedIds, _) {
-                                          return Wrap(
-                                            spacing: 8.0,
-                                            runSpacing: 8.0,
-                                            children: mockItems.map<Widget>((m) {
-                                              final id = m['id']?.toString() ?? '';
-                                              final name = (m['name']?.toString().isNotEmpty == true)
-                                                  ? m['name']!.toString()
-                                                  : id;
-
-                                              final bool isSelected = selectedIds.contains(id);
-
-                                              return Container(
-                                                decoration: BoxDecoration(
-                                                  borderRadius: BorderRadius.circular(20),
-                                                  boxShadow: isSelected
-                                                      ? [
-                                                          BoxShadow(
-                                                            color: Colors.orange.withOpacity(0.25),
-                                                            blurRadius: 6,
-                                                            offset: const Offset(0, 3),
-                                                          ),
-                                                        ]
-                                                      : const [
-                                                          BoxShadow(
-                                                            color: Colors.black12,
-                                                            blurRadius: 6,
-                                                            offset: Offset(0, 3),
-                                                          ),
-                                                        ],
-                                                ),
-                                                child: ChoiceChip(
-                                                  label: Text(name),
-                                                  selected: isSelected,
-                                                  backgroundColor: Colors.white,
-                                                  selectedColor: const Color(0xFFFFECB3),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(20),
-                                                    side: BorderSide(
-                                                      color: isSelected ? Colors.orange : Colors.grey.shade300,
-                                                      width: isSelected ? 1.6 : 1,
-                                                    ),
-                                                  ),
-                                                  elevation: 0,
-                                                  onSelected: (sel) {
-                                                    final newSet = Set<String>.from(selectedIds);
-                                                    if (sel) {
-                                                      newSet.add(id);
-                                                    } else {
-                                                      newSet.remove(id);
-                                                    }
-                                                    _selectedRecipients.value = newSet;
-                                                    widget.careRecipientCtrl.text = newSet.join(',');
-                                                    final names = mockItems
-                                                        .where((x) => newSet.contains(x['id']))
-                                                        .map((x) => x['name'] ?? '')
-                                                        .where((s) => s.isNotEmpty)
-                                                        .toList();
-                                                    widget.statusCtrl.text = names.join(', ');
-                                                  },
-                                                ),
-                                              );
-                                            }).toList(),
-                                          );
-                                        },
-                                      ),
-                                  ],
-                                ),
-                              );
-                            }
-
-
-
-                            return Align(
-                              alignment: Alignment.topLeft,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Padding(
-                                    padding: EdgeInsets.only(bottom: 8.0),
-                                    child: Text('Care Recipient'),
-                                  ),
-
-                                  // Horizontally scrollable chips; selection is driven
-                                  // by a local ValueNotifier to avoid rebuilding the
-                                  // whole sheet (which can steal TextField focus).
-                                  ValueListenableBuilder<Set<String>>(
-                                    valueListenable: _selectedRecipients,
-                                    builder: (context, selectedIds, _) {
-                                      return Wrap(
-                                        spacing: 8.0,
-                                        runSpacing: 8.0,
-                                        children: items.map<Widget>((m) {
-                                          final id = m['id']?.toString() ?? '';
-                                          final name = (m['name']?.toString().isNotEmpty == true)
-                                              ? m['name']!.toString()
-                                              : id;
-
-                                          final bool isSelected = selectedIds.contains(id);
-
-                                          return Container(
-                                            decoration: BoxDecoration(
-                                              borderRadius: BorderRadius.circular(20),
-                                              boxShadow: isSelected
-                                                  ? [
-                                                      BoxShadow(
-                                                        color: Colors.orange.withOpacity(0.25),
-                                                        blurRadius: 6,
-                                                        offset: const Offset(0, 3),
-                                                      ),
-                                                    ]
-                                                  : const [
-                                                      BoxShadow(
-                                                        color: Colors.black12,
-                                                        blurRadius: 6,
-                                                        offset: Offset(0, 3),
-                                                      ),
-                                                    ],
-                                            ),
-                                            child: ChoiceChip(
-                                              label: Text(name),
-                                              selected: isSelected,
-                                              backgroundColor: Colors.white,
-                                              selectedColor: const Color(0xFFFFECB3),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(20),
-                                                side: BorderSide(
-                                                  color: isSelected ? Colors.orange : Colors.grey.shade300,
-                                                  width: isSelected ? 1.6 : 1,
-                                                ),
-                                              ),
-                                              elevation: 0,
-                                              onSelected: (sel) {
-                                                final newSet = Set<String>.from(selectedIds);
-                                                if (sel) {
-                                                  newSet.add(id);
-                                                } else {
-                                                  newSet.remove(id);
-                                                }
-                                                _selectedRecipients.value = newSet;
-                                                widget.careRecipientCtrl.text = newSet.join(',');
-                                                final names = items
-                                                    .where((x) => newSet.contains(x['id']))
-                                                    .map((x) => x['name'] ?? '')
-                                                    .where((s) => s.isNotEmpty)
-                                                    .toList();
-                                                widget.statusCtrl.text = names.join(', ');
-                                              },
-                                            ),
-                                          );
-                                        }).toList(),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      }
-
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: widget.caregiverCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Caregiver ID',
-                              ),
-                              textInputAction: TextInputAction.next,
-                            ),
-                          ),
-                          SizedBox(width: 8.w),
-                          Expanded(
-                            child: TextFormField(
-                              controller: widget.statusCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Status',
-                              ),
-                              textInputAction: TextInputAction.done,
-                            ),
-                          ),
-                        ],
-                      );
-                    })(),
-                    SizedBox(height: 8.h),
+                                      SizedBox(height: 8.h),
                     DropdownButtonFormField<String>(
                       value: selectedType,
                       items: ['capsule', 'tablet', 'injection', 'cream']
                           .map(
-                            (t) => DropdownMenuItem(value: t, child: Text(t)),
+                            (t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(
+                                  t.isNotEmpty
+                                      ? '${t[0].toUpperCase()}${t.substring(1)}'
+                                      : t,
+                                )),
                           )
                           .toList(),
                       onChanged: (v) =>
                           setState(() => selectedType = v ?? selectedType),
                       decoration: const InputDecoration(labelText: 'Type'),
+                    ),
+                    SizedBox(height: 8.h),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _fillMockData,
+                            icon: const Icon(Icons.auto_fix_high),
+                            label: const Text('Fill mock data'),
+                          ),
+                        ),
+                      ],
                     ),
                     SizedBox(height: 12.h),
                     SizedBox(
@@ -2046,9 +1777,7 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                             : () async {
                                 // 收起键盘
                                 FocusScope.of(context).unfocus();
-
                                 if (!_formKey.currentState!.validate()) return;
-
                                 setState(() => _loading = true);
 
                                 final qtyText = widget.qtyCtrl.text.trim();
@@ -2056,6 +1785,10 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                                     .dosageAmountCtrl
                                     .text
                                     .trim();
+
+                                final typeForDb = selectedType.isNotEmpty
+                                  ? '${selectedType[0].toUpperCase()}${selectedType.substring(1)}'
+                                  : selectedType;
 
                                 final input = {
                                   'name': widget.nameCtrl.text.trim(),
@@ -2071,11 +1804,9 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                                       .trim(),
                                   'frequency': widget.frequencyCtrl.text.trim(),
                                   'picture': widget.pictureCtrl.text.trim(),
-                                  'careRecipientId': widget
-                                      .careRecipientCtrl
-                                      .text
-                                      .trim(),
-                                  'type': selectedType,
+
+                                  // store with capitalized first letter in DB
+                                  'type': typeForDb,
                                   // doctorId intentionally omitted (not needed in UI/backend upsert)
                                   'caregiverId': widget.caregiverCtrl.text
                                       .trim(),
