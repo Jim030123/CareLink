@@ -12,6 +12,7 @@ import 'package:carelink_mobile/screens/authentication/register_page.dart';
 import 'package:carelink_mobile/screens/show_appointment.dart';
 
 import 'package:carelink_mobile/screens/profile_page.dart';
+import 'package:carelink_mobile/utils/test_page.dart';
 import 'package:carelink_mobile/utils/test_page_2.dart';
 import 'package:go_router/go_router.dart';
 import 'package:carelink_mobile/screens/not_found_page.dart';
@@ -21,7 +22,7 @@ import '../screens/authentication/register_doctor_page.dart';
 
 /// Central app router exported for use by `main.dart`.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/test',
   errorBuilder: (context, state) => NotFoundPage(location: state.error?.toString()),
   routes: <GoRoute>[
     // Todo: after login that will save the state
@@ -98,7 +99,7 @@ final GoRouter appRouter = GoRouter(
     ),
 
     GoRoute(path: '/test',
-    builder: (context, state) => const TestPage2(),),
+    builder: (context, state) => const TestPage(caregiverId: 'CG-003', signalingUrl: "ws://10.180.12.100:25101",),),
 
     GoRoute(path: '/medication', builder: (context, state) => const TypeofMedicine()),
   ],
