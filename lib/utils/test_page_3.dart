@@ -216,9 +216,11 @@ class _TestPage3State extends State<TestPage3> {
     // 采集本地麦克风并加入 pc
     try {
       localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+      print('Caregiver: acquired localStream id=${localStream?.id}');
       // 新版 API: addTrack
       for (var t in localStream!.getTracks()) {
         pc!.addTrack(t, localStream!);
+        print('Caregiver: added local track id=${t.id}, kind=${t.kind}');
       }
     } catch (e) {
       print('getUserMedia error: $e');
@@ -362,21 +364,32 @@ class _TestPage3State extends State<TestPage3> {
   }
 
   // 人为挂断（Caregiver 点击挂断）
-  void hangup() {
+  Future<void> hangup() async {
     if (currentCallId != null) {
-      signaling.send({'type': 'end_call', 'callId': currentCallId});
+      final ok = signaling.send({'type': 'end_call', 'callId': currentCallId});
+      print('Caregiver: sent end_call (callId=$currentCallId) sendReturned=$ok');
+      // give the signaling a short moment to deliver
+      await Future.delayed(const Duration(milliseconds: 250));
     }
     _cleanupCall();
   }
 
   void _cleanupCall() {
     try {
+      print('Caregiver: closing pc');
       pc?.close();
     } catch (e) {}
     pc = null;
 
     try {
-      localStream?.dispose();
+      if (localStream != null) {
+        print('Caregiver: stopping localStream id=${localStream!.id}');
+        for (var t in localStream!.getTracks()) {
+          print('Caregiver: stopping track id=${t.id}');
+          try { t.stop(); } catch (_) {}
+        }
+        try { localStream?.dispose(); } catch (_) {}
+      }
     } catch (e) {}
     localStream = null;
 

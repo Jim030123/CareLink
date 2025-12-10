@@ -31,6 +31,7 @@ class _TestPageState extends State<TestPage> {
   Completer<String?>? _startCallAckCompleter;
   bool isCalling = false;
   bool inCall = false;
+  bool isMuted = false;
 
   @override
   void initState() {
@@ -67,6 +68,7 @@ class _TestPageState extends State<TestPage> {
         'audio': true,
         'video': false,
       });
+      print('CR: acquired localStream id=${localStream?.id}');
       // Debug: log local audio tracks
       try {
         final audioTracks = localStream!.getAudioTracks();
@@ -80,6 +82,7 @@ class _TestPageState extends State<TestPage> {
       // 旧 API: addStream, 新版建议 addTrack；这里用 addTrack 更稳
       for (var t in localStream!.getTracks()) {
         pc!.addTrack(t, localStream!);
+        print('CR: added local track id=${t.id}, kind=${t.kind}');
       }
     } catch (e) {
       print('getUserMedia error: $e');
@@ -257,25 +260,31 @@ class _TestPageState extends State<TestPage> {
   // ───────────────────────────────────────────
   // Step 3: 挂断
   // ───────────────────────────────────────────
-  void endCall() {
+  Future<void> endCall() async {
     if (currentCallId != null) {
-      signaling.send({
+      final ok = signaling.send({
         "type": "end_call",
         "callId": currentCallId,
       });
+      print('CR: sent end_call (callId=$currentCallId) sendReturned=$ok');
+      // Small delay to allow signaling message to be delivered before tearing down
+      await Future.delayed(const Duration(milliseconds: 250));
     }
 
     try {
+      print('CR: closing pc');
       pc?.close();
     } catch (_) {}
     pc = null;
 
     try {
       if (localStream != null) {
+        print('CR: stopping localStream id=${localStream!.id}');
         for (var t in localStream!.getTracks()) {
-          t.stop();
+          print('CR: stopping track id=${t.id}');
+          try { t.stop(); } catch (_) {}
         }
-        localStream?.dispose();
+        try { localStream?.dispose(); } catch (_) {}
       }
     } catch (_) {}
 
@@ -291,6 +300,26 @@ class _TestPageState extends State<TestPage> {
     } catch (e) {}
     signaling.close();
     super.dispose();
+  }
+
+  void _toggleMute() {
+    if (localStream == null) {
+      // nothing to mute; reflect UI state
+      setState(() {
+        isMuted = true;
+      });
+      return;
+    }
+    try {
+      for (var t in localStream!.getAudioTracks()) {
+        t.enabled = !t.enabled;
+      }
+      setState(() {
+        isMuted = localStream!.getAudioTracks().every((t) => !t.enabled);
+      });
+    } catch (e) {
+      print('CR: toggle mute error: $e');
+    }
   }
 
   // ───────────────────────────────────────────
@@ -309,11 +338,22 @@ class _TestPageState extends State<TestPage> {
               const SizedBox(height: 12),
               Text('In call with ${widget.caregiverId}'),
               const SizedBox(height: 12),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.call_end),
-                label: const Text('Hang up'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: endCall,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.call_end),
+                    label: const Text('Hang up'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                    onPressed: endCall,
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    icon: Icon(isMuted ? Icons.mic_off : Icons.mic),
+                    label: Text(isMuted ? 'Unmute' : 'Mute'),
+                    onPressed: _toggleMute,
+                  ),
+                ],
               ),
             ] else if (isCalling) ...[
               const Icon(Icons.call_made, size: 80, color: Colors.orange),
