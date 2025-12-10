@@ -3,6 +3,11 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+/// Robust signaling service for WebSocket-based signaling.
+///
+/// - Buffers partial JSON frames and extracts first complete object.
+/// - Queues outgoing messages until `joined` ack is received (or channel exists).
+/// - Cleans up completers and pending sends on close.
 class SignalingService {
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
@@ -26,7 +31,6 @@ class SignalingService {
     }
 
     _subscription = _channel!.stream.listen((event) {
-      // Diagnostic: runtime type + length
       print('SignalingService: raw event type=${event.runtimeType}');
 
       String text;
@@ -58,7 +62,7 @@ class SignalingService {
       }
 
       if (!_tryParseAndDispatch(text)) {
-        // Buffer and try to extract a full JSON object using brace counting (safer than lastIndexOf)
+        // Buffer and try to extract a full JSON object using brace counting
         _buffer.write(text);
         final buffered = _buffer.toString();
         final extracted = _extractFirstJson(buffered);
@@ -79,7 +83,6 @@ class SignalingService {
       print('SignalingService: WebSocket stream closed');
       _subscription = null;
       _channel = null;
-      // If joined never completed, complete with error to avoid hanging callers
       if (_joinedCompleter != null && !_joinedCompleter!.isCompleted) {
         _joinedCompleter!.completeError(StateError('Connection closed before joined'));
       }
@@ -89,15 +92,14 @@ class SignalingService {
     send({"type": "join", "clientId": clientId, "role": role});
   }
 
-  // Helper: extract the first JSON object from a string using brace counting.
-  // Returns Tuple (jsonString, remainder) or null if not enough data yet.
-  // Simple implementation: expects JSON object starting at index 0.
+  /// Helper: extract the first JSON object from a string using brace counting.
+  /// Returns Tuple2(jsonString, remainder) or null if not enough data yet.
   Tuple2<String, String>? _extractFirstJson(String s) {
     int i = 0;
     while (i < s.length && s[i].trim().isEmpty) i++;
     if (i >= s.length) return null;
     if (s[i] != '{') {
-      // not an object starting at 0; give up (could be array or other)
+      // not an object starting at 0; give up
       return null;
     }
     int depth = 0;
@@ -118,11 +120,9 @@ class SignalingService {
   bool _tryParseAndDispatch(String text) {
     try {
       final decoded = jsonDecode(text);
-      // Log the message type (if present) to aid debugging
       try {
         final t = decoded is Map && decoded.containsKey('type') ? decoded['type'] : null;
         if (t != null) print('SignalingService: parsed JSON type=$t');
-        // If server acknowledges our join, flush queued messages and mark ready.
         if (t == 'joined') {
           if (_joinedCompleter != null && !_joinedCompleter!.isCompleted) {
             _joinedCompleter!.complete();
@@ -141,7 +141,6 @@ class SignalingService {
         return false;
       }
     } on FormatException catch (e) {
-      // common when message is truncated
       print('SignalingService: json decode FormatException: ${e.message}');
       return false;
     } catch (e, st) {
@@ -151,8 +150,6 @@ class SignalingService {
   }
 
   bool send(Map<String, dynamic> data) {
-    // If channel isn't available OR we haven't received 'joined' ack yet,
-    // queue the message (except allow sending the join itself immediately).
     final isJoin = data['type'] == 'join';
     final notJoinedYet = (_joinedCompleter != null && !_joinedCompleter!.isCompleted);
     if (_channel == null || (notJoinedYet && !isJoin)) {
@@ -216,7 +213,6 @@ class SignalingService {
     }
     _channel = null;
 
-    // Fail join completer / pending sends
     if (_joinedCompleter != null && !_joinedCompleter!.isCompleted) {
       _joinedCompleter!.completeError(StateError('Connection closed'));
     }

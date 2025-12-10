@@ -5,6 +5,7 @@ import 'package:carelink_mobile/utils/signal_service.dart';
 import 'package:carelink_mobile/utils/test_page_3.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 
 class TestPage extends StatefulWidget {
@@ -25,6 +26,9 @@ class _TestPageState extends State<TestPage> {
   late SignalingService signaling;
   RTCPeerConnection? pc;
   MediaStream? localStream;
+  final _localRenderer = RTCVideoRenderer();
+  final _remoteRenderer = RTCVideoRenderer();
+  bool _permissionsGranted = false;
 
   String? currentCallId;
   // Completer to wait for server ack when starting a call
@@ -37,6 +41,9 @@ class _TestPageState extends State<TestPage> {
   void initState() {
     super.initState();
 
+    // Initialize video renderers asynchronously
+    initRenderers();
+
     // ✅ 正确做法：在 constructor 传入回调
     signaling = SignalingService(onMessage: handleSignalMessage);
 
@@ -47,6 +54,56 @@ class _TestPageState extends State<TestPage> {
     final myClientId = 'CR-${const Uuid().v4()}';
     print('TestPage: using clientId=$myClientId to join signaling');
     signaling.connect(widget.signalingUrl, myClientId, "cr");
+    // Request permissions on startup (non-blocking init)
+    Future.microtask(() => _ensurePermissionsOnStart());
+  }
+
+  Future<void> initRenderers() async {
+    try {
+      await _localRenderer.initialize();
+      await _remoteRenderer.initialize();
+    } catch (e) {
+      print('initRenderers error: $e');
+    }
+  }
+
+  // Ensure camera & microphone permission on startup; if denied, prompt user
+  Future<void> _ensurePermissionsOnStart() async {
+    final ok = await _requestCameraAndMicPermission();
+    if (ok) {
+      setState(() { _permissionsGranted = true; });
+      return;
+    }
+
+    // show dialog to ask user to grant permission or open settings
+    if (!mounted) return;
+    final retry = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Permissions required'),
+        content: const Text('Camera and microphone permissions are required for video calling.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Retry'),
+          ),
+          TextButton(
+            onPressed: () {
+              openAppSettings();
+              Navigator.of(ctx).pop(false);
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+
+    if (retry == true) {
+      await _ensurePermissionsOnStart();
+    } else {
+      // leave permissionsGranted false; UI will disable call
+    }
   }
 
   // ───────────────────────────────────────────
@@ -61,13 +118,22 @@ class _TestPageState extends State<TestPage> {
         {'urls': 'stun:stun.l.google.com:19302'},
       ]
     });
+    // Request permissions and capture microphone + camera
+    final ok = await _requestCameraAndMicPermission();
+    if (!ok) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Camera and microphone permission required')));
+      }
+      return;
+    }
 
-    // 捕获麦克风
     try {
       localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
-        'video': false,
+        'video': true,
       });
+      // attach to local preview
+      _localRenderer.srcObject = localStream;
       print('CR: acquired localStream id=${localStream?.id}');
       // Debug: log local audio tracks
       try {
@@ -104,6 +170,23 @@ class _TestPageState extends State<TestPage> {
           }
         });
       }
+    };
+
+    // Handle remote tracks (video/audio)
+    pc!.onTrack = (RTCTrackEvent event) {
+      print('CR: onTrack fired streams=${event.streams.length}');
+      if (event.streams.isNotEmpty) {
+        final s = event.streams[0];
+        try {
+          print('CR: remote stream id=${s.id}, tracks=${s.getTracks().length}');
+        } catch (e) {}
+        _remoteRenderer.srcObject = s;
+      }
+    };
+    // compatibility
+    pc!.onAddStream = (MediaStream s) {
+      print('CR: onAddStream: ${s.id}');
+      _remoteRenderer.srcObject = s;
     };
 
     // Debug: connection/signaling state
@@ -299,6 +382,8 @@ class _TestPageState extends State<TestPage> {
       signaling.unregister();
     } catch (e) {}
     signaling.close();
+    try { _localRenderer.dispose(); } catch (_) {}
+    try { _remoteRenderer.dispose(); } catch (_) {}
     super.dispose();
   }
 
@@ -322,6 +407,25 @@ class _TestPageState extends State<TestPage> {
     }
   }
 
+  Future<bool> _requestCameraAndMicPermission() async {
+    try {
+      final mic = await Permission.microphone.status;
+      if (!mic.isGranted) {
+        final r = await Permission.microphone.request();
+        if (!r.isGranted) return false;
+      }
+      final cam = await Permission.camera.status;
+      if (!cam.isGranted) {
+        final r2 = await Permission.camera.request();
+        if (!r2.isGranted) return false;
+      }
+      return true;
+    } catch (e) {
+      print('permission request error: $e');
+      return false;
+    }
+  }
+
   // ───────────────────────────────────────────
   // UI
   // ───────────────────────────────────────────
@@ -334,7 +438,12 @@ class _TestPageState extends State<TestPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (inCall) ...[
-              const Icon(Icons.call, size: 80, color: Colors.green),
+              // show remote video if available
+              SizedBox(
+                width: 320,
+                height: 240,
+                child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+              ),
               const SizedBox(height: 12),
               Text('In call with ${widget.caregiverId}'),
               const SizedBox(height: 12),
@@ -355,10 +464,23 @@ class _TestPageState extends State<TestPage> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              // local preview
+              SizedBox(
+                width: 120,
+                height: 90,
+                child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+              ),
             ] else if (isCalling) ...[
               const Icon(Icons.call_made, size: 80, color: Colors.orange),
               const SizedBox(height: 12),
               Text('Calling ${widget.caregiverId}...'),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: 320,
+                height: 240,
+                child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+              ),
               const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: () {
@@ -374,8 +496,13 @@ class _TestPageState extends State<TestPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                 ),
                 child: const Text('📞 Emergency Call', style: TextStyle(fontSize: 22)),
-                onPressed: startCall,
+                onPressed: _permissionsGranted ? startCall : () => _ensurePermissionsOnStart(),
               ),
+              if (!_permissionsGranted)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8.0),
+                  child: Text('Camera & microphone permissions required', style: TextStyle(color: Colors.red)),
+                ),
               const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: endCall,

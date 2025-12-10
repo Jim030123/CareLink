@@ -27,6 +27,8 @@ class _TestPage3State extends State<TestPage3> {
   RTCPeerConnection? pc;
   MediaStream? localStream;
   final _remoteRenderer = RTCVideoRenderer(); // 用来 attach 远端媒体（audio-only 也 OK）
+  final _localRenderer = RTCVideoRenderer();
+  bool _permissionsGranted = false;
   Map<String, dynamic>? incomingOffer;
   Completer<Map<String, dynamic>?>? _offerCompleter;
   final List<Map<String, dynamic>> _bufferedCandidates = [];
@@ -46,10 +48,41 @@ class _TestPage3State extends State<TestPage3> {
     signaling = SignalingService(onMessage: handleSignalMessage);
     // 连接 signaling server 并以 caregiver 身份 join
     signaling.connect(widget.signalingUrl, widget.caregiverId, 'caregiver');
+    // Request permissions on startup
+    Future.microtask(() => _ensurePermissionsOnStart());
   }
 
   Future<void> initRenderers() async {
-    await _remoteRenderer.initialize();
+    try {
+      await _remoteRenderer.initialize();
+      await _localRenderer.initialize();
+    } catch (e) {
+      print('initRenderers error: $e');
+    }
+  }
+
+  Future<void> _ensurePermissionsOnStart() async {
+    final ok = await _requestMediaPermissions();
+    if (ok) {
+      setState(() { _permissionsGranted = true; });
+      return;
+    }
+    if (!mounted) return;
+    final retry = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Permissions required'),
+        content: const Text('Camera and microphone permissions are required for video calling.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Retry')),
+          TextButton(onPressed: () { openAppSettings(); Navigator.of(ctx).pop(false); }, child: const Text('Open Settings')),
+        ],
+      ),
+    );
+    if (retry == true) {
+      await _ensurePermissionsOnStart();
+    }
   }
 
   // 处理 signaling server 发来的消息
@@ -204,7 +237,7 @@ class _TestPage3State extends State<TestPage3> {
     }
 
     // Request runtime microphone permission before attempting to access it.
-    final ok = await _requestMicPermission();
+    final ok = await _requestMediaPermissions();
     if (!ok) {
       print('Microphone permission denied');
       if (mounted) {
@@ -215,7 +248,9 @@ class _TestPage3State extends State<TestPage3> {
 
     // 采集本地麦克风并加入 pc
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+      localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': true});
+      // attach to local renderer (preview)
+      _localRenderer.srcObject = localStream;
       print('Caregiver: acquired localStream id=${localStream?.id}');
       // 新版 API: addTrack
       for (var t in localStream!.getTracks()) {
@@ -319,12 +354,21 @@ class _TestPage3State extends State<TestPage3> {
     }
   }
 
-  Future<bool> _requestMicPermission() async {
+
+
+  Future<bool> _requestMediaPermissions() async {
     try {
       var status = await Permission.microphone.status;
-      if (status.isGranted) return true;
-      final result = await Permission.microphone.request();
-      return result.isGranted;
+      if (!status.isGranted) {
+        final r = await Permission.microphone.request();
+        if (!r.isGranted) return false;
+      }
+      var cam = await Permission.camera.status;
+      if (!cam.isGranted) {
+        final r2 = await Permission.camera.request();
+        if (!r2.isGranted) return false;
+      }
+      return true;
     } catch (e) {
       print('permission request error: $e');
       return false;
@@ -394,6 +438,7 @@ class _TestPage3State extends State<TestPage3> {
     localStream = null;
 
     _remoteRenderer.srcObject = null;
+    _localRenderer.srcObject = null;
     // Protect against calling setState after dispose (defunct element)
     if (mounted) {
       setState(() {
@@ -415,7 +460,8 @@ class _TestPage3State extends State<TestPage3> {
 
   @override
   void dispose() {
-    _remoteRenderer.dispose();
+    try { _remoteRenderer.dispose(); } catch (_) {}
+    try { _localRenderer.dispose(); } catch (_) {}
     // Unregister callback first to avoid any in-flight messages calling into
     // this widget after dispose. Then close the websocket.
     try {
@@ -439,7 +485,12 @@ class _TestPage3State extends State<TestPage3> {
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.call, size: 80, color: Colors.green),
+                        // remote video
+                        SizedBox(
+                          width: 320,
+                          height: 240,
+                          child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+                        ),
                         const SizedBox(height: 12),
                         Text('In call with ${incomingFrom ?? 'CR'}'),
                         const SizedBox(height: 12),
@@ -459,6 +510,13 @@ class _TestPage3State extends State<TestPage3> {
                               onPressed: _toggleMute,
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 12),
+                        // local preview
+                        SizedBox(
+                          width: 120,
+                          height: 90,
+                          child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
                         ),
                       ],
                     )
@@ -499,7 +557,7 @@ class _TestPage3State extends State<TestPage3> {
             ElevatedButton.icon(
               icon: const Icon(Icons.call),
               label: const Text('Accept'),
-              onPressed: acceptCall,
+              onPressed: _permissionsGranted ? acceptCall : () => _ensurePermissionsOnStart(),
             ),
             const SizedBox(width: 12),
             ElevatedButton.icon(
