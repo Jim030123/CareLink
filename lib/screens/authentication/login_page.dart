@@ -188,6 +188,9 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               SizedBox(height: 10.h),
 
+                            ],
+
+
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton(
@@ -198,7 +201,6 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                 ),
                               ),
-                            ],
                             SizedBox(height: 10.h),
                             // 分割线
                             Divider(color: Colors.grey, thickness: 1),

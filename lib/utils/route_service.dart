@@ -14,6 +14,7 @@ import 'package:carelink_mobile/screens/show_appointment.dart';
 import 'package:carelink_mobile/screens/profile_page.dart';
 import 'package:carelink_mobile/utils/test_page.dart';
 import 'package:carelink_mobile/utils/test_page_2.dart';
+import 'package:carelink_mobile/utils/test_page_3.dart';
 import 'package:go_router/go_router.dart';
 import 'package:carelink_mobile/screens/not_found_page.dart';
 
@@ -22,8 +23,9 @@ import '../screens/authentication/register_doctor_page.dart';
 
 /// Central app router exported for use by `main.dart`.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/test',
-  errorBuilder: (context, state) => NotFoundPage(location: state.error?.toString()),
+  initialLocation: '/',
+  errorBuilder: (context, state) =>
+      NotFoundPage(location: state.error?.toString()),
   routes: <GoRoute>[
     // Todo: after login that will save the state
     GoRoute(path: '/', builder: (context, state) => const LoginPage()),
@@ -36,10 +38,7 @@ final GoRouter appRouter = GoRouter(
       path: '/register',
       builder: (context, state) => const RegisterPage(),
     ),
-    GoRoute(
-      path: '/home',
-      builder: (context, state) => const HomeResolver(),
-    ),
+    GoRoute(path: '/home', builder: (context, state) => const HomeResolver()),
     GoRoute(
       path: '/register/caregiver',
       builder: (context, state) => const RegisterCaregiverPage(),
@@ -84,10 +83,7 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const ShowAppointmentPage(),
     ),
 
-    GoRoute(
-      path: '/profile',
-      builder: (context, state) => const ProfilePage(),
-    ),
+    GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
 
     GoRoute(
       path: '/managecaregiver',
@@ -98,9 +94,25 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const ManageCareRecipient(),
     ),
 
-    GoRoute(path: '/test',
-    builder: (context, state) => const TestPage(caregiverId: 'CG-003', signalingUrl: "ws://10.180.12.100:25101",),),
+    GoRoute(
+      path: '/test',
+      builder: (context, state) => const TestPage(
+        caregiverId: 'CG-003',
+        signalingUrl: "ws://10.180.12.100:25101",
+      ),
+    ),
 
-    GoRoute(path: '/medication', builder: (context, state) => const TypeofMedicine()),
+    GoRoute(
+      path: '/medication',
+      builder: (context, state) => const TypeofMedicine(),
+    ),
+
+    GoRoute(
+      path: '/caregiveremergencycall',
+      builder: (context, state) => const TestPage3(
+        caregiverId: 'CG-003',
+        signalingUrl: 'ws://10.180.12.100:25101',
+      ),
+    ),
   ],
 );

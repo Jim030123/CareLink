@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:carelink_mobile/utils/user_service.dart';
+import 'package:carelink_mobile/utils/emergency_calling.dart';
+import 'package:carelink_mobile/screens/cr_emergency_call.dart';
 
 class CareRecipientHomePage extends StatefulWidget {
   const CareRecipientHomePage({super.key});
@@ -11,7 +15,8 @@ class CareRecipientHomePage extends StatefulWidget {
   State<CareRecipientHomePage> createState() => _CareRecipientHomePageState();
 }
 
-class _CareRecipientHomePageState extends State<CareRecipientHomePage> with SingleTickerProviderStateMixin {
+class _CareRecipientHomePageState extends State<CareRecipientHomePage>
+    with SingleTickerProviderStateMixin {
   late DateTime _now;
   Timer? _timer;
   // Help button state
@@ -20,7 +25,9 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> with Sing
   DateTime? _helpStart;
   Timer? _helpTicker;
   double _helpProgress = 0.0; // 0.0..1.0
-  final ValueNotifier<int> _helpCountdownNotifier = ValueNotifier<int>(_helpDurationSeconds);
+  final ValueNotifier<int> _helpCountdownNotifier = ValueNotifier<int>(
+    _helpDurationSeconds,
+  );
   bool _helpDialogVisible = false;
 
   static const List<String> _monthAbbr = [
@@ -39,6 +46,89 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> with Sing
     'Dec',
   ];
 
+  //help me fetchCurrentUser from user_service.dart
+  String _username = ''; // populated from backend
+  String? _clientId;
+  EmergencyCalling? _ec;
+  bool _isCalling = false;
+  String? _caregiverClientId;
+  // TODO: replace with configured/assigned caregiver id from backend
+
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await fetchCurrentUser();
+      if (!mounted) return;
+      if (user != null) {
+        // Prefer displayName, fall back to email or uid
+        final name = (user['displayName'] as String?)?.trim();
+        final id = (user['id'] as String?)?.trim();
+        final email = (user['email'] as String?)?.trim();
+        final uid = (user['uid'] as String?)?.trim();
+
+         final chosenId = uid ?? id ?? '';
+        setState(() {
+          _username = name?.isNotEmpty == true
+              ? name!
+              : (email?.isNotEmpty == true ? email! : (user['uid'] ?? ''));
+          _clientId = uid ?? user['uid'] as String?;
+          _caregiverClientId = chosenId.isNotEmpty ? chosenId : null;
+        });
+        // initialize emergency calling helper for this client
+        if (_clientId != null) {
+          _initEmergencyCalling();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading current user: $e');
+    }
+  }
+
+  // Use the signaling server reachable by the mobile device on your LAN.
+  // Replace this with your real server. Example from routes/testing: ws://10.180.12.100:25101
+  // NOTE: on Android emulators use 10.0.2.2 to reach host machine's localhost.
+  String _signalingUrl = 'ws://10.180.12.100:25101';
+
+  Future<void> _initEmergencyCalling() async {
+    if (_clientId == null) return;
+    try {
+      _ec = await EmergencyCalling.create(_signalingUrl, _clientId!, 'cr');
+      _ec?.onCallState = (s) {
+        if (!mounted) return;
+        setState(() {
+          _isCalling = (s == 'calling' || s == 'in_call');
+        });
+      };
+    } catch (e) {
+      debugPrint('Failed to init EmergencyCalling: $e');
+    }
+  }
+
+  Future<void> _startDirectCall() async {
+    if (_clientId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Client id unavailable')));
+      return;
+    }
+    // Use configured caregiver id if present; otherwise fall back to a test id 'CG-003'
+    final targetId = (_caregiverClientId != null && _caregiverClientId!.isNotEmpty) ? _caregiverClientId! : 'CG-003';
+    if (_caregiverClientId == null || _caregiverClientId!.isEmpty) {
+      // Inform user we're using debug fallback
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No caregiver configured, using test id CG-003')));
+    }
+    // Dispose any existing helper to avoid duplicate connections when opening the call screen
+    try { await _ec?.dispose(); } catch (_) {}
+    _ec = null;
+
+    // Navigate to the call screen which will create its own EmergencyCalling
+    Navigator.of(context).push(MaterialPageRoute(builder: (ctx) {
+      return CrEmergencyCall(
+        signalingUrl: _signalingUrl,
+        clientId: _clientId!,
+        role: 'cr',
+        targetClientId: targetId,
+      );
+    }));
+  }
   String _formatTime(DateTime dt) {
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final minute = dt.minute.toString().padLeft(2, '0');
@@ -60,6 +150,8 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> with Sing
         _now = DateTime.now();
       });
     });
+    // load current user display name
+    _loadCurrentUser();
     // no-op: real-time ticker will drive the progress when HELP is pressed
   }
 
@@ -68,6 +160,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> with Sing
     _timer?.cancel();
     _helpTicker?.cancel();
     _helpCountdownNotifier.dispose();
+    try { _ec?.dispose(); } catch (_) {}
     super.dispose();
   }
 
@@ -111,7 +204,11 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> with Sing
                           valueListenable: _helpCountdownNotifier,
                           builder: (context, value, _) => Text(
                             '$value',
-                            style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold, color: Colors.red),
+                            style: TextStyle(
+                              fontSize: 28.sp,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
                           ),
                         ),
                       ],
@@ -145,13 +242,16 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> with Sing
         if (mounted) {
           Navigator.of(context, rootNavigator: true).pop();
           SystemSound.play(SystemSoundType.alert);
+          // start direct emergency call to caregiver
+          _startDirectCall();
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) setState(() => _helpActive = false);
           });
         }
       } else {
         _helpProgress = progress.clamp(0.0, 1.0);
-        final remaining = (_helpDurationSeconds - (progress * _helpDurationSeconds)).ceil();
+        final remaining =
+            (_helpDurationSeconds - (progress * _helpDurationSeconds)).ceil();
         _helpCountdownNotifier.value = remaining.clamp(0, _helpDurationSeconds);
       }
       // ensure UI updates for progress
@@ -188,66 +288,69 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> with Sing
             // per-tile hover notifier to toggle border appearance on desktop/web
             (() {
               final hover = ValueNotifier<bool>(false);
-              return MouseRegion(
-                onEnter: (_) => hover.value = true,
-                onExit: (_) => hover.value = false,
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: hover,
-                  builder: (context, isHover, _) {
-                    return Container(
-                      width: constraints.maxWidth,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16.w),
-                        border: Border.all(
-                          color: isHover ? Colors.orange : Colors.grey.shade300,
-                          width: isHover ? 1.6.w : 1.w,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x11000000),
-                            blurRadius: 8,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
+              return ValueListenableBuilder<bool>(
+                valueListenable: hover,
+                builder: (context, isHover, _) {
+                  return Container(
+                    width: constraints.maxWidth,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16.w),
+                      border: Border.all(
+                        color: isHover ? Colors.orange : Colors.grey.shade300,
+                        width: isHover ? 1.6.w : 1.w,
                       ),
-                      child: Material(
-                        color: Colors.white,
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x11000000),
+                          blurRadius: 8,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16.w),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
                         borderRadius: BorderRadius.circular(16.w),
-                        clipBehavior: Clip.antiAlias,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16.w),
-                          splashColor: Colors.grey.withOpacity(0.18),
-                          highlightColor: Colors.grey.withOpacity(0.08),
-                          onTap: onTap ?? () {},
-                          onHover: (hovering) => hover.value = hovering,
-                          onHighlightChanged: (active) => hover.value = active,
-                          child: Padding(
-                            padding: EdgeInsets.all(14.w),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  width: 48.w,
-                                  height: 48.w,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFAF4EE),
-                                    borderRadius: BorderRadius.circular(12.w),
-                                  ),
-                                  child: Icon(icon, size: 26.w, color: Colors.black87),
+                        splashColor: Colors.grey.withOpacity(0.18),
+                        highlightColor: Colors.grey.withOpacity(0.08),
+                        onTap: onTap ?? () {},
+                        onHover: (hovering) => hover.value = hovering,
+                        onHighlightChanged: (active) => hover.value = active,
+                        child: Padding(
+                          padding: EdgeInsets.all(14.w),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 48.w,
+                                height: 48.w,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFAF4EE),
+                                  borderRadius: BorderRadius.circular(12.w),
                                 ),
-                                SizedBox(height: 10.h),
-                                Text(
-                                  label,
-                                  style: TextStyle(fontSize: 14.sp, color: Colors.black87),
+                                child: Icon(
+                                  icon,
+                                  size: 26.w,
+                                  color: Colors.black87,
                                 ),
-                              ],
-                            ),
+                              ),
+                              SizedBox(height: 10.h),
+                              Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
               );
             })(),
             if (badge != null && badge > 0)
@@ -313,22 +416,14 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> with Sing
                     children: [
                       Row(
                         children: [
-                          Container(
-                            width: 44.w,
-                            height: 44.w,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF1E8),
-                              borderRadius: BorderRadius.circular(10.w),
-                            ),
-                            child: Icon(
-                              Icons.health_and_safety_outlined,
-                              color: Colors.orange,
-                              size: 28.w,
-                            ),
+                          SvgPicture.asset(
+                            'assets/icons/logo.svg',
+                            width: 64.w,
+                            height: 64.h,
                           ),
                           SizedBox(width: 8.w),
                           Text(
-                            'CareLink',
+                            'Hi, ${_username.isNotEmpty ? _username : 'there'}',
                             style: TextStyle(
                               fontSize: 18.sp,
                               fontWeight: FontWeight.bold,
@@ -480,14 +575,19 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage> with Sing
                     padding: EdgeInsets.symmetric(vertical: 14.h),
                     decoration: BoxDecoration(
                       color: _helpActive ? Colors.red.shade600 : Colors.white,
-                      border: Border.all(color: Colors.red.shade400, width: 2.w),
+                      border: Border.all(
+                        color: Colors.red.shade400,
+                        width: 2.w,
+                      ),
                       borderRadius: BorderRadius.circular(12.w),
                     ),
                     child: Center(
                       child: Text(
                         'HELP!',
                         style: TextStyle(
-                          color: _helpActive ? Colors.white : Colors.red.shade600,
+                          color: _helpActive
+                              ? Colors.white
+                              : Colors.red.shade600,
                           fontSize: 18.sp,
                           fontWeight: FontWeight.bold,
                         ),

@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 typedef IncomingCallHandler = void Function(Map<String, dynamic> incoming);
 typedef RemoteStreamHandler = void Function(MediaStream stream);
 typedef CallStateHandler = void Function(String state);
+typedef LocalStreamHandler = void Function(MediaStream stream);
 
 /// EmergencyCalling
 ///
@@ -37,12 +38,16 @@ class EmergencyCalling {
   // Events
   final StreamController<Map<String, dynamic>> incomingCallController = StreamController.broadcast();
   final StreamController<MediaStream> remoteStreamController = StreamController.broadcast();
+  final StreamController<MediaStream> localStreamController = StreamController.broadcast();
   final StreamController<String> callStateController = StreamController.broadcast();
 
   // Callbacks convenience
   IncomingCallHandler? onIncomingCall;
   RemoteStreamHandler? onRemoteStream;
+  LocalStreamHandler? onLocalStream;
   CallStateHandler? onCallState;
+
+  bool _isMuted = false;
 
   EmergencyCalling._(this.signaling, this.clientId) {
     // attach internal handler
@@ -114,6 +119,9 @@ class EmergencyCalling {
       for (var t in _localStream!.getTracks()) {
         _pc!.addTrack(t, _localStream!);
       }
+      // Notify UI about local stream
+      localStreamController.add(_localStream!);
+      if (onLocalStream != null) onLocalStream!(_localStream!);
     } catch (e) {
       _emitState('getusermedia_failed');
       return null;
@@ -252,6 +260,9 @@ class EmergencyCalling {
       for (var t in _localStream!.getTracks()) {
         _pc!.addTrack(t, _localStream!);
       }
+      // Notify UI about local stream
+      localStreamController.add(_localStream!);
+      if (onLocalStream != null) onLocalStream!(_localStream!);
     } catch (e) {
       // continue — we can still create an answer even if no local tracks
     }
@@ -313,6 +324,7 @@ class EmergencyCalling {
     _cleanupCall();
     try { incomingCallController.close(); } catch (_) {}
     try { remoteStreamController.close(); } catch (_) {}
+    try { localStreamController.close(); } catch (_) {}
     try { callStateController.close(); } catch (_) {}
     try { signaling.unregister(); } catch (_) {}
     try { signaling.close(); } catch (_) {}
@@ -368,7 +380,29 @@ class EmergencyCalling {
     _incomingOffer = null;
     _offerCompleter = null;
     _bufferedCandidates.clear();
+    _isMuted = false;
   }
+
+  /// Toggle mute/unmute of local audio tracks. Returns the new muted state.
+  bool toggleMute() {
+    if (_localStream == null) return false;
+    try {
+      final audioTracks = _localStream!.getAudioTracks();
+      if (audioTracks.isEmpty) return false;
+      final newState = !(_isMuted == true);
+      for (var t in audioTracks) {
+        try { t.enabled = !newState; } catch (_) {}
+      }
+      _isMuted = newState;
+      _emitState(_isMuted ? 'muted' : 'unmuted');
+      return _isMuted;
+    } catch (e) {
+      return _isMuted;
+    }
+  }
+
+  /// Whether local audio is currently muted.
+  bool get isMuted => _isMuted;
 
   // handle raw signaling messages
   void _handleSignalMessage(Map<String, dynamic> msg) async {
