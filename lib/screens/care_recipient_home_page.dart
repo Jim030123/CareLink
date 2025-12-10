@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
-import 'package:carelink_mobile/utils/emergency_calling.dart';
-import 'package:carelink_mobile/screens/cr_emergency_call.dart';
+import 'package:go_router/go_router.dart';
+// removed unused import: care_recipient emergency screen not referenced here
 
 class CareRecipientHomePage extends StatefulWidget {
   const CareRecipientHomePage({super.key});
@@ -49,7 +49,6 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   //help me fetchCurrentUser from user_service.dart
   String _username = ''; // populated from backend
   String? _clientId;
-  EmergencyCalling? _ec;
   bool _isCalling = false;
   String? _caregiverClientId;
   // TODO: replace with configured/assigned caregiver id from backend
@@ -75,9 +74,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
           _caregiverClientId = chosenId.isNotEmpty ? chosenId : null;
         });
         // initialize emergency calling helper for this client
-        if (_clientId != null) {
-          _initEmergencyCalling();
-        }
+
       }
     } catch (e) {
       debugPrint('Error loading current user: $e');
@@ -89,46 +86,9 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   // NOTE: on Android emulators use 10.0.2.2 to reach host machine's localhost.
   String _signalingUrl = 'ws://10.180.12.100:25101';
 
-  Future<void> _initEmergencyCalling() async {
-    if (_clientId == null) return;
-    try {
-      _ec = await EmergencyCalling.create(_signalingUrl, _clientId!, 'cr');
-      _ec?.onCallState = (s) {
-        if (!mounted) return;
-        setState(() {
-          _isCalling = (s == 'calling' || s == 'in_call');
-        });
-      };
-    } catch (e) {
-      debugPrint('Failed to init EmergencyCalling: $e');
-    }
-  }
 
-  Future<void> _startDirectCall() async {
-    if (_clientId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Client id unavailable')));
-      return;
-    }
-    // Use configured caregiver id if present; otherwise fall back to a test id 'CG-003'
-    final targetId = (_caregiverClientId != null && _caregiverClientId!.isNotEmpty) ? _caregiverClientId! : 'CG-003';
-    if (_caregiverClientId == null || _caregiverClientId!.isEmpty) {
-      // Inform user we're using debug fallback
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No caregiver configured, using test id CG-003')));
-    }
-    // Dispose any existing helper to avoid duplicate connections when opening the call screen
-    try { await _ec?.dispose(); } catch (_) {}
-    _ec = null;
 
-    // Navigate to the call screen which will create its own EmergencyCalling
-    Navigator.of(context).push(MaterialPageRoute(builder: (ctx) {
-      return CrEmergencyCall(
-        signalingUrl: _signalingUrl,
-        clientId: _clientId!,
-        role: 'cr',
-        targetClientId: targetId,
-      );
-    }));
-  }
+
   String _formatTime(DateTime dt) {
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final minute = dt.minute.toString().padLeft(2, '0');
@@ -160,7 +120,6 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
     _timer?.cancel();
     _helpTicker?.cancel();
     _helpCountdownNotifier.dispose();
-    try { _ec?.dispose(); } catch (_) {}
     super.dispose();
   }
 
@@ -242,8 +201,16 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
         if (mounted) {
           Navigator.of(context, rootNavigator: true).pop();
           SystemSound.play(SystemSoundType.alert);
-          // start direct emergency call to caregiver
-          _startDirectCall();
+          // navigate to the care recipient emergency call route
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (!mounted) return;
+            try {
+              GoRouter.of(context).go('/carerecipientemergencycall');
+            } catch (e) {
+              debugPrint('Navigation to emergency route failed: $e');
+            }
+          });
+
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) setState(() => _helpActive = false);
           });

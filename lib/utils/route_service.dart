@@ -1,5 +1,6 @@
 import 'package:carelink_mobile/screens/care_recipient_home_page.dart';
 import 'package:carelink_mobile/screens/caregiver_home_page.dart';
+import 'package:carelink_mobile/screens/cr_emergency_call.dart';
 import 'package:carelink_mobile/screens/home_resolver.dart';
 import 'package:carelink_mobile/screens/authentication/login_page.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
@@ -14,7 +15,7 @@ import 'package:carelink_mobile/screens/show_appointment.dart';
 import 'package:carelink_mobile/screens/profile_page.dart';
 import 'package:carelink_mobile/utils/test_page.dart';
 import 'package:carelink_mobile/utils/test_page_2.dart';
-import 'package:carelink_mobile/utils/test_page_3.dart';
+import 'package:carelink_mobile/screens/cg_emergency_call.dart';
 import 'package:go_router/go_router.dart';
 import 'package:carelink_mobile/screens/not_found_page.dart';
 
@@ -94,13 +95,13 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const ManageCareRecipient(),
     ),
 
-    GoRoute(
-      path: '/test',
-      builder: (context, state) => const TestPage(
-        caregiverId: 'CG-003',
-        signalingUrl: "ws://10.180.12.100:25101",
-      ),
-    ),
+    // GoRoute(
+    //   path: '/test',
+    //   builder: (context, state) => const TestPage(
+    //     caregiverId: 'CG-003',
+    //     signalingUrl: "ws://10.180.12.100:25101",
+    //   ),
+    // ),
 
     GoRoute(
       path: '/medication',
@@ -109,10 +110,18 @@ final GoRouter appRouter = GoRouter(
 
     GoRoute(
       path: '/caregiveremergencycall',
-      builder: (context, state) => const TestPage3(
+      builder: (context, state) => CGEmergencyCall(
         caregiverId: 'CG-003',
         signalingUrl: 'ws://10.180.12.100:25101',
-      ),//
+      ),
+    ),
+
+    GoRoute(
+      path: '/carerecipientemergencycall',
+      builder: (context, state) => CREmergencyCall(
+        careRecipientId: 'CR-011',
+        signalingUrl: 'ws://10.180.12.100:25101',
+      ),
     ),
   ],
 );
