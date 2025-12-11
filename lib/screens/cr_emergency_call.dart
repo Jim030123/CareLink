@@ -51,10 +51,6 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
     signaling = SignalingService(onMessage: handleSignalMessage);
 
     // ✅ connect 也要传 role（"cr"）
-    // Use a unique clientId for this Care Recipient instance instead of
-    // accidentally re-using the caregiverId (which would cause both sides to
-    // register the same clientId and prevent routing).
-    // If we don't have an auth UID, generate a unique client id; otherwise use the UID
     if (myClientId.isEmpty) {
       myClientId = 'CR-${const Uuid().v4()}';
     }
@@ -69,25 +65,36 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
   Future<void> _loadLocalUser() async {
     try {
       final u = await fetchCurrentUser();
+      if (!mounted) return;
+
       if (u != null) {
         final display = (u['displayName'] as String?)?.trim();
         setState(() {
-          myDisplayName = (display != null && display.isNotEmpty) ? display : (u['uid'] as String? ?? myClientId);
+          myDisplayName = (display != null && display.isNotEmpty)
+              ? display
+              : (u['uid'] as String? ?? myClientId);
           _hasCurrentUser = true;
         });
       } else {
         // fallback to FirebaseAuth displayName or uid
         final fa = FirebaseAuth.instance.currentUser;
         setState(() {
-          myDisplayName = (fa?.displayName != null && fa!.displayName!.isNotEmpty) ? fa.displayName! : (fa?.uid ?? myClientId);
+          myDisplayName = (fa?.displayName != null && fa!.displayName!.isNotEmpty)
+              ? fa.displayName!
+              : (fa?.uid ?? myClientId);
           _hasCurrentUser = false;
         });
       }
+
       // try to fetch remote caregiver displayName (if caregiverId is a uid)
       try {
         final remote = await fetchUserByUid(widget.caregiverId);
+        if (!mounted) return;
         if (remote != null) {
-          setState(() { remoteDisplayName = (remote['displayName'] as String?)?.trim() ?? (remote['uid'] as String? ?? widget.caregiverId); });
+          setState(() {
+            remoteDisplayName = (remote['displayName'] as String?)?.trim() ??
+                (remote['uid'] as String? ?? widget.caregiverId);
+          });
         }
       } catch (e) {
         // ignore remote lookup errors
@@ -280,18 +287,17 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
       try {
         await pc?.setRemoteDescription(answer);
         print("🔗 通话建立完成");
-        if (mounted) {
-          setState(() {
-            inCall = true;
-            isCalling = false;
-          });
-            // if remote renderer not set yet, try to attach ontrack handler
-            pc?.onTrack = (RTCTrackEvent event) {
-              if (event.streams.isNotEmpty) {
-                _remoteRenderer.srcObject = event.streams[0];
-              }
-            };
-        }
+        if (!mounted) return;
+        setState(() {
+          inCall = true;
+          isCalling = false;
+        });
+        // if remote renderer not set yet, try to attach ontrack handler
+        pc?.onTrack = (RTCTrackEvent event) {
+          if (event.streams.isNotEmpty) {
+            _remoteRenderer.srcObject = event.streams[0];
+          }
+        };
       } catch (e) {
         print('setRemoteDescription error: $e');
       }
@@ -340,14 +346,14 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
     if (type == "reject_call") {
       print("❌ Caregiver 拒接");
       // 可以提示 UI
-      endCall();
+      await endCall();
       if (mounted) setState(() { isCalling = false; inCall = false; currentCallId = null; });
       return;
     }
 
     if (type == "end_call") {
       print("🛑 通话结束");
-      endCall();
+      await endCall();
       if (mounted) setState(() { isCalling = false; inCall = false; currentCallId = null; });
       return;
     }
@@ -365,7 +371,7 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
   // ───────────────────────────────────────────
   // Step 3: 挂断
   // ───────────────────────────────────────────
-  Future<void> endCall() async {
+  Future<void> endCall({bool skipSetState = false}) async {
     if (currentCallId != null) {
       final ok = signaling.send({
         "type": "end_call",
@@ -378,7 +384,7 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
 
     try {
       print('CR: closing pc');
-      pc?.close();
+      await pc?.close();
     } catch (_) {}
     pc = null;
 
@@ -386,7 +392,10 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
     await _stopLocalMedia();
 
     currentCallId = null;
-    if (mounted) setState(() { isCalling = false; inCall = false; });
+    // Only update UI if still mounted and caller didn't request skip
+    if (!skipSetState && mounted) {
+      setState(() { isCalling = false; inCall = false; });
+    }
   }
 
   Future<void> _stopLocalMedia() async {
@@ -405,24 +414,61 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
     localStream = null;
     try { _localRenderer.srcObject = null; } catch (_) {}
     try { _remoteRenderer.srcObject = null; } catch (_) {}
-    setState(() { isMuted = false; });
+
+    // Only update UI state if widget is still mounted
+    if (mounted) {
+      setState(() { isMuted = false; });
+    }
+  }
+
+  // Synchronous forced cleanup used inside dispose (must NOT call setState)
+  void _forceCleanupSync() {
+    // prevent signaling callback from firing into this State after dispose
+    try {
+      // try to null the callback if SignalingService exposes it
+      // If your SignalingService doesn't expose a public field, add a method to clear callbacks.
+      // ignore: avoid_dynamic_calls
+      (signaling as dynamic).onMessage = null;
+    } catch (_) {}
+
+    try { signaling.unregister(); } catch (_) {}
+    try { signaling.close(); } catch (_) {}
+
+    try {
+      pc?.close();
+    } catch (_) {}
+    pc = null;
+
+    // stop tracks synchronously (best-effort)
+    if (localStream != null) {
+      for (var t in localStream!.getTracks()) {
+        try { t.stop(); } catch (_) {}
+      }
+      try { localStream?.dispose(); } catch (_) {}
+    }
+    localStream = null;
+
+    try { _localRenderer.srcObject = null; } catch (_) {}
+    try { _remoteRenderer.srcObject = null; } catch (_) {}
+    try { _remoteRenderer.dispose(); } catch (_) {}
+    try { _localRenderer.dispose(); } catch (_) {}
   }
 
   @override
   void dispose() {
-    endCall();
-    try {
-      signaling.unregister();
-    } catch (e) {}
-    signaling.close();
-    try { _remoteRenderer.dispose(); } catch (e) {}
-    try { _localRenderer.dispose(); } catch (e) {}
+    // synchronous cleanup only (no setState)
+    _forceCleanupSync();
+
+    // notify server / graceful teardown without touching UI (fire-and-forget)
+    endCall(skipSetState: true);
+
     super.dispose();
   }
 
   void _toggleMute() {
     if (localStream == null) {
       // nothing to mute; reflect UI state
+      if (!mounted) return;
       setState(() {
         isMuted = true;
       });
@@ -432,9 +478,11 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
       for (var t in localStream!.getAudioTracks()) {
         t.enabled = !t.enabled;
       }
-      setState(() {
-        isMuted = localStream!.getAudioTracks().every((t) => !t.enabled);
-      });
+      if (mounted) {
+        setState(() {
+          isMuted = localStream!.getAudioTracks().every((t) => !t.enabled);
+        });
+      }
     } catch (e) {
       print('CR: toggle mute error: $e');
     }
@@ -553,28 +601,10 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
                 child: const Text('📞 Emergency Call', style: TextStyle(fontSize: 22)),
                 onPressed: startCall,
               ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: endCall,
-                child: const Text('End Call'),
-              ),
-              const SizedBox(height: 20),
-              Text('CallId: ${currentCallId ?? "none"}'),
+          
             ],
 
-            const SizedBox(height: 12),
-            ElevatedButton(
-              child: const Text('Go to TestPage3', style: TextStyle(fontSize: 22)),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CGEmergencyCall(
-                    careRecipientID: widget.caregiverId,
-                    signalingUrl: widget.signalingUrl,
-                  ),
-                ),
-              ),
-            ),
+
           ],
         ),
       ),

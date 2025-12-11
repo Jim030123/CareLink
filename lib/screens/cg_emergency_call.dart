@@ -44,9 +44,13 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
   bool inCall = false;
   bool isMuted = false;
 
+  // internal flag to avoid touching UI after dispose
+  bool _disposed = false;
+
   @override
   void initState() {
     super.initState();
+    // Initialize renderers (fire-and-forget)
     initRenderers();
     signaling = SignalingService(onMessage: handleSignalMessage);
     // 连接 signaling server 并以 caregiver 身份 join
@@ -57,7 +61,11 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
   }
 
   Future<void> initRenderers() async {
-    await _remoteRenderer.initialize();
+    try {
+      await _remoteRenderer.initialize();
+    } catch (e) {
+      print('Caregiver: remote renderer init error: $e');
+    }
   }
 
   Future<void> _initLocalRenderer() async {
@@ -71,14 +79,18 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
   Future<void> _loadLocalUser() async {
     try {
       final u = await fetchCurrentUser();
+      if (!mounted || _disposed) return;
+
       if (u != null) {
         final display = (u['displayName'] as String?)?.trim();
+        if (!mounted || _disposed) return;
         setState(() {
           localDisplayName = display ?? (u['uid'] as String? ?? widget.careRecipientID);
           _hasCurrentUser = true;
         });
       } else {
         // fallback to provided careRecipientID
+        if (!mounted || _disposed) return;
         setState(() {
           localDisplayName = widget.careRecipientID;
           _hasCurrentUser = false;
@@ -86,14 +98,19 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
       }
     } catch (e) {
       print('Caregiver: loadLocalUser error: $e');
-      setState(() { _hasCurrentUser = false; });
+      if (!mounted || _disposed) return;
+      setState(() {
+        _hasCurrentUser = false;
+      });
     }
   }
 
   // 处理 signaling server 发来的消息
-  void handleSignalMessage(Map<String, dynamic> msg) async {
+  Future<void> handleSignalMessage(Map<String, dynamic> msg) async {
     // If the widget has been disposed, ignore incoming messages.
-    if (!mounted) return;
+    if (!mounted || _disposed) return;
+    // guard against bad payloads
+    if (msg == null) return;
     print('TestPage3: handleSignalMessage called - mounted=$mounted, msg=$msg');
 
     final type = msg['type'];
@@ -112,20 +129,27 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
         } catch (e) {}
       }
       print('Incoming call from $incomingFrom callId=$currentCallId');
-      if (mounted) {
-        setState(() {
-          isRinging = true;
+
+      if (!mounted || _disposed) return;
+      setState(() {
+        isRinging = true;
+      });
+
+      // try to resolve incomingFrom to a displayName (async)
+      if (incomingFrom != null && incomingFrom!.isNotEmpty) {
+        fetchUserByUid(incomingFrom!).then((u) {
+          if (!mounted || _disposed) return;
+          if (u != null) {
+            try {
+              if (!mounted || _disposed) return;
+              setState(() {
+                remoteDisplayName = (u['displayName'] as String?) ?? (u['uid'] as String? ?? incomingFrom!);
+              });
+            } catch (e) {}
+          }
+        }).catchError((e) {
+          print('Caregiver: fetch remote user error: $e');
         });
-        // try to resolve incomingFrom to a displayName
-        if (incomingFrom != null && incomingFrom!.isNotEmpty) {
-          fetchUserByUid(incomingFrom!).then((u) {
-            if (u != null) {
-              try {
-                setState(() { remoteDisplayName = (u['displayName'] as String?) ?? (u['uid'] as String? ?? incomingFrom!); });
-              } catch (e) {}
-            }
-          }).catchError((e) { print('Caregiver: fetch remote user error: $e'); });
-        }
       }
       // 弹 UI 由 build 显示
       return;
@@ -144,7 +168,9 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
           }
         } else {
           // buffer candidates until PC is ready
-          _bufferedCandidates.add(c as Map<String, dynamic>);
+          try {
+            _bufferedCandidates.add(Map<String, dynamic>.from(c as Map));
+          } catch (_) {}
         }
       }
       return;
@@ -155,11 +181,10 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
       final callId = msg['callId'];
       if (callId == currentCallId) {
         // 结束通话 / 来电
-        // _hangupFromRemote shows a SnackBar; ensure widget still mounted
-        if (mounted) {
-          _hangupFromRemote();
-        } else {
+        if (!mounted || _disposed) {
           _cleanupCall();
+        } else {
+          _hangupFromRemote();
         }
       }
       return;
@@ -168,6 +193,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
     // 如果是 answer（很少出现在 caregiver 端），忽略或处理
     if (type == 'answer') {
       // caregiver 通常不会收到 answer（caller 会），但如果你的流程不同可处理
+      return;
     }
 
     // If server sends an 'offer' message (in response to get_offer), store/complete
@@ -192,50 +218,58 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
 
     // 远端流处理（onTrack 或 onAddStream）
     pc!.onTrack = (RTCTrackEvent event) {
-      print('Caregiver: onTrack fired: streams=${event.streams.length}, track=${event.track.id}');
-      if (event.streams.isNotEmpty) {
-        final s = event.streams[0];
-        try {
-          final audioTracks = s.getAudioTracks();
-          print('Caregiver: remote stream id=${s.id}, audioTracks=${audioTracks.length}');
-          for (var t in audioTracks) {
-            print('Caregiver: remote audio track id=${t.id}, kind=${t.kind}, enabled=${t.enabled}');
+      try {
+        if (!mounted || _disposed) return;
+        if (event.streams.isNotEmpty) {
+          final s = event.streams[0];
+          try {
+            final audioTracks = s.getAudioTracks();
+            print('Caregiver: remote stream id=${s.id}, audioTracks=${audioTracks.length}');
+            for (var t in audioTracks) {
+              print('Caregiver: remote audio track id=${t.id}, kind=${t.kind}, enabled=${t.enabled}');
+            }
+          } catch (e) {
+            print('Caregiver: error enumerating remote tracks: $e');
           }
-        } catch (e) {
-          print('Caregiver: error enumerating remote tracks: $e');
+          _remoteRenderer.srcObject = s;
         }
-        _remoteRenderer.srcObject = s;
+      } catch (e) {
+        print('onTrack handler error: $e');
       }
     };
     // 兼容旧 API
     pc!.onAddStream = (MediaStream stream) {
-      print('Caregiver: onAddStream: ${stream.id}');
       try {
+        if (!mounted || _disposed) return;
+        print('Caregiver: onAddStream: ${stream.id}');
         final audioTracks = stream.getAudioTracks();
-        print('Caregiver: onAddStream remote audioTracks=${audioTracks.length}');
         for (var t in audioTracks) {
           print('Caregiver: onAddStream track id=${t.id}, enabled=${t.enabled}');
         }
+        _remoteRenderer.srcObject = stream;
       } catch (e) {
-        print('Caregiver: onAddStream error enumerating tracks: $e');
+        print('onAddStream handler error: $e');
       }
-      _remoteRenderer.srcObject = stream;
     };
 
     // ICE 候选：发送给 caller（以 callId 为路由）
     pc!.onIceCandidate = (RTCIceCandidate candidate) {
-      if (candidate.candidate != null && currentCallId != null) {
-        signaling.send({
-          'type': 'candidate',
-          'callId': currentCallId,
-          // Include explicit recipient (caller) to help server route this candidate
-          'to': incomingFrom,
-          'candidate': {
-            'candidate': candidate.candidate,
-            'sdpMid': candidate.sdpMid,
-            'sdpMLineIndex': candidate.sdpMLineIndex,
-          }
-        });
+      try {
+        if (candidate.candidate != null && currentCallId != null) {
+          signaling.send({
+            'type': 'candidate',
+            'callId': currentCallId,
+            // Include explicit recipient (caller) to help server route this candidate
+            'to': incomingFrom,
+            'candidate': {
+              'candidate': candidate.candidate,
+              'sdpMid': candidate.sdpMid,
+              'sdpMLineIndex': candidate.sdpMLineIndex,
+            }
+          });
+        }
+      } catch (e) {
+        print('onIceCandidate error: $e');
       }
     };
 
@@ -255,7 +289,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
     final ok = await _requestMicPermission();
     if (!ok) {
       print('Microphone permission denied');
-      if (mounted) {
+      if (mounted && !_disposed) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone permission is required')));
       }
       return;
@@ -271,7 +305,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
         print('Caregiver: added local track id=${t.id}, kind=${t.kind}');
       }
       try {
-        _localRenderer.srcObject = localStream;
+        if (mounted && !_disposed) _localRenderer.srcObject = localStream;
       } catch (e) {
         print('Caregiver: failed to attach local renderer: $e');
       }
@@ -279,26 +313,8 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
       print('getUserMedia error: $e');
       // 如果无法获取麦克风，仍可创建 answer（但通话无声音）或拒接
     }
+
     // 设置远端 offer
-    // NOTE: 来电的 offer 在 signaling msg 的 offer 字段
-    // 我们假设 server 发来的 offer 格式为 { sdp, type }
-    // 如果 offer 不在 currentCallId 的消息里，你应把刚收到的 incoming_call 的 offer 缓存
-    // 这里尝试从 incoming call 处理（需 earlier 保存）
-    // For safety, try to read a cached offer from incomingMeta or last message
-    // but easier: expect server includes offer in incoming_call (we did in server).
-    // We'll request the offer from the server by sending a 'get_offer' if needed.
-    // For now, rely on msg.offer passed when incoming_call arrived and stored in incomingMeta
-    // We'll search for it in incomingMeta (or you can modify server to guarantee offer in incoming_call)
-    // Implementation below expects that incoming offer was stored in incomingMeta['offer'] or the incoming message previously kept it.
-
-    // For robust approach: ask server for the offer if not present.
-    // But in our flow the server forwarded offer in incoming_call, so we stored it earlier.
-    // We'll retrieve from incomingMeta or from the earlier incoming message variable
-    // (We stored none; so let's request the offer by a simple protocol: send 'get_offer')
-    // To keep simple, assume incoming offer was included as last message - so caller included it.
-    // If you find no offer, you should implement a 'get_offer' message to server.
-
-    // Attempt: ask server for offer if we don't have one in incomingMeta
     String? offerSdp;
     String? offerType;
     // Prefer an offer stored earlier (incoming_call may include it)
@@ -361,13 +377,14 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
       }
       _bufferedCandidates.clear();
 
-      if (mounted) {
+      if (mounted && !_disposed) {
         setState(() {
           inCall = true;
           isRinging = false;
         });
         // attach onTrack to populate remote renderer
         pc?.onTrack = (RTCTrackEvent event) {
+          if (!mounted || _disposed) return;
           if (event.streams.isNotEmpty) {
             _remoteRenderer.srcObject = event.streams[0];
           }
@@ -398,7 +415,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
         'callId': currentCallId,
       });
     }
-    if (mounted) {
+    if (mounted && !_disposed) {
       setState(() {
         isRinging = false;
         currentCallId = null;
@@ -417,7 +434,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
   void _hangupFromRemote() {
     _cleanupCall();
     // Only show SnackBar if still mounted and the context is valid
-    if (mounted) {
+    if (mounted && !_disposed) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Call ended')));
     }
   }
@@ -452,10 +469,10 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
     } catch (e) {}
     localStream = null;
 
-    _remoteRenderer.srcObject = null;
-    try { _localRenderer.srcObject = null; } catch (e) {}
+    try { _remoteRenderer.srcObject = null; } catch (_) {}
+    try { _localRenderer.srcObject = null; } catch (_) {}
     // Protect against calling setState after dispose (defunct element)
-    if (mounted) {
+    if (mounted && !_disposed) {
       setState(() {
         currentCallId = null;
         incomingFrom = null;
@@ -475,15 +492,34 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
 
   @override
   void dispose() {
-    _remoteRenderer.dispose();
-    // Unregister callback first to avoid any in-flight messages calling into
-    // this widget after dispose. Then close the websocket.
+    // set disposed flag first
+    _disposed = true;
+
+    // Replace signaling callback with harmless no-op to prevent races
+    try {
+      // If SignalingService exposes a public setter, use that; otherwise try dynamic
+      try {
+        signaling.onMessage = (Map<String, dynamic> _) {};
+      } catch (_) {
+        // fallback dynamic assignment
+        // ignore: avoid_dynamic_calls
+        (signaling as dynamic).onMessage = (Map<String, dynamic> _) {};
+      }
+    } catch (_) {}
+
     try {
       signaling.unregister();
     } catch (e) {}
-    signaling.close();
+    try {
+      signaling.close();
+    } catch (e) {}
+
+    // Cleanup call-related native resources synchronously (no setState here)
     _cleanupCall();
+
+    try { _remoteRenderer.dispose(); } catch (e) {}
     try { _localRenderer.dispose(); } catch (e) {}
+
     super.dispose();
   }
 
@@ -635,6 +671,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
   void _toggleMute() {
     if (localStream == null) {
       // nothing to mute
+      if (!mounted || _disposed) return;
       setState(() {
         isMuted = true;
       });
@@ -644,6 +681,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
       for (var t in localStream!.getAudioTracks()) {
         t.enabled = !t.enabled;
       }
+      if (!mounted || _disposed) return;
       setState(() {
         isMuted = localStream!.getAudioTracks().every((t) => !t.enabled);
       });
