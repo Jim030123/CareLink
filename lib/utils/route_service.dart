@@ -1,7 +1,7 @@
 import 'package:carelink_mobile/screens/care_recipient_home_page.dart';
 import 'package:carelink_mobile/screens/caregiver_home_page.dart';
 import 'package:carelink_mobile/screens/cr_emergency_call.dart';
-import 'package:carelink_mobile/screens/home_resolver.dart';
+import 'package:carelink_mobile/utils/home_resolver.dart';
 import 'package:carelink_mobile/screens/authentication/login_page.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
 import 'package:carelink_mobile/screens/manage_caregiver.dart';
@@ -111,7 +111,7 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/caregiveremergencycall',
       builder: (context, state) => CGEmergencyCall(
-        caregiverId: 'CG-003',
+        careRecipientID: 'CR-011',
         signalingUrl: 'ws://10.180.12.100:25101',
       ),
     ),
@@ -119,7 +119,7 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/carerecipientemergencycall',
       builder: (context, state) => CREmergencyCall(
-        careRecipientId: 'CR-011',
+        caregiverId: 'CG-003',
         signalingUrl: 'ws://10.180.12.100:25101',
       ),
     ),

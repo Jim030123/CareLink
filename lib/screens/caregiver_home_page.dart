@@ -1,6 +1,7 @@
 import 'package:carelink_mobile/components/home_appbar.dart';
 import 'package:carelink_mobile/components/home_calendar.dart';
 import 'package:carelink_mobile/models/home_service.dart';
+import 'package:carelink_mobile/screens/cg_emergency_call.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:math';
@@ -93,7 +94,15 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         title: 'Activity',
         icon: Icons.directions_run,
         color: Colors.teal,
-        onTap: () => context.push('/caregiveremergencycall'),
+        onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CGEmergencyCall(
+                    careRecipientID: 'CG-003',
+                    signalingUrl:'ws://10.180.12.100:25101',
+                  ),
+                ),
+              ),
       ),
     ];
   }

@@ -205,7 +205,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
           Future.delayed(const Duration(milliseconds: 200), () {
             if (!mounted) return;
             try {
-              GoRouter.of(context).go('/carerecipientemergencycall');
+              context.push('/carerecipientemergencycall');
             } catch (e) {
               debugPrint('Navigation to emergency route failed: $e');
             }

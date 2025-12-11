@@ -1,20 +1,22 @@
-// lib/screens/cremergency_call.dart
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:carelink_mobile/screens/cg_emergency_call.dart';
+import 'package:carelink_mobile/utils/signal_service.dart';
+import 'package:carelink_mobile/utils/user_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
-import 'package:carelink_mobile/utils/signal_service.dart';
-import 'package:carelink_mobile/screens/cg_emergency_call.dart'; // optional: navigate to CG page for testing
-
 class CREmergencyCall extends StatefulWidget {
-  final String careRecipientId;
+  final String caregiverId;
   final String signalingUrl;
 
   const CREmergencyCall({
     super.key,
-    required this.careRecipientId,
+    required this.caregiverId,
     required this.signalingUrl,
   });
 
@@ -26,7 +28,16 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
   late SignalingService signaling;
   RTCPeerConnection? pc;
   MediaStream? localStream;
+  final _remoteRenderer = RTCVideoRenderer();
+  final _localRenderer = RTCVideoRenderer();
+  // Prefer using authenticated Firebase UID as clientId when available; fallback to generated ID
+  String myClientId = FirebaseAuth.instance.currentUser?.uid ?? '';
+  String myDisplayName = '';
+  String remoteDisplayName = '';
+  bool _hasCurrentUser = false;
+
   String? currentCallId;
+  // Completer to wait for server ack when starting a call
   Completer<String?>? _startCallAckCompleter;
   bool isCalling = false;
   bool inCall = false;
@@ -35,129 +46,262 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
   @override
   void initState() {
     super.initState();
+
+    // ✅ 正确做法：在 constructor 传入回调
     signaling = SignalingService(onMessage: handleSignalMessage);
-    final myClientId = 'CR-${const Uuid().v4()}';
-    debugPrint('CREmergencyCall: joining as $myClientId');
-    signaling.connect(widget.signalingUrl, myClientId, 'cr');
+
+    // ✅ connect 也要传 role（"cr"）
+    // Use a unique clientId for this Care Recipient instance instead of
+    // accidentally re-using the caregiverId (which would cause both sides to
+    // register the same clientId and prevent routing).
+    // If we don't have an auth UID, generate a unique client id; otherwise use the UID
+    if (myClientId.isEmpty) {
+      myClientId = 'CR-${const Uuid().v4()}';
+    }
+    print('TestPage: using clientId=$myClientId to join signaling');
+    signaling.connect(widget.signalingUrl, myClientId, "cr");
+    // 初始化 renderers for video
+    _initRenderers();
+    // load local user profile (displayName)
+    _loadLocalUser();
   }
 
+  Future<void> _loadLocalUser() async {
+    try {
+      final u = await fetchCurrentUser();
+      if (u != null) {
+        final display = (u['displayName'] as String?)?.trim();
+        setState(() {
+          myDisplayName = (display != null && display.isNotEmpty) ? display : (u['uid'] as String? ?? myClientId);
+          _hasCurrentUser = true;
+        });
+      } else {
+        // fallback to FirebaseAuth displayName or uid
+        final fa = FirebaseAuth.instance.currentUser;
+        setState(() {
+          myDisplayName = (fa?.displayName != null && fa!.displayName!.isNotEmpty) ? fa.displayName! : (fa?.uid ?? myClientId);
+          _hasCurrentUser = false;
+        });
+      }
+      // try to fetch remote caregiver displayName (if caregiverId is a uid)
+      try {
+        final remote = await fetchUserByUid(widget.caregiverId);
+        if (remote != null) {
+          setState(() { remoteDisplayName = (remote['displayName'] as String?)?.trim() ?? (remote['uid'] as String? ?? widget.caregiverId); });
+        }
+      } catch (e) {
+        // ignore remote lookup errors
+      }
+    } catch (e) {
+      print('CR: loadLocalUser error: $e');
+    }
+  }
+
+  Future<void> _initRenderers() async {
+    try {
+      await _remoteRenderer.initialize();
+      await _localRenderer.initialize();
+    } catch (e) {
+      print('CR: renderer init error: $e');
+    }
+  }
+
+  // ───────────────────────────────────────────
+  // Step 1: CR 按按钮 → 创建 Offer & 发起呼叫
+  // ───────────────────────────────────────────
   Future<void> startCall() async {
+    // Ensure signaling attempted connection / join before sending
     await signaling.ready;
-    // create PeerConnection
+    // 创建 PeerConnection
     pc = await createPeerConnection({
       'iceServers': [
         {'urls': 'stun:stun.l.google.com:19302'},
-      ],
+      ]
     });
 
-    // capture mic (audio-only)
+    // Attach remote track handler early so remote video is shown as soon as available
+    pc!.onTrack = (RTCTrackEvent event) {
+      try {
+        if (event.streams.isNotEmpty) {
+          _remoteRenderer.srcObject = event.streams[0];
+        }
+      } catch (e) {
+        print('CR: onTrack error: $e');
+      }
+    };
+    // Compatibility with older API
+    pc!.onAddStream = (MediaStream stream) {
+      try {
+        _remoteRenderer.srcObject = stream;
+      } catch (e) {
+        print('CR: onAddStream error: $e');
+      }
+    };
+
+    // 捕获麦克风
     try {
       localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
-        'video': false,
+        // enable video for video call
+        'video': {
+          'facingMode': 'user',
+        },
       });
+      print('CR: acquired localStream id=${localStream?.id}');
+      // Debug: log local audio tracks
+      try {
+        final audioTracks = localStream!.getAudioTracks();
+        print('CR: got localStream id=${localStream!.id}, audioTracks=${audioTracks.length}');
+        for (var t in audioTracks) {
+          print('CR: local audio track id=${t.id}, kind=${t.kind}, enabled=${t.enabled}');
+        }
+      } catch (e) {
+        print('CR: error enumerating local tracks: $e');
+      }
+      // 旧 API: addStream, 新版建议 addTrack；这里用 addTrack 更稳
       for (var t in localStream!.getTracks()) {
         pc!.addTrack(t, localStream!);
+        print('CR: added local track id=${t.id}, kind=${t.kind}');
+      }
+      // attach local stream to renderer for preview
+      try {
+        _localRenderer.srcObject = localStream;
+      } catch (e) {
+        print('CR: failed to attach local renderer: $e');
       }
     } catch (e) {
-      debugPrint('CREmergencyCall: getUserMedia error: $e');
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission required')),
-        );
+      print('getUserMedia error: $e');
       return;
     }
 
-    // send ICE candidates
+    // 监听 ICE candidate
     pc!.onIceCandidate = (RTCIceCandidate? candidate) {
       if (candidate != null && currentCallId != null) {
         signaling.send({
-          'type': 'candidate',
-          'callId': currentCallId,
-          'to': widget.careRecipientId,
-          'candidate': {
-            'candidate': candidate.candidate,
-            'sdpMid': candidate.sdpMid,
-            'sdpMLineIndex': candidate.sdpMLineIndex,
-          },
+          "type": "candidate",
+          "callId": currentCallId,
+          // Include explicit recipient to help signaling server routing
+          "to": widget.caregiverId,
+          "candidate": {
+            "candidate": candidate.candidate,
+            "sdpMid": candidate.sdpMid,
+            "sdpMLineIndex": candidate.sdpMLineIndex,
+          }
         });
       }
     };
 
-    // create offer
+    // Debug: connection/signaling state
+    try {
+      pc!.onConnectionState = (RTCPeerConnectionState state) {
+        print('CR: pc connection state -> $state');
+      };
+      pc!.onSignalingState = (RTCSignalingState state) {
+        print('CR: pc signaling state -> $state');
+      };
+    } catch (e) {
+      // ignore if older flutter_webrtc version doesn't support these callbacks
+    }
+
+    // 创建 offer
     final offer = await pc!.createOffer();
     await pc!.setLocalDescription(offer);
 
-    // generate callId and wait for ack
-    final callIdLocal = const Uuid().v4();
+    // 建立 callId
+    final callId = const Uuid().v4();
+
+    // prepare a completer and send start_call; we'll wait for start_call_ack
     _startCallAckCompleter = Completer<String?>();
-    signaling.send({
-      'type': 'start_call',
-      'to': widget.careRecipientId,
-      'callId': callIdLocal,
-      'offer': {'sdp': offer.sdp, 'type': offer.type},
-    });
 
-    if (mounted)
-      setState(() {
-        isCalling = true;
-      });
+    final startPayload = {
+      "type": "start_call",
+      "to": "CG-003",
+      "callId": callId,
+      "offer": {
+        "sdp": offer.sdp,
+        "type": offer.type,
+      }
+    };
 
+    // Log the exact payload so we can verify `to` is present (e.g. 'CG-003')
     try {
-      final ackCallId = await _startCallAckCompleter!.future.timeout(
-        const Duration(seconds: 5),
-      );
+      print('📞 CR → sending start_call payload: ${jsonEncode(startPayload)}');
+    } catch (e) {
+      // Fallback to printing the map if JSON encoding fails
+      print('📞 CR → sending start_call payload (map): $startPayload');
+    }
+
+    if (widget.caregiverId.trim().isEmpty) {
+      print('CR: WARNING — caregiverId is empty. start_call will not be routable (missing `to`).');
+    }
+
+    signaling.send(startPayload);
+
+    print("📞 CR → 发起呼叫 (sent), awaiting ack, callId(local) = $callId");
+
+    // update UI to show calling state
+    if (mounted) setState(() { isCalling = true; });
+
+    // wait up to 5s for server ack that it forwarded the incoming_call
+    try {
+      final ackCallId = await _startCallAckCompleter!.future.timeout(const Duration(seconds: 5));
       if (ackCallId != null) {
         currentCallId = ackCallId;
-        debugPrint(
-          'CREmergencyCall: start_call ack received callId=$currentCallId',
-        );
+        print('start_call acknowledged by server, callId=$currentCallId');
       } else {
-        debugPrint('CREmergencyCall: start_call ack received null');
+        print('start_call ack received but no callId');
       }
     } catch (e) {
-      debugPrint('CREmergencyCall: no start_call_ack within timeout: $e');
+      print('No start_call_ack received within timeout: $e');
+      // leave currentCallId as null to prevent candidate sends
       currentCallId = null;
-      if (mounted)
-        setState(() {
-          isCalling = false;
-        });
+      if (mounted) {
+        setState(() { isCalling = false; });
+      }
     } finally {
       _startCallAckCompleter = null;
     }
   }
 
+  // ───────────────────────────────────────────
+  // Step 2: 处理从服务器收到的信令消息
+  // ───────────────────────────────────────────
   void handleSignalMessage(Map<String, dynamic> msg) async {
     final type = msg['type'];
-    if (type == 'start_call_ack') {
-      try {
-        _startCallAckCompleter?.complete(msg['callId'] as String?);
-      } catch (_) {}
-      return;
-    }
 
-    if (type == 'answer') {
-      final ans = msg['answer'] as Map<String, dynamic>?;
-      if (ans != null) {
-        final desc = RTCSessionDescription(
-          ans['sdp'] as String?,
-          ans['type'] as String?,
-        );
-        try {
-          await pc?.setRemoteDescription(desc);
-          if (mounted)
-            setState(() {
-              inCall = true;
-              isCalling = false;
-            });
-        } catch (e) {
-          debugPrint('CREmergencyCall: setRemoteDescription(answer) error: $e');
+    // Caregiver 已接听 → 收到 answer
+    if (type == "answer") {
+      print("📲 收到 caregiver answer");
+
+      final answer = RTCSessionDescription(
+        msg['answer']['sdp'] as String,
+        msg['answer']['type'] as String,
+      );
+      try {
+        await pc?.setRemoteDescription(answer);
+        print("🔗 通话建立完成");
+        if (mounted) {
+          setState(() {
+            inCall = true;
+            isCalling = false;
+          });
+            // if remote renderer not set yet, try to attach ontrack handler
+            pc?.onTrack = (RTCTrackEvent event) {
+              if (event.streams.isNotEmpty) {
+                _remoteRenderer.srcObject = event.streams[0];
+              }
+            };
         }
+      } catch (e) {
+        print('setRemoteDescription error: $e');
       }
       return;
     }
 
-    if (type == 'candidate') {
+    // 收到 candidate
+    if (type == "candidate") {
+      print("📡 收到 candidate");
+
       final c = msg['candidate'];
       if (c != null) {
         final candidate = RTCIceCandidate(
@@ -168,83 +312,117 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
         try {
           await pc?.addCandidate(candidate);
         } catch (e) {
-          debugPrint('CREmergencyCall: addCandidate error: $e');
+          // some flutter_webrtc versions use addCandidate, others use addIceCandidate;
+          // if addCandidate is not available, try addIceCandidate (but do not define an extension)
+          print('addCandidate error: $e');
         }
       }
       return;
     }
 
-    if (type == 'reject_call') {
-      debugPrint('CREmergencyCall: call rejected');
-      await endCall();
-      if (mounted)
-        setState(() {
-          isCalling = false;
-          inCall = false;
-          currentCallId = null;
-        });
-      return;
-    }
-
-    if (type == 'end_call') {
-      await endCall();
-      if (mounted)
-        setState(() {
-          isCalling = false;
-          inCall = false;
-          currentCallId = null;
-        });
-      return;
-    }
-
+    // server-side error notifications
     if (type == 'error') {
-      final msgTxt = msg['message'];
-      debugPrint('CREmergencyCall: signaling error $msgTxt');
-      try {
-        _startCallAckCompleter?.complete(null);
-      } catch (_) {}
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Signaling error: $msgTxt')));
+      final err = msg['message'];
+      print('Signaling error from server: $err');
+      // If we were awaiting start_call_ack, notify the waiter
+      if (_startCallAckCompleter != null) {
+        try {
+          _startCallAckCompleter?.complete(null);
+        } catch (e) {}
+      }
+      // Optionally show UI message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Signaling error: $err')));
+      }
       return;
+    }
+
+    if (type == "reject_call") {
+      print("❌ Caregiver 拒接");
+      // 可以提示 UI
+      endCall();
+      if (mounted) setState(() { isCalling = false; inCall = false; currentCallId = null; });
+      return;
+    }
+
+    if (type == "end_call") {
+      print("🛑 通话结束");
+      endCall();
+      if (mounted) setState(() { isCalling = false; inCall = false; currentCallId = null; });
+      return;
+    }
+
+    // 处理其他类型如 incoming_call (如果 CR 也能收到自己的 start_call 回 ack)
+    if (type == 'start_call_ack') {
+      // server ack with callId
+      print('start_call ack: ${msg['callId']}');
+      try {
+        _startCallAckCompleter?.complete(msg['callId'] as String?);
+      } catch (e) {}
     }
   }
 
+  // ───────────────────────────────────────────
+  // Step 3: 挂断
+  // ───────────────────────────────────────────
   Future<void> endCall() async {
     if (currentCallId != null) {
-      signaling.send({'type': 'end_call', 'callId': currentCallId});
+      final ok = signaling.send({
+        "type": "end_call",
+        "callId": currentCallId,
+      });
+      print('CR: sent end_call (callId=$currentCallId) sendReturned=$ok');
+      // Small delay to allow signaling message to be delivered before tearing down
       await Future.delayed(const Duration(milliseconds: 250));
     }
+
     try {
+      print('CR: closing pc');
       pc?.close();
     } catch (_) {}
     pc = null;
 
-    try {
-      if (localStream != null) {
-        for (var t in localStream!.getTracks()) {
-          try {
-            t.stop();
-          } catch (_) {}
-        }
-        try {
-          localStream?.dispose();
-        } catch (_) {}
-      }
-    } catch (_) {}
-    localStream = null;
+    // ensure local media (camera + mic) are stopped together
+    await _stopLocalMedia();
 
     currentCallId = null;
-    if (mounted)
-      setState(() {
-        isCalling = false;
-        inCall = false;
-      });
+    if (mounted) setState(() { isCalling = false; inCall = false; });
+  }
+
+  Future<void> _stopLocalMedia() async {
+    try {
+      if (localStream != null) {
+        print('CR: stopping localStream id=${localStream!.id}');
+        for (var t in localStream!.getTracks()) {
+          print('CR: stopping track id=${t.id} kind=${t.kind}');
+          try { t.stop(); } catch (_) {}
+        }
+        try { await localStream?.dispose(); } catch (_) {}
+      }
+    } catch (e) {
+      print('CR: error stopping local media: $e');
+    }
+    localStream = null;
+    try { _localRenderer.srcObject = null; } catch (_) {}
+    try { _remoteRenderer.srcObject = null; } catch (_) {}
+    setState(() { isMuted = false; });
+  }
+
+  @override
+  void dispose() {
+    endCall();
+    try {
+      signaling.unregister();
+    } catch (e) {}
+    signaling.close();
+    try { _remoteRenderer.dispose(); } catch (e) {}
+    try { _localRenderer.dispose(); } catch (e) {}
+    super.dispose();
   }
 
   void _toggleMute() {
     if (localStream == null) {
+      // nothing to mute; reflect UI state
       setState(() {
         isMuted = true;
       });
@@ -258,30 +436,84 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
         isMuted = localStream!.getAudioTracks().every((t) => !t.enabled);
       });
     } catch (e) {
-      debugPrint('CREmergencyCall: toggle mute error $e');
+      print('CR: toggle mute error: $e');
     }
   }
 
-  @override
-  void dispose() {
-    endCall();
-    signaling.onMessage = null; // <-- remove listener
-    signaling.close();
-    super.dispose();
-  }
-
+  // ───────────────────────────────────────────
+  // UI
+  // ───────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Care Recipient - Emergency Call')),
+      appBar: AppBar(title: const Text("CR Emergency Call")),
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // split view: left = local (self), right = remote (other)
+            _hasCurrentUser
+                ? Stack(
+                    children: [
+                      Container(
+                        height: 300,
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                color: Colors.black,
+                                child: RTCVideoView(_localRenderer, mirror: true),
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            Expanded(
+                              child: Container(
+                                color: Colors.black,
+                                child: RTCVideoView(_remoteRenderer),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // local name box (left)
+                      Positioned(
+                        left: 8,
+                        bottom: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text('You: ${myDisplayName.isNotEmpty ? myDisplayName : myClientId}', style: const TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                      // remote name box (right)
+                      Positioned(
+                        right: 8,
+                        bottom: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text('Other: ${remoteDisplayName.isNotEmpty ? remoteDisplayName : (widget.caregiverId.isNotEmpty ? widget.caregiverId : "-")}', style: const TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                    ],
+                  )
+                : Container(
+                    height: 300,
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    color: Colors.black12,
+                    child: const Center(child: Text('Waiting', style: TextStyle(fontSize: 18))),
+                  ),
             if (inCall) ...[
               const Icon(Icons.call, size: 80, color: Colors.green),
               const SizedBox(height: 12),
-              Text('In call with ${widget.careRecipientId}'),
+              Text('In call with ${widget.caregiverId}'),
               const SizedBox(height: 12),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -289,9 +521,7 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.call_end),
                     label: const Text('Hang up'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                    ),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                     onPressed: endCall,
                   ),
                   const SizedBox(width: 12),
@@ -305,35 +535,45 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
             ] else if (isCalling) ...[
               const Icon(Icons.call_made, size: 80, color: Colors.orange),
               const SizedBox(height: 12),
-              Text('Calling ${widget.careRecipientId}...'),
+              Text('Calling ${widget.caregiverId}...'),
               const SizedBox(height: 12),
-              ElevatedButton(onPressed: endCall, child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () {
+                  // cancel the outgoing call
+                  endCall();
+                },
+                child: const Text('Cancel'),
+              ),
             ] else ...[
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 40,
-                    vertical: 20,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                 ),
-                child: const Text(
-                  '📞 Emergency Call',
-                  style: TextStyle(fontSize: 22),
-                ),
+                child: const Text('📞 Emergency Call', style: TextStyle(fontSize: 22)),
                 onPressed: startCall,
               ),
               const SizedBox(height: 12),
-              ElevatedButton(onPressed: endCall, child: const Text('End Call')),
+              ElevatedButton(
+                onPressed: endCall,
+                child: const Text('End Call'),
+              ),
               const SizedBox(height: 20),
               Text('CallId: ${currentCallId ?? "none"}'),
             ],
+
             const SizedBox(height: 12),
             ElevatedButton(
-              child: const Text('Open Caregiver page (for test)'),
-              onPressed: () {
-                context.push('/caregiveremergencycall');
-              },
+              child: const Text('Go to TestPage3', style: TextStyle(fontSize: 22)),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CGEmergencyCall(
+                    careRecipientID: widget.caregiverId,
+                    signalingUrl: widget.signalingUrl,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
