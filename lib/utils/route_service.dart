@@ -112,7 +112,7 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/caregiveremergencycall',
       builder: (context, state) => CGEmergencyCall(
-        careRecipientID: 'CR-011',
+        careRecipientID: 'CG-003',
         signalingUrl: dotenv.env['RTC_URL']!,
       ),
     ),

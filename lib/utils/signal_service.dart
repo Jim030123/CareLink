@@ -87,6 +87,24 @@ class SignalingService {
 
     // Send join (will be queued if send() detects not-yet-joined)
     send({"type": "join", "clientId": clientId, "role": role});
+
+    // Some signaling servers don't send a 'joined' acknowledgement back to the
+    // client. To avoid leaving queued messages forever (which causes e.g.
+    // `start_call` to never be delivered), complete the joined completer after
+    // a short timeout if the server didn't explicitly ack. This makes the
+    // client more tolerant of different server implementations while still
+    // preferring an explicit 'joined' ACK when present.
+    Future.delayed(const Duration(seconds: 1), () {
+      try {
+        if (_joinedCompleter != null && !_joinedCompleter!.isCompleted) {
+          _joinedCompleter!.complete();
+          _flushPending();
+          print('SignalingService: joined timeout - auto-completing joined state');
+        }
+      } catch (e) {
+        // ignore
+      }
+    });
   }
 
   // Helper: extract the first JSON object from a string using brace counting.

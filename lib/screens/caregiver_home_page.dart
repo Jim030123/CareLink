@@ -54,16 +54,14 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         title: 'Medication',
         icon: Icons.medication, // fallback: Icons.local_pharmacy
         color: Colors.blue.shade600,
-        onTap: () {
-        },
+        onTap: () {},
       ),
 
       Service(
         title: 'Remote Monitor',
         icon: Icons.devices,
         color: Colors.green.shade600,
-        onTap: () {
-        },
+        onTap: () {},
       ),
 
       Service(
@@ -95,15 +93,8 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         title: 'Activity',
         icon: Icons.directions_run,
         color: Colors.teal,
-                  onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CGEmergencyCall(
-                    careRecipientID: 'CG-003',
-                    signalingUrl: dotenv.env['RTC_URL']!,
-                  ),
-                ),
-              ),
+        onTap: () =>context.push('/caregiveremergencycall'),
+
       ),
     ];
   }
@@ -253,8 +244,7 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
                       child: Container(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {
-                          },
+                          onPressed: () {},
                           child: Text(
                             'See All >>',
                             style: TextStyle(
@@ -382,8 +372,7 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
                       child: Container(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {
-                          },
+                          onPressed: () {},
                           child: Text(
                             'See All >>',
                             style: TextStyle(
@@ -440,27 +429,26 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
             ),
           ),
 
-
           SliverToBoxAdapter(
             child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Theme.of(context).colorScheme.primary.withOpacity(0.08),
-                      Theme.of(context).colorScheme.secondary.withOpacity(0.06),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16.r),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
-                    ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                    Theme.of(context).colorScheme.secondary.withOpacity(0.06),
                   ],
                 ),
+                borderRadius: BorderRadius.circular(16.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
               padding: EdgeInsets.all(16.w),
               child: SizedBox(
                 height: MediaQuery.of(context).size.height * 0.6,
@@ -473,7 +461,10 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
                       alignment: Alignment.topCenter,
                       child: Text(
                         'Chat with the assistant for quick help and tips.',
-                        style: TextStyle(fontSize: 14.sp, color: Colors.black54),
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: Colors.black54,
+                        ),
                       ),
                     ),
                   ],
