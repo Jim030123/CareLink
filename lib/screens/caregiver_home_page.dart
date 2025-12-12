@@ -8,6 +8,7 @@ import 'dart:math';
 import 'package:carelink_mobile/components/health_card.dart';
 import 'package:carelink_mobile/components/ai_chat_box.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class CaregiverHomePage extends StatefulWidget {
   const CaregiverHomePage({super.key});
@@ -94,12 +95,12 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         title: 'Activity',
         icon: Icons.directions_run,
         color: Colors.teal,
-        onTap: () => Navigator.push(
+                  onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => CGEmergencyCall(
                     careRecipientID: 'CG-003',
-                    signalingUrl:'ws://10.180.12.100:25101',
+                    signalingUrl: dotenv.env['RTC_URL']!,
                   ),
                 ),
               ),

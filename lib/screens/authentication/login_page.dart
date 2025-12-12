@@ -1,6 +1,5 @@
 import 'package:carelink_mobile/components/text_field.dart';
-import 'package:carelink_mobile/utils/auth_service.dart';
-import 'package:carelink_mobile/utils/secure_auth.dart';
+import 'package:carelink_mobile/controllers/login_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
@@ -14,91 +13,18 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passController = TextEditingController();
-  bool _biometricAvailable = false;
+  final LoginController _controller = LoginController();
 
   @override
   void initState() {
     super.initState();
-    _checkBiometricAvailability();
+    _controller.init();
   }
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passController.dispose();
+    _controller.dispose();
     super.dispose();
-  }
-
-  /// 统一弹 SnackBar，内部自己做 mounted 检查
-  void _showSnack(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _checkBiometricAvailability() async {
-    try {
-      final creds = await SecureAuth.getCredentials();
-      final hasCred = creds['email'] != null && creds['password'] != null;
-      final can = await SecureAuth.canAuthenticate();
-      if (!mounted) return;
-      setState(() {
-        _biometricAvailable = hasCred && can;
-      });
-    } catch (e) {
-      debugPrint('LoginPage: biometric availability check failed: $e');
-    }
-  }
-
-  Future<void> _onLogin() async {
-    // Validate form fields first; if invalid, show field errors and stop.
-    if (!_formKey.currentState!.validate()) return;
-
-    try {
-      await AuthService.instance.signInWithEmail(
-        email: _emailController.text,
-        password: _passController.text,
-      );
-
-      // Save credentials so biometric login becomes available next time.
-      try {
-        await SecureAuth.clearCredentials();
-        await SecureAuth.saveCredentials(
-          email: _emailController.text.trim(),
-          password: _passController.text,
-        );
-      } catch (e) {
-        debugPrint('LoginPage: failed to replace saved credentials: $e');
-      }
-
-      _showSnack('Login successful');
-
-      await _checkBiometricAvailability();
-
-      if (!mounted) return;
-      // navigate to home via GoRouter
-      context.go('/home');
-    } catch (e) {
-      _showSnack('Login failed: $e');
-    }
-  }
-
-  Future<void> _onBiometricLogin() async {
-    final result = await SecureAuth.authenticateAndSignIn();
-
-    if (!mounted) return;
-
-    if (!result.isSuccess) {
-      _showSnack(result.message ?? 'Biometric authentication failed');
-      return;
-    }
-
-    _showSnack('Signed in with biometrics');
-    context.go('/home');
   }
 
   @override
@@ -140,13 +66,13 @@ class _LoginPageState extends State<LoginPage> {
                         ],
                       ),
                       child: Form(
-                        key: _formKey,
+                        key: _controller.formKey,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             FormTextField(
-                              controller: _emailController,
-                              hint: 'Email',
+                              controller: _controller.emailController,
+
                               label: 'Email',
                               keyboardType: TextInputType.emailAddress,
                               validator: (v) {
@@ -161,8 +87,8 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             SizedBox(height: 12.h),
                             FormTextField(
-                              controller: _passController,
-                              hint: 'Password',
+                              controller: _controller.passController,
+
                               label: 'Password',
                               obscureText: true,
                               validator: (value) {
@@ -176,31 +102,43 @@ class _LoginPageState extends State<LoginPage> {
                               },
                             ),
                             SizedBox(height: 18.h),
+                            // Biometric button listens to controller's ValueNotifier
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _controller.biometricAvailable,
+                              builder: (context, available, child) {
+                                if (!available) return const SizedBox.shrink();
+                                return Column(
+                                  children: [
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () async {
+                                          final ok = await _controller.biometricSignIn(context);
+                                          if (ok && mounted) context.go('/home');
+                                        },
+                                        icon: const Icon(Icons.fingerprint),
+                                        label: const Text('Login with biometrics', style: TextStyle(fontSize: 16)),
+                                      ),
+                                    ),
+                                    SizedBox(height: 10.h),
+                                  ],
+                                );
+                              },
+                            ),
 
-                            if (_biometricAvailable) ...[
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: _onBiometricLogin,
-                                  icon: const Icon(Icons.fingerprint),
-                                  label: const Text('Login with biometrics'),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  final ok = await _controller.signIn(context);
+                                  if (ok && mounted) context.go('/home');
+                                },
+                                child: Text(
+                                  'Login',
+                                  style: TextStyle(fontSize: 16.sp),
                                 ),
                               ),
-                              SizedBox(height: 10.h),
-
-                            ],
-
-
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: _onLogin,
-                                  child: Text(
-                                    'Login',
-                                    style: TextStyle(fontSize: 16.sp),
-                                  ),
-                                ),
-                              ),
+                            ),
                             SizedBox(height: 10.h),
                             // 分割线
                             Divider(color: Colors.grey, thickness: 1),
@@ -210,7 +148,7 @@ class _LoginPageState extends State<LoginPage> {
                               child: Text(
                                 'Don\'t have an account? Register here',
                                 style: TextStyle(
-                                  fontSize: 15.sp,
+                                  fontSize: 12.sp,
                                   color: Colors.black54,
                                 ),
                               ),

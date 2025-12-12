@@ -190,15 +190,17 @@ class RegisterPage extends StatelessWidget {
                           children: [
                             SizedBox(height: 16.h),
 
-                            ElevatedButton(
+                            TextButton(
                               onPressed: () {
-                                context.push(
-                                  '/register/caregiver',
-                                ); // animation?
+                                context.push('/register/caregiver');
                               },
-                              child: Text('Caregiver'),
-                            ), // use push so the page is pushed onto the stack and can be popped
+                              child: Text(
+                                '🧓 Caregiver',
+                                style: TextStyle(fontSize: 16.sp),
+                              ),
+                            ),
 
+                            // use push so the page is pushed onto the stack and can be popped
                             SizedBox(height: 16.h),
                             Text(
                               'Register as a caregiver to support and manage the health routines of your loved ones.',
@@ -211,15 +213,14 @@ class RegisterPage extends StatelessWidget {
                             SizedBox(height: 16.h),
                             Divider(color: Colors.grey, thickness: 1),
                             SizedBox(height: 16.h),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: accent,
-                                foregroundColor: Colors.black,
-                              ),
+                            TextButton(
                               onPressed: () {
                                 context.push('/register/doctor');
                               },
-                              child: Text('Doctor'),
+                              child: Text(
+                                '👨‍⚕️ Doctor',
+                                style: TextStyle(fontSize: 16.sp),
+                              ),
                             ),
 
                             SizedBox(height: 16.h),
@@ -232,7 +233,6 @@ class RegisterPage extends StatelessWidget {
                               ),
                             ),
                             SizedBox(height: 16.h),
-
                           ],
                         ),
                       ),
@@ -245,7 +245,7 @@ class RegisterPage extends StatelessWidget {
                           child: Text(
                             'Already have account? Login here',
                             style: TextStyle(
-                              fontSize: 15.sp,
+                              fontSize: 12.sp,
                               color: Colors.black54,
                             ),
                           ),

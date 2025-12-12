@@ -1,11 +1,12 @@
+import 'package:carelink_mobile/screens/authentication/register_caregiver.dart';
 import 'package:carelink_mobile/screens/care_recipient_home_page.dart';
 import 'package:carelink_mobile/screens/caregiver_home_page.dart';
 import 'package:carelink_mobile/screens/cr_emergency_call.dart';
+import 'package:carelink_mobile/screens/show_medication.dart';
 import 'package:carelink_mobile/utils/home_resolver.dart';
 import 'package:carelink_mobile/screens/authentication/login_page.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
 import 'package:carelink_mobile/screens/manage_caregiver.dart';
-import 'package:carelink_mobile/screens/medicine_reminder.dart';
 import 'package:carelink_mobile/screens/authentication/register_care_recipient_page.dart';
 import 'package:carelink_mobile/screens/authentication/register_complete.dart';
 import 'package:carelink_mobile/screens/authentication/register_number_care_recipient_page.dart';
@@ -17,9 +18,9 @@ import 'package:carelink_mobile/utils/test_page.dart';
 import 'package:carelink_mobile/utils/test_page_2.dart';
 import 'package:carelink_mobile/screens/cg_emergency_call.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:carelink_mobile/screens/not_found_page.dart';
 
-import '../screens/authentication/register_caregiver_page.dart';
 import '../screens/authentication/register_doctor_page.dart';
 
 /// Central app router exported for use by `main.dart`.
@@ -105,14 +106,14 @@ final GoRouter appRouter = GoRouter(
 
     GoRoute(
       path: '/medication',
-      builder: (context, state) => const TypeofMedicine(),
+      builder: (context, state) => const ShowMedication(),
     ),
 
     GoRoute(
       path: '/caregiveremergencycall',
       builder: (context, state) => CGEmergencyCall(
         careRecipientID: 'CR-011',
-        signalingUrl: 'ws://10.180.12.100:25101',
+        signalingUrl: dotenv.env['RTC_URL']!,
       ),
     ),
 
@@ -120,7 +121,7 @@ final GoRouter appRouter = GoRouter(
       path: '/carerecipientemergencycall',
       builder: (context, state) => CREmergencyCall(
         caregiverId: 'CG-003',
-        signalingUrl: 'ws://10.180.12.100:25101',
+        signalingUrl: dotenv.env['RTC_URL']!,
       ),
     ),
   ],

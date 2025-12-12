@@ -15,8 +15,6 @@ import 'firebase_options.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 
-
-
 Future<void> main() async {
   // 确保 Widgets 绑定初始化（必须的）
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,9 +31,7 @@ Future<void> main() async {
   await initHiveForFlutter();
 
   // 初始化 Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // 初始化日期本地化（你 app 里有用到 Intl）
   await initializeDateFormatting();
@@ -44,7 +40,6 @@ Future<void> main() async {
   //
   // idTokenProvider:
   //   每次需要 token 时，会调用这个函数（异步）
-
 
   //   这里我们从 Firebase 当前用户拿 idToken
   final clientNotifier = createClientNotifier(
@@ -58,10 +53,8 @@ Future<void> main() async {
       }
     },
 
-
-
     // ✅ HTTP 基础地址（Query / Mutation）
-    baseUrl:  dotenv.env['HTTP_URL'],
+    baseUrl: dotenv.env['HTTP_URL'],
 
     // ✅ WebSocket 地址（Subscription）
     // 使用后端正在监听的路径：/graphql
@@ -73,10 +66,7 @@ Future<void> main() async {
   // Riverpod + GraphQLProvider 一起包住整个 App
   runApp(
     ProviderScope(
-      child: GraphQLProvider(
-        client: clientNotifier,
-        child: const MyApp(),
-      ),
+      child: GraphQLProvider(client: clientNotifier, child: const MyApp()),
     ),
   );
 }
@@ -102,13 +92,12 @@ class MyApp extends StatelessWidget {
               routerConfig: appRouter,
               title: 'CareLink',
               theme: ThemeData(
-
                 scaffoldBackgroundColor: const Color(0xFFFFF8F0),
-                colorScheme:
-                    ColorScheme.fromSeed(seedColor: const Color(0xFFFCEEDB)),
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: const Color(0xFFFCEEDB),
+                ),
                 appBarTheme: const AppBarTheme(
-                  backgroundColor: Colors
-                      .transparent, // AppBar 背景透明（你原本的设定，保留）
+                  backgroundColor: Colors.transparent, // AppBar 背景透明（你原本的设定，保留）
                 ),
                 dividerColor: Colors.transparent,
                 visualDensity: VisualDensity.adaptivePlatformDensity,
@@ -128,6 +117,31 @@ class MyApp extends StatelessWidget {
                   ),
                 ),
 
+                textButtonTheme: TextButtonThemeData(
+                  style: ButtonStyle(
+                    backgroundColor: MaterialStateProperty.resolveWith<Color>((
+                      states,
+                    ) {
+                      if (states.contains(MaterialState.pressed)) {
+                        return const Color(0xFFFFECB3); // 点击颜色
+                      }
+                      return Colors.white; // 默认背景
+                    }),
+                    foregroundColor: MaterialStateProperty.all(Colors.black),
+                    padding: MaterialStateProperty.all(
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    shape: MaterialStateProperty.all(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: const BorderSide(
+                          color: Colors.orangeAccent,
+                          width: 1.6,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             );
           },

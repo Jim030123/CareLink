@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math';
 
 class NumberCareReciepientPage extends ConsumerStatefulWidget {
   const NumberCareReciepientPage({
@@ -24,24 +25,24 @@ class NumberCareReciepientPage extends ConsumerStatefulWidget {
 }
 
 class _NumberCareReciepientPageState
-  extends ConsumerState<NumberCareReciepientPage> {
+    extends ConsumerState<NumberCareReciepientPage> {
   late int _count;
 
   @override
   void initState() {
     super.initState();
-    _count = widget.initialCount.clamp(1, 99);
+    _count = widget.initialCount.clamp(1, 10).toInt();
   }
 
   void _increment() {
     setState(() {
-      if (_count < 99) _count++;
+      _count = min(10, _count + 1);
     });
   }
 
   void _decrement() {
     setState(() {
-      if (_count > 1) _count--;
+      _count = max(1, _count - 1);
     });
   }
 
@@ -59,9 +60,7 @@ class _NumberCareReciepientPageState
       // from Riverpod provider which was set earlier in the flow.
       context.push(
         '/register/caregiver/registerrecipientdetail',
-        extra: {
-          'count': _count,
-        },
+        extra: {'count': _count},
       );
     }
   }
@@ -87,10 +86,8 @@ class _NumberCareReciepientPageState
                       // step indicator and card
                       Container(
                         padding: EdgeInsets.all(16.w),
-
                         decoration: BoxDecoration(
                           color: Colors.white,
-
                           borderRadius: BorderRadius.circular(16.w),
 
                           boxShadow: const [
@@ -112,9 +109,7 @@ class _NumberCareReciepientPageState
                               children: [
                                 SvgPicture.asset(
                                   'assets/icons/logo.svg',
-
                                   width: 60.w,
-
                                   height: 60.h,
                                 ),
 
@@ -182,14 +177,10 @@ class _NumberCareReciepientPageState
 
                                     child: Text(
                                       'Create Care Reciepient',
-
                                       textAlign: TextAlign.center,
-
                                       softWrap: true,
-
                                       style: TextStyle(
                                         fontSize: 24.sp,
-
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -255,18 +246,25 @@ class _NumberCareReciepientPageState
                       SizedBox(height: 40.h),
 
                       // counter controls
-                      Row(
+                      // compute enabled/disabled state for buttons
+                      Builder(builder: (context) {
+                        final bool canDecrement = _count > 1;
+                        final bool canIncrement = _count < 10;
+
+                        return Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           // decrement button
-                          GestureDetector(
-                            onTap: _decrement,
-                            child: Container(
+                          AbsorbPointer(
+                            absorbing: !canDecrement,
+                            child: GestureDetector(
+                              onTap: canDecrement ? _decrement : null,
+                              child: Container(
                               width: 48.w,
                               height: 48.w,
                               decoration: BoxDecoration(
-                                color: card,
+                                color: canDecrement ? card : card.withOpacity(0.5),
                                 shape: BoxShape.circle,
                                 boxShadow: const [
                                   BoxShadow(
@@ -285,6 +283,7 @@ class _NumberCareReciepientPageState
                                   ),
                                 ),
                               ),
+                            ),
                             ),
                           ),
 
@@ -319,13 +318,15 @@ class _NumberCareReciepientPageState
                           SizedBox(width: 18.w),
 
                           // increment button
-                          GestureDetector(
-                            onTap: _increment,
-                            child: Container(
+                          AbsorbPointer(
+                            absorbing: !canIncrement,
+                            child: GestureDetector(
+                              onTap: canIncrement ? _increment : null,
+                              child: Container(
                               width: 48.w,
                               height: 48.w,
                               decoration: BoxDecoration(
-                                color: card,
+                                color: canIncrement ? card : card.withOpacity(0.5),
                                 shape: BoxShape.circle,
                                 boxShadow: const [
                                   BoxShadow(
@@ -345,9 +346,11 @@ class _NumberCareReciepientPageState
                                 ),
                               ),
                             ),
+                            ),
                           ),
                         ],
-                      ),
+                        );
+                      }),
 
                       SizedBox(height: 40.h),
 

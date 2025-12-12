@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../utils/caregiver_provider.dart';
+import 'package:carelink_mobile/utils/loading_dialog.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
@@ -71,6 +72,9 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
     // The dev middleware exposes a `users` query (see GraphQLTestPage), so we
     // query `users { email }` and match client-side. Replace with a filtered
     // query if your server exposes one for efficiency.
+    // Prepare a nullable dismiss callback so it can be invoked from `finally`.
+    VoidCallback? dismissLoading;
+
     try {
       final client = GraphQLProvider.of(context).value;
 
@@ -128,6 +132,14 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
 
       // store generated caregiver id in Riverpod state so downstream pages
       // can read it without relying on router extras.
+      // Show a non-dismissible loading dialog while the long-running
+      // registration, signup, and backend upsert runs. It will be
+      // dismissed in the `finally` block below.
+      dismissLoading = showLoadingDialog(
+        context,
+        'Account creation in progress..',
+      );
+
       try {
         ref.read(currentUserIdProvider.notifier).state = generatedCode;
       } catch (e) {
@@ -322,13 +334,17 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
       // Directly navigate to recipient detail and pass useful values via extra
       if (!mounted) return;
       context.push('/register/caregiver/numberofcarerecipient');
-    } catch (e, st) {
-      debugPrint('Request failed: $e\n$st');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Request failed: $e')));
-      return;
-    }
+      } catch (e, st) {
+        debugPrint('Request failed: $e\n$st');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Request failed: $e')));
+        return;
+      } finally {
+        try {
+          dismissLoading?.call();
+        } catch (_) {}
+      }
   }
 
   @override

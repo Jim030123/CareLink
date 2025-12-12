@@ -9,6 +9,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:carelink_mobile/utils/caregiver_provider.dart';
+import 'package:carelink_mobile/utils/loading_dialog.dart';
 import 'dart:math';
 
 class RegisterCareRecipientPage extends ConsumerStatefulWidget {
@@ -400,6 +401,12 @@ class _RegisterCareRecipientPageState
                                         }
 
                                         setState(() => _saving = true);
+                                        // Show a non-dismissible loading dialog while creating accounts
+                                        final dismissLoading = showLoadingDialog(
+                                          context,
+                                          'Account creation in progress..',
+                                        );
+
                                         try {
 
                                           const String mutation = r'''
@@ -751,6 +758,9 @@ mutation UpdateUser($uid: String!, $new_id: String!, $userType: String!) {
                                           debugPrint('Request failed: $e');
                                           _showSnack('Request failed: $e');
                                         } finally {
+                                          try {
+                                            dismissLoading();
+                                          } catch (_) {}
                                           if (mounted) {
                                             setState(() => _saving = false);
                                           }

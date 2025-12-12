@@ -1,0 +1,12 @@
+# 直接连本地 server（没有 TLS）
+WS_PROTOCOL=ws
+WS_HOST=localhost
+WS_PORT=25001
+WS_PATH=/graphql
+WS_URL=${WS_PROTOCOL}://${WS_HOST}:${WS_PORT}${WS_PATH}   # => ws://localhost:25001/graphql
+
+HTTP_PROTOCOL=http
+HTTP_HOST=localhost
+HTTP_PORT=25001
+HTTP_BASE_PATH=/graphql
+HTTP_URL=${HTTP_PROTOCOL}://${HTTP_HOST}:${HTTP_PORT}${HTTP_BASE_PATH}  # => http://localhost:25001/graphql

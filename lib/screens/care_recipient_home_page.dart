@@ -5,7 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:carelink_mobile/utils/secure_auth.dart';
 // removed unused import: care_recipient emergency screen not referenced here
 
 class CareRecipientHomePage extends StatefulWidget {
@@ -82,9 +85,10 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   }
 
   // Use the signaling server reachable by the mobile device on your LAN.
-  // Replace this with your real server. Example from routes/testing: ws://10.180.12.100:25101
+  // Prefer configuration via environment variable `RTC_URL`.
+  // Example fallback: ws://10.180.12.100:25101
   // NOTE: on Android emulators use 10.0.2.2 to reach host machine's localhost.
-  String _signalingUrl = 'ws://10.180.12.100:25101';
+  String? _signalingUrl = dotenv.env['RTC_URL'];
 
 
 
@@ -321,26 +325,27 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
               );
             })(),
             if (badge != null && badge > 0)
-              Positioned(
-                right: -6.w,
-                top: -6.w,
-                child: Container(
-                  padding: EdgeInsets.all(6.w),
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  child: Text(
-                    badge > 99 ? '99+' : badge.toString(),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              )
+              Text('waitting to solve')
+              // Positioned(
+              //   right: -6.w,
+              //   top: -6.w,
+              //   child: Container(
+              //     padding: EdgeInsets.all(6.w),
+              //     decoration: BoxDecoration(
+              //       color: Colors.redAccent,
+              //       shape: BoxShape.circle,
+              //       border: Border.all(color: Colors.white, width: 1.5),
+              //     ),
+              //     child: Text(
+              //       badge > 99 ? '99+' : badge.toString(),
+              //       style: TextStyle(
+              //         color: Colors.white,
+              //         fontSize: 10.sp,
+              //         fontWeight: FontWeight.bold,
+              //       ),
+              //     ),
+              //   ),
+              // )
             else if (showDot)
               Positioned(
                 right: -6.w,
@@ -403,24 +408,88 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
 
                   const Spacer(),
 
-                  // time & date
+                  // time, date and logout button
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        timeString,
-                        style: TextStyle(
-                          fontSize: 26.sp,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        dateString,
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          color: Colors.black54,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                timeString,
+                                style: TextStyle(
+                                  fontSize: 26.sp,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4.h),
+                              Text(
+                                dateString,
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(width: 8.w),
+                          // Logout button with same logic as profile page
+                          IconButton(
+                            onPressed: () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Confirm Log Out'),
+                                  content: const Text(
+                                    'Are you sure you want to log out?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(ctx).pop(false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.of(ctx).pop(true),
+                                      child: const Text('Log Out'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) {
+                                // Capture ScaffoldMessenger before async gap
+                                final messenger = ScaffoldMessenger.of(context);
+
+                                // Clear stored credentials and sign out
+                                await SecureAuth.clearCredentials();
+                                try {
+                                  await FirebaseAuth.instance.signOut();
+                                } catch (_) {}
+
+                                // Show snackbar using captured messenger if still mounted
+                                if (messenger.mounted) {
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Logged out'),
+                                    ),
+                                  );
+                                }
+
+                                // Navigate to the login page after logout if this State is still mounted
+                                if (!mounted) return;
+                                context.go('/login');
+                              }
+                            },
+                            icon: Icon(
+                              Icons.logout,
+                              color: Colors.red.shade600,
+                              size: 24.w,
+                            ),
+                            tooltip: 'Log out',
+                          ),
+                        ],
                       ),
                     ],
                   ),
