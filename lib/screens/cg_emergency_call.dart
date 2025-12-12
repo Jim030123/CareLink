@@ -565,16 +565,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
             ),
           ),
           // Debug-only button to simulate an incoming_call message locally
-          if (kDebugMode && !inCall)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12.0),
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.bug_report),
-                label: const Text('Simulate incoming call (debug)'),
-                onPressed: () => _simulateIncomingCall(),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              ),
-            ),
+         
               // split view: left = local (self), right = remote (other) with name overlays
               _hasCurrentUser
                   ? Stack(
@@ -690,16 +681,5 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
     }
   }
 
-  // Debug helper: simulate an incoming_call message as if received from server
-  void _simulateIncomingCall() {
-    final fakeMsg = {
-      'type': 'incoming_call',
-      'from': 'CR-SIM',
-      'callId': const Uuid().v4(),
-      'meta': {'priority': 'simulated'},
-      // 'offer' can be omitted for simulation of UI ringing only
-    };
-    // Call the handler directly to exercise the normal code path
-    handleSignalMessage(fakeMsg);
-  }
+
 }
