@@ -1000,8 +1000,13 @@ class _ShowMedicationState extends State<ShowMedication> {
     );
   }
 
-  /// Medicine segment：全局订阅及显示（不再按 caregiverId 过滤）
-  Widget _buildMedicineWithSubscription() {
+  /// Medicine segment：条件式订阅。传入 `enabled` 为 false 则不建立订阅，仅渲染本地数据。
+  Widget _buildMedicineWithSubscription({bool enabled = true}) {
+    if (!enabled) {
+      // 订阅被禁用时直接渲染当前本地数据
+      return _buildPile();
+    }
+
     return Subscription(
       options: SubscriptionOptions(
         document: gql(medicationUpdatedSub),
@@ -1027,7 +1032,7 @@ class _ShowMedicationState extends State<ShowMedication> {
           }
         }
 
-        // 不管有没事件，UI 一律从 _items 渲染
+        // 无论是否收到事件，UI 一律从 _items 渲染
         return _buildPile();
       },
     );
@@ -1038,7 +1043,8 @@ class _ShowMedicationState extends State<ShowMedication> {
       case 0:
         return _buildSchedule();
       case 1:
-        return _buildMedicineWithSubscription();
+        // only enable subscription when the Medicine tab is active
+        return _buildMedicineWithSubscription(enabled: _selectedSegment == 1);
       default:
         return _buildSchedule();
     }

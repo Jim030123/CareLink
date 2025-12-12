@@ -534,6 +534,11 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                          SizedBox(height: 8.h),
+                          Text(
+                            'Take 2 Paracetamol',
+                            style: TextStyle(fontSize: 13.sp),
+                          ),
                         ],
                       ),
                     ),
@@ -548,13 +553,32 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                               color: Colors.black87,
                               size: 20.w,
                             ),
-                            SizedBox(width: 6.w),
+                            SizedBox(width: 8.w),
                             Text(
-                              'Take 2\nParacetamol',
-                              textAlign: TextAlign.right,
+                              '2 tablets',
                               style: TextStyle(fontSize: 13.sp),
                             ),
                           ],
+                        ),
+                        SizedBox(height: 10.h),
+                        ElevatedButton(
+                          onPressed: () {
+                            // TODO: mark task done
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange.shade400,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12.w,
+                              vertical: 8.h,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.w),
+                            ),
+                          ),
+                          child: Text(
+                            'Mark Done',
+                            style: TextStyle(fontSize: 12.sp),
+                          ),
                         ),
                       ],
                     ),

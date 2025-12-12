@@ -2,6 +2,7 @@ import 'package:carelink_mobile/screens/authentication/register_caregiver.dart';
 import 'package:carelink_mobile/screens/care_recipient_home_page.dart';
 import 'package:carelink_mobile/screens/caregiver_home_page.dart';
 import 'package:carelink_mobile/screens/cr_emergency_call.dart';
+import 'package:carelink_mobile/screens/doctor_home_page.dart';
 import 'package:carelink_mobile/screens/show_medication.dart';
 import 'package:carelink_mobile/utils/home_resolver.dart';
 import 'package:carelink_mobile/screens/authentication/login_page.dart';
@@ -25,7 +26,7 @@ import '../screens/authentication/register_doctor_page.dart';
 
 /// Central app router exported for use by `main.dart`.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/doctor',
   errorBuilder: (context, state) =>
       NotFoundPage(location: state.error?.toString()),
   routes: <GoRoute>[
@@ -124,5 +125,9 @@ final GoRouter appRouter = GoRouter(
         signalingUrl: dotenv.env['RTC_URL']!,
       ),
     ),
+
+    GoRoute(path: '/doctor',
+    builder: (context, state) => const DoctorHomePage()
+    )
   ],
 );
