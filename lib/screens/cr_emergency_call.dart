@@ -13,11 +13,13 @@ import 'package:uuid/uuid.dart';
 class CREmergencyCall extends StatefulWidget {
   final String caregiverId;
   final String signalingUrl;
+  final bool autoStart;
 
   const CREmergencyCall({
     super.key,
     required this.caregiverId,
     required this.signalingUrl,
+    this.autoStart = false,
   });
 
   @override
@@ -42,6 +44,7 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
   bool isCalling = false;
   bool inCall = false;
   bool isMuted = false;
+  bool _autoStartAttempted = false;
 
   @override
   void initState() {
@@ -60,6 +63,27 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
     _initRenderers();
     // load local user profile (displayName)
     _loadLocalUser();
+
+    // Always attempt to auto-start the call when this page is opened.
+    // Wait for the signaling client to be ready before starting so we don't
+    // attempt to send offers before join/flush completes.
+    Future.microtask(() async {
+      try {
+        await signaling.ready;
+      } catch (e) {
+        print('CR: signaling.ready awaited with error/timeout: $e');
+      }
+      if (!mounted) return;
+      if (_autoStartAttempted) return;
+      _autoStartAttempted = true;
+      try {
+        print('CR: auto-starting call on page entry');
+        await _startCall();
+      } catch (e) {
+        print('CR: auto-start call failed: $e');
+      }
+    });
+
   }
 
   Future<void> _loadLocalUser() async {
@@ -116,7 +140,7 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
   // ───────────────────────────────────────────
   // Step 1: CR 按按钮 → 创建 Offer & 发起呼叫
   // ───────────────────────────────────────────
-  Future<void> startCall() async {
+  Future<void> _startCall() async {
     print('CR: startCall invoked');
     // Ensure signaling attempted connection / join before sending
     await signaling.ready;
@@ -600,7 +624,7 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                 ),
                 child: const Text('📞 Emergency Call', style: TextStyle(fontSize: 22)),
-                onPressed: startCall,
+                onPressed: _startCall,
               ),
 
             ],
