@@ -56,7 +56,6 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   String? _caregiverClientId;
   // TODO: replace with configured/assigned caregiver id from backend
 
-
   Future<void> _loadCurrentUser() async {
     try {
       final user = await fetchCurrentUser();
@@ -68,7 +67,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
         final email = (user['email'] as String?)?.trim();
         final uid = (user['uid'] as String?)?.trim();
 
-         final chosenId = uid ?? id ?? '';
+        final chosenId = uid ?? id ?? '';
         setState(() {
           _username = name?.isNotEmpty == true
               ? name!
@@ -77,7 +76,6 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
           _caregiverClientId = chosenId.isNotEmpty ? chosenId : null;
         });
         // initialize emergency calling helper for this client
-
       }
     } catch (e) {
       debugPrint('Error loading current user: $e');
@@ -89,9 +87,6 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   // Example fallback: ws://10.180.12.100:25101
   // NOTE: on Android emulators use 10.0.2.2 to reach host machine's localhost.
   String? _signalingUrl = dotenv.env['RTC_URL'];
-
-
-
 
   String _formatTime(DateTime dt) {
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
@@ -326,26 +321,26 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
             })(),
             if (badge != null && badge > 0)
               Text('waitting to solve')
-              // Positioned(
-              //   right: -6.w,
-              //   top: -6.w,
-              //   child: Container(
-              //     padding: EdgeInsets.all(6.w),
-              //     decoration: BoxDecoration(
-              //       color: Colors.redAccent,
-              //       shape: BoxShape.circle,
-              //       border: Border.all(color: Colors.white, width: 1.5),
-              //     ),
-              //     child: Text(
-              //       badge > 99 ? '99+' : badge.toString(),
-              //       style: TextStyle(
-              //         color: Colors.white,
-              //         fontSize: 10.sp,
-              //         fontWeight: FontWeight.bold,
-              //       ),
-              //     ),
-              //   ),
-              // )
+            // Positioned(
+            //   right: -6.w,
+            //   top: -6.w,
+            //   child: Container(
+            //     padding: EdgeInsets.all(6.w),
+            //     decoration: BoxDecoration(
+            //       color: Colors.redAccent,
+            //       shape: BoxShape.circle,
+            //       border: Border.all(color: Colors.white, width: 1.5),
+            //     ),
+            //     child: Text(
+            //       badge > 99 ? '99+' : badge.toString(),
+            //       style: TextStyle(
+            //         color: Colors.white,
+            //         fontSize: 10.sp,
+            //         fontWeight: FontWeight.bold,
+            //       ),
+            //     ),
+            //   ),
+            // )
             else if (showDot)
               Positioned(
                 right: -6.w,
@@ -386,6 +381,19 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+
+                      GestureDetector(
+                        onTap: () {
+                          // navigate to profile page
+                          context.push('/profile');
+                        },
+                        child: CircleAvatar(
+                          radius: 20.r,
+                          backgroundImage: const NetworkImage(
+                            'https://i.pravatar.cc/150?img=3',
+                          ),
+                        ),
+                      ),
                       Row(
                         children: [
                           SvgPicture.asset(
@@ -448,11 +456,13 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                                   ),
                                   actions: [
                                     TextButton(
-                                      onPressed: () => Navigator.of(ctx).pop(false),
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(false),
                                       child: const Text('Cancel'),
                                     ),
                                     TextButton(
-                                      onPressed: () => Navigator.of(ctx).pop(true),
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(true),
                                       child: const Text('Log Out'),
                                     ),
                                   ],
@@ -471,9 +481,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                                 // Show snackbar using captured messenger if still mounted
                                 if (messenger.mounted) {
                                   messenger.showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Logged out'),
-                                    ),
+                                    const SnackBar(content: Text('Logged out')),
                                   );
                                 }
 

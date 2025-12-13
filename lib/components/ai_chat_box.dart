@@ -59,7 +59,9 @@ class _AIChatBoxState extends State<AIChatBox> {
       _scrollToBottom();
     } catch (e) {
       setState(() {
-        _messages.add(ChatMessage(text: 'Error: ${e.toString()}', role: ChatRole.assistant));
+        _messages.add(
+          ChatMessage(text: 'Error: ${e.toString()}', role: ChatRole.assistant),
+        );
       });
     } finally {
       setState(() {
@@ -111,14 +113,42 @@ class _AIChatBoxState extends State<AIChatBox> {
       ),
       child: Column(
         children: [
+          Container(
+            width: 40.w,
+            height: 4.h,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
           // Header
           Padding(
             padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 8.w),
             child: Row(
               children: [
-                CircleAvatar(backgroundColor: Colors.blue.shade700, child: Icon(Icons.smart_toy, color: Colors.white)),
+                Container(
+                  width: 40.w,
+                  height: 40.w,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF5B21B6), Color(0xFF9B51E0)],
+                    ),
+                  ),
+                  child: Center(child: Icon(Icons.smart_toy, color: Colors.white)),
+                ),
                 SizedBox(width: 8.w),
-                Expanded(child: Text('AI Assistant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16.sp))),
+                Expanded(
+                  child: Text(
+                    'AI Assistant',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16.sp,
+                    ),
+                  ),
+                ),
                 IconButton(
                   onPressed: () {
                     setState(() => _messages.clear());
@@ -138,31 +168,44 @@ class _AIChatBoxState extends State<AIChatBox> {
               padding: EdgeInsets.symmetric(horizontal: 8.w),
               child: ListView.builder(
                 controller: _scroll,
-                  // Don't include the keyboard inset here — the input area
-                  // already accounts for `viewInsets.bottom`. Keeping only a
-                  // small internal padding prevents double-counting which can
-                  // cause tiny overflow values.
-                  padding: EdgeInsets.only(bottom: 12.h),
-                  itemCount: _messages.length + (_isSending ? 1 : 0),
-                  itemBuilder: (context, i) {
+                // Don't include the keyboard inset here — the input area
+                // already accounts for `viewInsets.bottom`. Keeping only a
+                // small internal padding prevents double-counting which can
+                // cause tiny overflow values.
+                padding: EdgeInsets.only(bottom: 12.h),
+                itemCount: _messages.length + (_isSending ? 1 : 0),
+                itemBuilder: (context, i) {
                   if (i >= _messages.length) {
                     // typing indicator
                     return _TypingIndicator();
                   }
                   final m = _messages[i];
                   return Align(
-                    alignment: m.role == ChatRole.user ? Alignment.centerRight : Alignment.centerLeft,
+                    alignment: m.role == ChatRole.user
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
                     child: Container(
                       margin: EdgeInsets.symmetric(vertical: 6.h),
-                      padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 12.w),
-                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+                      padding: EdgeInsets.symmetric(
+                        vertical: 10.h,
+                        horizontal: 12.w,
+                      ),
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.7,
+                      ),
                       decoration: BoxDecoration(
-                        color: m.role == ChatRole.user ? Colors.blue.shade600 : Colors.grey.shade200,
+                        color: m.role == ChatRole.user
+                            ? Colors.blue.shade600
+                            : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(12.r),
                       ),
                       child: Text(
                         m.text,
-                        style: TextStyle(color: m.role == ChatRole.user ? Colors.white : Colors.black87),
+                        style: TextStyle(
+                          color: m.role == ChatRole.user
+                              ? Colors.white
+                              : Colors.black87,
+                        ),
                       ),
                     ),
                   );
@@ -174,7 +217,9 @@ class _AIChatBoxState extends State<AIChatBox> {
           // Input: add bottom padding that matches keyboard inset to avoid
           // being overlapped when the keyboard opens.
           Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
             child: SafeArea(
               top: false,
               child: Row(
@@ -186,8 +231,13 @@ class _AIChatBoxState extends State<AIChatBox> {
                       maxLines: 4,
                       decoration: InputDecoration(
                         hintText: 'Ask me anything...',
-                        contentPadding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 12.w),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.r)),
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 8.h,
+                          horizontal: 12.w,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
                       ),
                       onSubmitted: (_) => _send(),
                     ),
@@ -196,7 +246,11 @@ class _AIChatBoxState extends State<AIChatBox> {
                   _isSending
                       ? Padding(
                           padding: EdgeInsets.only(right: 4.w),
-                          child: SizedBox(width: 36.w, height: 36.w, child: CircularProgressIndicator(strokeWidth: 2)),
+                          child: SizedBox(
+                            width: 36.w,
+                            height: 36.w,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         )
                       : IconButton(
                           onPressed: _send,
@@ -220,15 +274,45 @@ class _TypingIndicator extends StatelessWidget {
       child: Container(
         margin: EdgeInsets.symmetric(vertical: 6.h),
         padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 12.w),
-        decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12.r)),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(12.r),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(width: 6.w, height: 6.w, child: DecoratedBox(decoration: BoxDecoration(color: Colors.grey, shape: BoxShape.circle))),
+            SizedBox(
+              width: 6.w,
+              height: 6.w,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.grey,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
             SizedBox(width: 6.w),
-            SizedBox(width: 6.w, height: 6.w, child: DecoratedBox(decoration: BoxDecoration(color: Colors.grey, shape: BoxShape.circle))),
+            SizedBox(
+              width: 6.w,
+              height: 6.w,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.grey,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
             SizedBox(width: 6.w),
-            SizedBox(width: 6.w, height: 6.w, child: DecoratedBox(decoration: BoxDecoration(color: Colors.grey, shape: BoxShape.circle))),
+            SizedBox(
+              width: 6.w,
+              height: 6.w,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.grey,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
           ],
         ),
       ),

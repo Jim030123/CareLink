@@ -1,6 +1,8 @@
 import 'package:carelink_mobile/components/status.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:flutter/material.dart';
+import 'package:carelink_mobile/components/text_field.dart';
+import 'package:carelink_mobile/utils/barcode_scanner.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:carelink_mobile/controllers/medication_controller.dart';
 import 'package:carelink_mobile/controllers/show_medication_controller.dart';
@@ -807,7 +809,11 @@ class _ShowMedicationState extends State<ShowMedication> {
     final dosageAmountCtrl = TextEditingController();
     final dosageUnitCtrl = TextEditingController();
     final frequencyCtrl = TextEditingController();
-    final pictureCtrl = TextEditingController();
+
+    final packageUnitCtrl = TextEditingController();
+    final brandCtrl = TextEditingController();
+    final skuCtrl = TextEditingController();
+    final strengthCtrl = TextEditingController();
 
     final uid = AuthService.instance.currentUser?.uid;
     String? caregiverIdVal;
@@ -845,7 +851,10 @@ class _ShowMedicationState extends State<ShowMedication> {
           dosageAmountCtrl: dosageAmountCtrl,
           dosageUnitCtrl: dosageUnitCtrl,
           frequencyCtrl: frequencyCtrl,
-          pictureCtrl: pictureCtrl,
+          packageUnitCtrl: packageUnitCtrl,
+          brandCtrl: brandCtrl,
+          skuCtrl: skuCtrl,
+          strengthCtrl: strengthCtrl,
           caregiverCtrl: caregiverCtrl,
           statusCtrl: statusCtrl,
           initialType: selectedType, // 可选初始值
@@ -888,19 +897,19 @@ class _ShowMedicationState extends State<ShowMedication> {
                   ),
                 ),
                 SizedBox(height: 12.h),
-                TextField(
+                FormTextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Medicine name'),
+                  label: 'Medicine name',
                 ),
                 SizedBox(height: 8.h),
-                TextField(
+                FormTextField(
                   controller: doseCtrl,
-                  decoration: const InputDecoration(labelText: 'Dose'),
+                  label: 'Dose',
                 ),
                 SizedBox(height: 8.h),
-                TextField(
+                FormTextField(
                   controller: qtyCtrl,
-                  decoration: const InputDecoration(labelText: 'Quantity'),
+                  label: 'Quantity',
                   keyboardType: TextInputType.number,
                 ),
                 SizedBox(height: 12.h),
@@ -1289,7 +1298,10 @@ class _AddMedicineSheet extends StatefulWidget {
   final TextEditingController dosageAmountCtrl;
   final TextEditingController dosageUnitCtrl;
   final TextEditingController frequencyCtrl;
-  final TextEditingController pictureCtrl;
+  final TextEditingController packageUnitCtrl;
+  final TextEditingController brandCtrl;
+  final TextEditingController skuCtrl;
+  final TextEditingController strengthCtrl;
   final TextEditingController caregiverCtrl;
   final TextEditingController statusCtrl;
   final String? initialType;
@@ -1303,7 +1315,10 @@ class _AddMedicineSheet extends StatefulWidget {
     required this.dosageAmountCtrl,
     required this.dosageUnitCtrl,
     required this.frequencyCtrl,
-    required this.pictureCtrl,
+    required this.packageUnitCtrl,
+    required this.brandCtrl,
+    required this.skuCtrl,
+    required this.strengthCtrl,
     required this.caregiverCtrl,
     required this.statusCtrl,
     required this.upsertMedication,
@@ -1318,7 +1333,14 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
   late String selectedType;
   bool _loading = false;
   final _formKey = GlobalKey<FormState>();
-  late final ValueNotifier<Set<String>> _selectedRecipients;
+
+  Future<void> _scanSku() async {
+    // Use the barcode scanner util (camera-based) with manual fallback.
+    final scanned = await BarcodeScanner.scan(context);
+    if (scanned != null && scanned.isNotEmpty && mounted) {
+      setState(() => widget.skuCtrl.text = scanned);
+    }
+  }
 
   @override
   void initState() {
@@ -1328,7 +1350,6 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
 
   @override
   void dispose() {
-    _selectedRecipients.dispose();
     super.dispose();
   }
 
@@ -1338,15 +1359,15 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
       widget.descriptionCtrl.text = 'Pain reliever for fever and headache.';
       widget.qtyCtrl.text = '30';
       widget.dosageAmountCtrl.text = '500';
+      widget.strengthCtrl.text = '500';
       widget.dosageUnitCtrl.text = 'mg';
       widget.frequencyCtrl.text = 'Once a day';
-      widget.pictureCtrl.text = 'assets/icons/capsule.png';
+      widget.packageUnitCtrl.text = 'box';
+      widget.brandCtrl.text = 'Generic';
+      widget.skuCtrl.text = 'PARA-500-30';
       widget.statusCtrl.text = 'Active';
-      widget.caregiverCtrl.text = widget.caregiverCtrl.text.isNotEmpty
-          ? widget.caregiverCtrl.text
-          : 'CG-003';
+
       selectedType = 'capsule';
-      _selectedRecipients.value = <String>{'mock-1'};
     });
   }
 
@@ -1382,76 +1403,51 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    TextFormField(
+                    FormTextField(
                       controller: widget.nameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Medicine name',
-                      ),
-                      autofocus: true,
-                      textInputAction: TextInputAction.next,
+                      label: 'Medicine name',
+                      keyboardType: TextInputType.text,
                       validator: (v) => (v == null || v.trim().isEmpty)
                           ? 'Please enter name'
                           : null,
                     ),
                     SizedBox(height: 8.h),
-                    TextFormField(
+                    FormTextField(
                       controller: widget.descriptionCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                      ),
-                      maxLines: 2,
+                      label: 'Description',
+                      keyboardType: TextInputType.multiline,
                     ),
                     SizedBox(height: 8.h),
                     Row(
                       children: [
                         Expanded(
-                          child: TextFormField(
+                          child: FormTextField(
                             controller: widget.qtyCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Quantity',
-                            ),
+                            label: 'Quantity',
                             keyboardType: TextInputType.number,
-                            textInputAction: TextInputAction.next,
                           ),
                         ),
                         SizedBox(width: 8.w),
                         Expanded(
-                          child: TextFormField(
+                          child: FormTextField(
                             controller: widget.dosageAmountCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Dosage Amount',
-                            ),
+                            label: 'Dosage Amount',
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
-                            textInputAction: TextInputAction.next,
                           ),
                         ),
                       ],
                     ),
                     SizedBox(height: 8.h),
-                    TextFormField(
+                    FormTextField(
                       controller: widget.dosageUnitCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Dosage Unit (e.g. mg)',
-                      ),
-                      textInputAction: TextInputAction.next,
+                      label: 'Dosage Unit (e.g. mg)',
                     ),
                     SizedBox(height: 8.h),
-                    TextFormField(
+                    FormTextField(
                       controller: widget.frequencyCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Frequency (e.g. once a day)',
-                      ),
-                      textInputAction: TextInputAction.next,
-                    ),
-                    SizedBox(height: 8.h),
-                    TextFormField(
-                      controller: widget.pictureCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Picture URL / asset',
-                      ),
-                      textInputAction: TextInputAction.next,
+                      label: 'Frequency (e.g. once a day)',
                     ),
                     SizedBox(height: 8.h),
                     // Care Recipient ID (always shown)
@@ -1477,6 +1473,43 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                       onChanged: (v) =>
                           setState(() => selectedType = v ?? selectedType),
                       decoration: const InputDecoration(labelText: 'Type'),
+                    ),
+                    SizedBox(height: 8.h),
+                    FormTextField(
+                      controller: widget.packageUnitCtrl,
+                      label: 'Package Unit',
+                    ),
+                    SizedBox(height: 8.h),
+                    FormTextField(
+                      controller: widget.brandCtrl,
+                      label: 'Brand',
+                    ),
+                    SizedBox(height: 8.h),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FormTextField(
+                            controller: widget.skuCtrl,
+                            label: 'SKU (scanable)',
+                          ),
+                        ),
+                        SizedBox(width: 8.w),
+                        Material(
+                          color: Colors.transparent,
+                          child: IconButton(
+                            tooltip: 'Scan barcode',
+                            icon: Icon(Icons.qr_code_scanner, size: 22.w),
+                            onPressed: () async {
+                              await _scanSku();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8.h),
+                    FormTextField(
+                      controller: widget.strengthCtrl,
+                      label: 'Strength',
                     ),
                     SizedBox(height: 8.h),
                     Row(
@@ -1519,12 +1552,16 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                                   'packageQuantity': qtyText.isNotEmpty
                                     ? int.tryParse(qtyText) ?? 0
                                     : 0,
-                                  'strength': dosageAmountText.isNotEmpty
-                                    ? dosageAmountText
-                                    : null,
                                   'standardUnit': widget.dosageUnitCtrl.text
                                     .trim(),
-                                  'picture': widget.pictureCtrl.text.trim(),
+                                  // 'picture' removed from form per requirement
+                                  'packageUnit': widget.packageUnitCtrl.text
+                                    .trim(),
+                                  'brand': widget.brandCtrl.text.trim(),
+                                  'sku': widget.skuCtrl.text.trim(),
+                                  'strength': widget.strengthCtrl.text.trim().isNotEmpty
+                                    ? widget.strengthCtrl.text.trim()
+                                    : (dosageAmountText.isNotEmpty ? dosageAmountText : null),
 
                                   // store with capitalized first letter in DB
                                   'form': typeForDb,

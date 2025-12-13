@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 import 'package:carelink_mobile/utils/secure_auth.dart';
 
@@ -14,6 +16,11 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   String _name = 'Sabrina Aryan';
   String _email = 'SabrinaAry208@gmailcom';
+  // Notification settings state
+  bool _pushNotifications = true;
+  bool _emailNotifications = true;
+
+  late FlutterLocalNotificationsPlugin _localNotifications;
 
   @override
   void initState() {
@@ -25,6 +32,122 @@ class _ProfilePageState extends State<ProfilePage> {
           user.displayName ??
           (user.email != null ? user.email!.split('@').first : _name);
     }
+    _localNotifications = FlutterLocalNotificationsPlugin();
+    _initLocalNotifications();
+    _loadNotificationSettings();
+  }
+
+  void _initLocalNotifications() async {
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    final iosInit = DarwinInitializationSettings();
+    await _localNotifications.initialize(
+      InitializationSettings(android: androidInit, iOS: iosInit),
+    );
+  }
+
+  Future<void> _loadNotificationSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _pushNotifications = prefs.getBool('pushNotifications') ?? true;
+        _emailNotifications = prefs.getBool('emailNotifications') ?? true;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _setPushNotifications(bool value) async {
+    setState(() => _pushNotifications = value);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('pushNotifications', value);
+    } catch (_) {}
+    if (value) {
+      _showTestNotification();
+    } else {
+      try {
+        await _localNotifications.cancelAll();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _setEmailNotifications(bool value) async {
+    setState(() => _emailNotifications = value);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('emailNotifications', value);
+    } catch (_) {}
+  }
+
+  Future<void> _showTestNotification() async {
+    try {
+      const androidDetails = AndroidNotificationDetails(
+        'test_channel',
+        'Test Notifications',
+        channelDescription: 'Channel for test notifications',
+        importance: Importance.max,
+        priority: Priority.high,
+      );
+      const iosDetails = DarwinNotificationDetails();
+      const platformDetails = NotificationDetails(android: androidDetails, iOS: iosDetails);
+      await _localNotifications.show(
+        0,
+        'Notifications Enabled',
+        'This is a test notification. Push notifications are enabled.',
+        platformDetails,
+      );
+    } catch (_) {}
+  }
+
+  void _showFeatureSheet(BuildContext ctx, String title, Widget content) {
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(16.r),
+        ),
+      ),
+      builder: (c) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(c).viewInsets.bottom,
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 16.w,
+              vertical: 12.h,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2.r),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 12.h),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 12.h),
+                content,
+                SizedBox(height: 12.h),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -308,7 +431,66 @@ class _ProfilePageState extends State<ProfilePage> {
                               leading: Icon(Icons.person),
                               title: Text('Account Settings'),
                               onTap: () {
-                                // Handle account settings tap
+                                _showFeatureSheet(
+                                  context,
+                                  'Account Settings',
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ListTile(
+                                        leading: Icon(Icons.edit),
+                                        title: Text('Change Display Name'),
+                                        onTap: () {
+                                          Navigator.of(context).pop();
+                                          final controller = TextEditingController(text: _name);
+                                          showModalBottomSheet(
+                                            context: context,
+                                            isScrollControlled: true,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
+                                            ),
+                                            builder: (ctx) => Padding(
+                                              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+                                              child: Padding(
+                                                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                                                child: Column(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text('Change Display Name', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                                                    SizedBox(height: 12.h),
+                                                    TextField(controller: controller, decoration: InputDecoration(labelText: 'Name')),
+                                                    SizedBox(height: 12.h),
+                                                    Row(
+                                                      mainAxisAlignment: MainAxisAlignment.end,
+                                                      children: [
+                                                        TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Cancel')),
+                                                        ElevatedButton(
+                                                          onPressed: () {
+                                                            setState(() { _name = controller.text.trim(); });
+                                                            Navigator.of(ctx).pop();
+                                                          },
+                                                          child: Text('Save'),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                      ListTile(
+                                        leading: Icon(Icons.link),
+                                        title: Text('Manage Linked Accounts'),
+                                        onTap: () {
+                                          Navigator.of(context).pop();
+                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Manage Linked Accounts')));
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
                               },
                             );
                           case 1:
@@ -316,7 +498,39 @@ class _ProfilePageState extends State<ProfilePage> {
                               leading: Icon(Icons.notifications),
                               title: Text('Notifications'),
                               onTap: () {
-                                // Handle notifications tap
+                                _showFeatureSheet(
+                                  context,
+                                  'Notifications',
+                                  StatefulBuilder(builder: (c, setStateLocal) {
+                                    bool push = _pushNotifications;
+                                    bool email = _emailNotifications;
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SwitchListTile(
+                                          title: Text('Push Notifications'),
+                                          value: push,
+                                          onChanged: (v) async {
+                                            setStateLocal(() => push = v);
+                                            await _setPushNotifications(v);
+                                          },
+                                        ),
+                                        SwitchListTile(
+                                          title: Text('Email Notifications'),
+                                          value: email,
+                                          onChanged: (v) async {
+                                            setStateLocal(() => email = v);
+                                            await _setEmailNotifications(v);
+                                          },
+                                        ),
+                                        SizedBox(height: 8.h),
+                                        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                                          TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Close')),
+                                        ]),
+                                      ],
+                                    );
+                                  }),
+                                );
                               },
                             );
                           case 2:
@@ -324,7 +538,33 @@ class _ProfilePageState extends State<ProfilePage> {
                               leading: Icon(Icons.lock),
                               title: Text('Privacy'),
                               onTap: () {
-                                // Handle privacy tap
+                                _showFeatureSheet(
+                                  context,
+                                  'Privacy',
+                                  StatefulBuilder(builder: (c, setState) {
+                                    bool showProfile = false;
+                                    bool analytics = true;
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SwitchListTile(
+                                          title: Text('Show profile to others'),
+                                          value: showProfile,
+                                          onChanged: (v) => setState(() => showProfile = v),
+                                        ),
+                                        SwitchListTile(
+                                          title: Text('Allow analytics'),
+                                          value: analytics,
+                                          onChanged: (v) => setState(() => analytics = v),
+                                        ),
+                                        SizedBox(height: 8.h),
+                                        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                                          TextButton(onPressed: () => Navigator.of(c).pop(), child: Text('Close')),
+                                        ]),
+                                      ],
+                                    );
+                                  }),
+                                );
                               },
                             );
                           case 3:
@@ -332,7 +572,33 @@ class _ProfilePageState extends State<ProfilePage> {
                               leading: Icon(Icons.security),
                               title: Text('Security'),
                               onTap: () {
-                                // Handle security tap
+                                _showFeatureSheet(
+                                  context,
+                                  'Security',
+                                  StatefulBuilder(builder: (c, setState) {
+                                    bool twoFA = false;
+                                    bool appLock = false;
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SwitchListTile(
+                                          title: Text('Two-factor authentication'),
+                                          value: twoFA,
+                                          onChanged: (v) => setState(() => twoFA = v),
+                                        ),
+                                        SwitchListTile(
+                                          title: Text('App Lock'),
+                                          value: appLock,
+                                          onChanged: (v) => setState(() => appLock = v),
+                                        ),
+                                        SizedBox(height: 8.h),
+                                        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                                          TextButton(onPressed: () => Navigator.of(c).pop(), child: Text('Close')),
+                                        ]),
+                                      ],
+                                    );
+                                  }),
+                                );
                               },
                             );
                           default:

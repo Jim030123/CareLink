@@ -38,36 +38,41 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
     services = [
       Service(
         title: 'Heart Rate',
+        subtitle: '',
         icon: Icons.favorite_outline_outlined,
-        color: Colors.yellow.shade600,
+        color: Colors.yellow,
         onTap: () {},
       ),
 
       Service(
         title: 'Blood Pressure',
+         subtitle: '',
         icon: Icons.local_hospital,
-        color: Colors.red.shade400,
+        color: Colors.red,
         onTap: () {},
       ),
 
       Service(
         title: 'Medication',
+         subtitle: '',
         icon: Icons.medication, // fallback: Icons.local_pharmacy
-        color: Colors.blue.shade600,
+        color: Colors.blue,
         onTap: () {},
       ),
 
       Service(
         title: 'Remote Monitor',
+         subtitle: '',
         icon: Icons.devices,
-        color: Colors.green.shade600,
+        color: Colors.green,
         onTap: () {},
       ),
 
       Service(
         title: 'Manage Caregiver',
+         subtitle: '',
         icon: Icons.group,
-        color: Colors.purple.shade600,
+        color: Colors.purple,
         onTap: () {
           context.push('/managecaregiver');
         },
@@ -75,8 +80,9 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
 
       Service(
         title: 'Manage Care Recipient',
+         subtitle: '',
         icon: Icons.people,
-        color: Colors.orange.shade600,
+        color: Colors.orange,
         onTap: () {
           context.push('/managecarerecipient');
         },
@@ -85,12 +91,14 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
       // keep a couple extra examples if you want more cards
       Service(
         title: 'Medication',
+         subtitle: '',
         icon: Icons.medication,
         color: Colors.indigo,
         onTap: () => context.push('/medication'),
       ),
       Service(
         title: 'Activity',
+         subtitle: '',
         icon: Icons.directions_run,
         color: Colors.teal,
         onTap: () =>context.push('/caregiveremergencycall'),
