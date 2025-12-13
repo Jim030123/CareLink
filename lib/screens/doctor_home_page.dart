@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:ffi';
 
 import 'package:carelink_mobile/components/ai_chat_box.dart';
-import 'package:carelink_mobile/models/home_service.dart';
+import 'package:carelink_mobile/components/home_calendar.dart';
+import 'package:carelink_mobile/components/home_service.dart';
+import 'package:carelink_mobile/utils/greeting_service.dart';
 import 'package:carelink_mobile/utils/secure_auth.dart';
+import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -38,8 +41,9 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
   String _username = '';
   late DateTime _now;
   late Timer _clockTimer;
-  late final List<Service> services;
+  late final List<HomeService> services;
   bool _avatarPressed = false;
+  String? _displayName;
 
   @override
   void initState() {
@@ -52,21 +56,21 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
     });
 
     services = [
-      Service(
+      HomeService(
         title: 'Medication Handbook',
         subtitle: 'Learn about medications',
         icon: Icons.book,
         color: Colors.blue,
         onTap: () => context.push('/medication'),
       ),
-      Service(
+      HomeService(
         title: 'Prescription',
         subtitle: 'Manage prescriptions',
         icon: Icons.medical_information,
         color: Colors.green,
         onTap: () => context.push('/prescription'),
       ),
-      Service(
+      HomeService(
         title: 'Appointment',
         subtitle: 'Manage appointments',
         icon: Icons.event,
@@ -74,6 +78,18 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
         onTap: () => context.push('/appointment'),
       ),
     ];
+
+    fetchCurrentUser().then((user) {
+      debugPrint('doctor_home_page: fetchCurrentUser returned: $user');
+      final name = user?['displayName'] as String?;
+      debugPrint('caregiver_home_page: raw displayName = "$name"');
+      if (!mounted) return;
+      if ((name ?? '').trim().isNotEmpty) {
+        setState(() => _displayName = name!.trim());
+      } else {
+        debugPrint('doctor_home_page: displayName empty or missing');
+      }
+    });
   }
 
   @override
@@ -111,7 +127,6 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-
                       // tappable avatar with press animation + ripple
                       AnimatedScale(
                         scale: _avatarPressed ? 0.92 : 1.0,
@@ -122,9 +137,12 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
                           shape: const CircleBorder(),
                           child: InkWell(
                             customBorder: const CircleBorder(),
-                            onTapDown: (_) => setState(() => _avatarPressed = true),
-                            onTapCancel: () => setState(() => _avatarPressed = false),
-                            onTapUp: (_) => setState(() => _avatarPressed = false),
+                            onTapDown: (_) =>
+                                setState(() => _avatarPressed = true),
+                            onTapCancel: () =>
+                                setState(() => _avatarPressed = false),
+                            onTapUp: (_) =>
+                                setState(() => _avatarPressed = false),
                             onTap: () {
                               setState(() => _avatarPressed = false);
                               context.push('/profile');
@@ -143,7 +161,7 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
                       ),
                       SizedBox(width: 8.w),
                       Text(
-                        'Hi, ${_username.isNotEmpty ? _username : 'Doctor'}',
+                        formatGreeting(_now, displayName: _displayName),
                         style: TextStyle(
                           fontSize: 18.sp,
                           fontWeight: FontWeight.bold,
@@ -170,10 +188,13 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
                         ],
                       ),
                       SizedBox(width: 8.w),
-                     
                     ],
                   ),
 
+
+
+                  SizedBox(height: 20.h),
+                  HomeCalendar(),
                   SizedBox(height: 20.h),
 
                   appointment
@@ -198,7 +219,7 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
                     crossAxisSpacing: 12.w,
                     mainAxisSpacing: 12.h,
                     childAspectRatio: 1.15,
-                    children: services.map(_buildServiceCard).toList(),
+                    children: services.map(buildServiceCard).toList(),
                   ),
 
                   /// ================= UPCOMING FEATURES =================
@@ -314,9 +335,10 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
         gradient: const LinearGradient(
           colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
         ),
+        border: Border.all(color: Colors.orange.shade300, width: 2.w),
         borderRadius: BorderRadius.circular(12.w),
         boxShadow: [
-          BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14),
+          BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14.r),
         ],
       ),
       child: Row(
@@ -369,6 +391,8 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
         gradient: const LinearGradient(
           colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
         ),
+        border: Border.all(color: Colors.orange.shade300, width: 2.w),
+
         borderRadius: BorderRadius.circular(12.w),
         boxShadow: [
           BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14),
@@ -398,61 +422,6 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildServiceCard(Service s) {
-    return GestureDetector(
-      onTap: s.onTap,
-      child: Container(
-        padding: EdgeInsets.all(12.w),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.orange.withOpacity(0.25)),
-          gradient: const LinearGradient(
-            colors: [Colors.white, Colors.white70],
-          ),
-          borderRadius: BorderRadius.circular(12.w),
-          boxShadow: [
-            BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 2),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [s.color.shade900, s.color.shade100],
-              ).createShader(bounds),
-              blendMode: BlendMode.srcIn,
-              child: Icon(s.icon, size: 50.w, color: Colors.white),
-            ),
-            SizedBox(height: 10.h),
-            Container(
-              width: 120.w,
-              child: Text(
-                s.title,
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.bold,
-                  overflow: TextOverflow.clip,
-                ),
-              ),
-            ),
-            SizedBox(height: 6.h),
-
-            Text(
-              s.subtitle,
-              style: TextStyle(
-                fontSize: 12.sp,
-                fontWeight: FontWeight.normal,
-                overflow: TextOverflow.clip,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -33,14 +33,20 @@ class _HomeCalendarState extends State<HomeCalendar> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12.r),
+            gradient: const LinearGradient(
+          colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+        ),
+       border: Border.all(color: Colors.orange.withOpacity(0.25),width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14),
+        ],
 
-          boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 3)),
-          ],
+
         ),
         width: double.infinity,
 
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             TableCalendar(
               // 设置为 week view
@@ -138,15 +144,13 @@ class _HomeCalendarState extends State<HomeCalendar> {
 
             SizedBox(height: 5.h), // 👈 pushes the next container to the bottom
 
-            Flexible(
-              child: Align(
-                alignment: Alignment.bottomRight,
-                child: ElevatedButton(
-                  onPressed: () {
-                    context.push('/showappointment');
-                  },
-                  child: Text('Show Appointment'),
-                ),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: TextButton(
+                onPressed: () {
+                  context.push('/showappointment');
+                },
+                child: Text('Show Appointment'),
               ),
             ),
           ],

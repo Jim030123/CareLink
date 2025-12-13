@@ -27,27 +27,41 @@ query GetUser($uid: String!) {
 /// Returns the `user` map from GraphQL result, or null on failure / not found.
 Future<Map<String, dynamic>?> fetchCurrentUser() async {
   final uid = AuthService.instance.currentUser?.uid;
-  if (uid == null) return null;
+  if (uid == null) {
+    debugPrint('fetchCurrentUser: no current user uid (not signed in)');
+    return null;
+  }
 
   final idToken = await AuthService.instance.getIdToken();
-  if (idToken == null) return null;
+  if (idToken == null) {
+    debugPrint('fetchCurrentUser: failed to get idToken for uid=$uid');
+    return null;
+  }
 
   final client = createClient(idToken: idToken);
-
-  final result = await client.query(
+  debugPrint('fetchCurrentUser: querying backend for uid=$uid');
+  QueryResult result;
+  try {
+    result = await client.query(
     QueryOptions(
       document: gql(_getUserQuery),
       variables: {'uid': uid},
       fetchPolicy: FetchPolicy.networkOnly,
     ),
-  );
+    );
+  } catch (e, st) {
+    debugPrint('fetchCurrentUser: query threw exception: $e\n$st');
+    return null;
+  }
 
   if (result.hasException) {
-    // 可在此处记录日志：debugPrint('GetUser error: ${result.exception}');
+    debugPrint('fetchCurrentUser: GraphQL exception for uid=$uid -> ${result.exception}');
+    debugPrint('fetchCurrentUser: result.data = ${result.data}');
     return null;
   }
 
   final user = result.data?['user'] as Map<String, dynamic>?;
+  debugPrint('fetchCurrentUser: fetched user for uid=$uid -> $user');
   return user;
 }
 

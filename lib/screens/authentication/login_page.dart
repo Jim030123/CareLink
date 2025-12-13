@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:carelink_mobile/utils/dialogs.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -57,6 +58,7 @@ class _LoginPageState extends State<LoginPage> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20.w),
+                        
                         boxShadow: const [
                           BoxShadow(
                             color: Colors.black12,
@@ -114,7 +116,9 @@ class _LoginPageState extends State<LoginPage> {
                                       child: OutlinedButton.icon(
                                         onPressed: () async {
                                           final ok = await _controller.biometricSignIn(context);
-                                          if (ok && mounted) context.go('/home');
+                                          if (ok && mounted) {
+                                            await showUnlockSuccessDialog(context, route: '/home');
+                                          }
                                         },
                                         icon: const Icon(Icons.fingerprint),
                                         label: const Text('Login with biometrics', style: TextStyle(fontSize: 16)),
@@ -131,7 +135,9 @@ class _LoginPageState extends State<LoginPage> {
                               child: ElevatedButton(
                                 onPressed: () async {
                                   final ok = await _controller.signIn(context);
-                                  if (ok && mounted) context.go('/home');
+                                  if (ok && mounted) {
+                                    await showUnlockSuccessDialog(context, route: '/home');
+                                  }
                                 },
                                 child: Text(
                                   'Login',

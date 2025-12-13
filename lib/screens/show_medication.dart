@@ -140,7 +140,10 @@ class _ShowMedicationState extends State<ShowMedication> {
       }
 
       final mapped = meds
-          .map((e) => _smController.mapMedicationToItem(Map<String, dynamic>.from(e)))
+          .map(
+            (e) =>
+                _smController.mapMedicationToItem(Map<String, dynamic>.from(e)),
+          )
           .toList();
 
       if (mounted) {
@@ -301,8 +304,8 @@ class _ShowMedicationState extends State<ShowMedication> {
                               children: [
                                 Container(
                                   padding: EdgeInsets.all(8.w),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
+
+                                  decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                   ),
                                   child: Builder(
@@ -313,15 +316,18 @@ class _ShowMedicationState extends State<ShowMedication> {
                                           width: 44.w,
                                           height: 44.w,
                                           fit: BoxFit.contain,
-                                          errorBuilder: (_, __, ___) => Image.asset(
-                                            'assets/icons/capsule.png',
-                                            width: 44.w,
-                                            height: 44.w,
-                                          ),
+                                          errorBuilder: (_, __, ___) =>
+                                              Image.asset(
+                                                'assets/icons/capsule.png',
+                                                width: 44.w,
+                                                height: 44.w,
+                                              ),
                                         );
                                       }
                                       return Image.asset(
-                                        asset.isNotEmpty ? asset : 'assets/icons/capsule.png',
+                                        asset.isNotEmpty
+                                            ? asset
+                                            : 'assets/icons/capsule.png',
                                         width: 44.w,
                                         height: 44.w,
                                         fit: BoxFit.contain,
@@ -332,23 +338,52 @@ class _ShowMedicationState extends State<ShowMedication> {
                                 SizedBox(width: 12.w),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text(it['name'] ?? '', style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700)),
+                                      Text(
+                                        it['name'] ?? '',
+                                        style: TextStyle(
+                                          fontSize: 18.sp,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                       SizedBox(height: 6.h),
-                                      Text('Dose: ${it['dose'] ?? ''}', style: TextStyle(fontSize: 14.sp)),
+                                      Text(
+                                        'Dose: ${it['dose'] ?? ''}',
+                                        style: TextStyle(fontSize: 14.sp),
+                                      ),
                                       SizedBox(height: 4.h),
-                                      Text('${it['left'] ?? ''} Left', style: TextStyle(fontSize: 12.sp, color: Colors.black54)),
+                                      Text(
+                                        '${it['left'] ?? ''} Left',
+                                        style: TextStyle(
+                                          fontSize: 12.sp,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
                               ],
                             ),
                             SizedBox(height: 12.h),
-                            if ((it['description'] as String?)?.isNotEmpty ?? false) ...[
-                              Text('Description', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600)),
+                            if ((it['description'] as String?)?.isNotEmpty ??
+                                false) ...[
+                              Text(
+                                'Description',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                               SizedBox(height: 6.h),
-                              Text(it['description'] ?? '', style: TextStyle(fontSize: 13.sp, color: Colors.black87)),
+                              Text(
+                                it['description'] ?? '',
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  color: Colors.black87,
+                                ),
+                              ),
                               SizedBox(height: 12.h),
                             ],
                             Row(
@@ -373,10 +408,20 @@ class _ShowMedicationState extends State<ShowMedication> {
                                         context: ctx,
                                         builder: (dctx) => AlertDialog(
                                           title: const Text('Delete medicine'),
-                                          content: Text('Delete "${it['name']}"?'),
+                                          content: Text(
+                                            'Delete "${it['name']}"?',
+                                          ),
                                           actions: [
-                                            TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Cancel')),
-                                            TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Delete')),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(dctx).pop(false),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(dctx).pop(true),
+                                              child: const Text('Delete'),
+                                            ),
                                           ],
                                         ),
                                       );
@@ -388,7 +433,9 @@ class _ShowMedicationState extends State<ShowMedication> {
                                     },
                                     icon: const Icon(Icons.delete),
                                     label: const Text('Delete'),
-                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.redAccent,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -405,7 +452,11 @@ class _ShowMedicationState extends State<ShowMedication> {
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
               decoration: BoxDecoration(
-                color: bg,
+                border: Border.all(color: Colors.orange.shade100, width: 2.w),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+                ),
+
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: const [
                   BoxShadow(
@@ -467,7 +518,10 @@ class _ShowMedicationState extends State<ShowMedication> {
                       SizedBox(height: 4.h),
                       Text(
                         '${it['left']} Left',
-                        style: TextStyle(fontSize: 12.sp, color: Colors.black54),
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: Colors.black54,
+                        ),
                       ),
                     ],
                   ),
@@ -556,7 +610,11 @@ class _ShowMedicationState extends State<ShowMedication> {
           SizedBox(width: 6.w),
           Text(
             '$insufficient/$total',
-            style: TextStyle(color: Colors.white, fontSize: 12.sp, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -865,7 +923,9 @@ class _ShowMedicationState extends State<ShowMedication> {
 
     // 父组件：收到返回结果后更新 _items
     if (createdItem != null) {
-      setState(() => _items.add(_smController.mapMedicationToItem(createdItem)));
+      setState(
+        () => _items.add(_smController.mapMedicationToItem(createdItem)),
+      );
     }
   }
 
@@ -897,15 +957,9 @@ class _ShowMedicationState extends State<ShowMedication> {
                   ),
                 ),
                 SizedBox(height: 12.h),
-                FormTextField(
-                  controller: nameCtrl,
-                  label: 'Medicine name',
-                ),
+                FormTextField(controller: nameCtrl, label: 'Medicine name'),
                 SizedBox(height: 8.h),
-                FormTextField(
-                  controller: doseCtrl,
-                  label: 'Dose',
-                ),
+                FormTextField(controller: doseCtrl, label: 'Dose'),
                 SizedBox(height: 8.h),
                 FormTextField(
                   controller: qtyCtrl,
@@ -1083,9 +1137,7 @@ class _ShowMedicationState extends State<ShowMedication> {
     }
 
     return Subscription(
-      options: SubscriptionOptions(
-        document: gql(medicationUpdatedSub),
-      ),
+      options: SubscriptionOptions(document: gql(medicationUpdatedSub)),
       builder: (result) {
         if (result.hasException) {
           debugPrint('❌ med sub exception: ${result.exception}');
@@ -1131,7 +1183,7 @@ class _ShowMedicationState extends State<ShowMedication> {
 
     return Scaffold(
       appBar: const PageAppBar(
-        title: 'Medicine Reminder',
+        title: 'Medicine Handbook',
         showBack: true,
         showSearch: true,
       ),
@@ -1153,9 +1205,19 @@ class _ShowMedicationState extends State<ShowMedication> {
                                 padding: EdgeInsets.all(16.w),
                                 width: constraints.maxWidth,
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: const [
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFFFF4EE),
+                                      Color(0xFFFFE0CC),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  border: Border.all(
+                                    color: Colors.orange.shade100,
+                                    width: 2.w,
+                                  ),
+
+                                  boxShadow: [
                                     BoxShadow(
                                       color: Colors.black12,
                                       blurRadius: 4,
@@ -1179,7 +1241,8 @@ class _ShowMedicationState extends State<ShowMedication> {
                                         Expanded(
                                           child: _buildOption(
                                             type: MedicineType.capsule,
-                                            assetName: 'assets/icons/capsule.png',
+                                            assetName:
+                                                'assets/icons/capsule.png',
                                             label: 'Capsule',
                                           ),
                                         ),
@@ -1187,7 +1250,8 @@ class _ShowMedicationState extends State<ShowMedication> {
                                         Expanded(
                                           child: _buildOption(
                                             type: MedicineType.tablet,
-                                            assetName: 'assets/icons/tablet.png',
+                                            assetName:
+                                                'assets/icons/tablet.png',
                                             label: 'Tablet',
                                           ),
                                         ),
@@ -1195,7 +1259,8 @@ class _ShowMedicationState extends State<ShowMedication> {
                                         Expanded(
                                           child: _buildOption(
                                             type: MedicineType.injection,
-                                            assetName: 'assets/icons/injection.png',
+                                            assetName:
+                                                'assets/icons/injection.png',
                                             label: 'Injection',
                                           ),
                                         ),
@@ -1452,22 +1517,22 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                     SizedBox(height: 8.h),
                     // Care Recipient ID (always shown)
 
-
                     // If caregiver ID is already provided (injected), hide the
                     // Caregiver ID field — we still include its value in the
                     // submitted `input`. Otherwise show both fields.
-                                      SizedBox(height: 8.h),
+                    SizedBox(height: 8.h),
                     DropdownButtonFormField<String>(
                       value: selectedType,
                       items: ['capsule', 'tablet', 'injection', 'cream']
                           .map(
                             (t) => DropdownMenuItem(
-                                value: t,
-                                child: Text(
-                                  t.isNotEmpty
-                                      ? '${t[0].toUpperCase()}${t.substring(1)}'
-                                      : t,
-                                )),
+                              value: t,
+                              child: Text(
+                                t.isNotEmpty
+                                    ? '${t[0].toUpperCase()}${t.substring(1)}'
+                                    : t,
+                              ),
+                            ),
                           )
                           .toList(),
                       onChanged: (v) =>
@@ -1480,10 +1545,7 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                       label: 'Package Unit',
                     ),
                     SizedBox(height: 8.h),
-                    FormTextField(
-                      controller: widget.brandCtrl,
-                      label: 'Brand',
-                    ),
+                    FormTextField(controller: widget.brandCtrl, label: 'Brand'),
                     SizedBox(height: 8.h),
                     Row(
                       children: [
@@ -1542,32 +1604,35 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                                     .trim();
 
                                 final typeForDb = selectedType.isNotEmpty
-                                  ? '${selectedType[0].toUpperCase()}${selectedType.substring(1)}'
-                                  : selectedType;
+                                    ? '${selectedType[0].toUpperCase()}${selectedType.substring(1)}'
+                                    : selectedType;
 
                                 final input = {
                                   'name': widget.nameCtrl.text.trim(),
                                   'description': widget.descriptionCtrl.text
-                                    .trim(),
+                                      .trim(),
                                   'packageQuantity': qtyText.isNotEmpty
-                                    ? int.tryParse(qtyText) ?? 0
-                                    : 0,
+                                      ? int.tryParse(qtyText) ?? 0
+                                      : 0,
                                   'standardUnit': widget.dosageUnitCtrl.text
-                                    .trim(),
+                                      .trim(),
                                   // 'picture' removed from form per requirement
                                   'packageUnit': widget.packageUnitCtrl.text
-                                    .trim(),
+                                      .trim(),
                                   'brand': widget.brandCtrl.text.trim(),
                                   'sku': widget.skuCtrl.text.trim(),
-                                  'strength': widget.strengthCtrl.text.trim().isNotEmpty
-                                    ? widget.strengthCtrl.text.trim()
-                                    : (dosageAmountText.isNotEmpty ? dosageAmountText : null),
+                                  'strength':
+                                      widget.strengthCtrl.text.trim().isNotEmpty
+                                      ? widget.strengthCtrl.text.trim()
+                                      : (dosageAmountText.isNotEmpty
+                                            ? dosageAmountText
+                                            : null),
 
                                   // store with capitalized first letter in DB
                                   'form': typeForDb,
                                   // doctorId intentionally omitted (not needed in UI/backend upsert)
                                   'caregiverId': widget.caregiverCtrl.text
-                                    .trim(),
+                                      .trim(),
                                 };
 
                                 try {
