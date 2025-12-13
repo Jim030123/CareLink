@@ -259,76 +259,219 @@ class _ShowMedicationState extends State<ShowMedication> {
       final asset = (it['asset'] as String?) ?? '';
       return Padding(
         padding: EdgeInsets.only(bottom: 12.h),
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-          decoration: BoxDecoration(
-            color: bg,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
             borderRadius: BorderRadius.circular(12),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(8.w),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
+            onTap: () {
+              final globalIndex = _items.indexWhere(
+                (e) => e['id']?.toString() == it['id']?.toString(),
+              );
+
+              showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                 ),
-                child: Builder(
-                  builder: (context) {
-                    if (asset.startsWith('http')) {
-                      return Image.network(
-                        asset,
-                        width: 20.w,
-                        height: 20.w,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Image.asset(
-                          'assets/icons/capsule.png',
-                          width: 20.w,
-                          height: 20.w,
+                builder: (ctx) {
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                    ),
+                    child: SingleChildScrollView(
+                      child: Container(
+                        padding: EdgeInsets.all(16.w),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 40.w,
+                              height: 4.h,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[300],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            SizedBox(height: 12.h),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(8.w),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Builder(
+                                    builder: (_) {
+                                      if (asset.startsWith('http')) {
+                                        return Image.network(
+                                          asset,
+                                          width: 44.w,
+                                          height: 44.w,
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (_, __, ___) => Image.asset(
+                                            'assets/icons/capsule.png',
+                                            width: 44.w,
+                                            height: 44.w,
+                                          ),
+                                        );
+                                      }
+                                      return Image.asset(
+                                        asset.isNotEmpty ? asset : 'assets/icons/capsule.png',
+                                        width: 44.w,
+                                        height: 44.w,
+                                        fit: BoxFit.contain,
+                                      );
+                                    },
+                                  ),
+                                ),
+                                SizedBox(width: 12.w),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(it['name'] ?? '', style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700)),
+                                      SizedBox(height: 6.h),
+                                      Text('Dose: ${it['dose'] ?? ''}', style: TextStyle(fontSize: 14.sp)),
+                                      SizedBox(height: 4.h),
+                                      Text('${it['left'] ?? ''} Left', style: TextStyle(fontSize: 12.sp, color: Colors.black54)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 12.h),
+                            if ((it['description'] as String?)?.isNotEmpty ?? false) ...[
+                              Text('Description', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600)),
+                              SizedBox(height: 6.h),
+                              Text(it['description'] ?? '', style: TextStyle(fontSize: 13.sp, color: Colors.black87)),
+                              SizedBox(height: 12.h),
+                            ],
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      Navigator.of(ctx).pop();
+                                      if (globalIndex >= 0) {
+                                        _showEditMedicineSheet(globalIndex);
+                                      }
+                                    },
+                                    icon: const Icon(Icons.edit),
+                                    label: const Text('Edit'),
+                                  ),
+                                ),
+                                SizedBox(width: 8.w),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () async {
+                                      final should = await showDialog<bool>(
+                                        context: ctx,
+                                        builder: (dctx) => AlertDialog(
+                                          title: const Text('Delete medicine'),
+                                          content: Text('Delete "${it['name']}"?'),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Cancel')),
+                                            TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Delete')),
+                                          ],
+                                        ),
+                                      );
+                                      if (should == true) {
+                                        Navigator.of(ctx).pop();
+                                        final id = it['id']?.toString() ?? '';
+                                        await _deleteMedicine(id, globalIndex);
+                                      }
+                                    },
+                                    icon: const Icon(Icons.delete),
+                                    label: const Text('Delete'),
+                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 12.h),
+                          ],
                         ),
-                      );
-                    }
-                    return Image.asset(
-                      asset.isNotEmpty ? asset : 'assets/icons/capsule.png',
-                      width: 20.w,
-                      height: 20.w,
-                      fit: BoxFit.contain,
-                    );
-                  },
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Text(
-                  it['name'] as String,
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Dose: ${it['dose']}',
-                    style: TextStyle(fontSize: 13.sp),
-                  ),
-                  SizedBox(height: 4.h),
-                  Text(
-                    '${it['left']} Left',
-                    style: TextStyle(fontSize: 12.sp, color: Colors.black54),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
-            ],
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(8.w),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Builder(
+                      builder: (context) {
+                        if (asset.startsWith('http')) {
+                          return Image.network(
+                            asset,
+                            width: 20.w,
+                            height: 20.w,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Image.asset(
+                              'assets/icons/capsule.png',
+                              width: 20.w,
+                              height: 20.w,
+                            ),
+                          );
+                        }
+                        return Image.asset(
+                          asset.isNotEmpty ? asset : 'assets/icons/capsule.png',
+                          width: 20.w,
+                          height: 20.w,
+                          fit: BoxFit.contain,
+                        );
+                      },
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: Text(
+                      it['name'] as String,
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Dose: ${it['dose']}',
+                        style: TextStyle(fontSize: 13.sp),
+                      ),
+                      SizedBox(height: 4.h),
+                      Text(
+                        '${it['left']} Left',
+                        style: TextStyle(fontSize: 12.sp, color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       );
@@ -497,6 +640,43 @@ class _ShowMedicationState extends State<ShowMedication> {
     );
   }
 
+  Widget _buildCompactStatus() {
+    final total = _items.length;
+    final insufficient = _items.where((it) {
+      final leftVal = (it['left'] ?? '').toString();
+      final leftNum = int.tryParse(leftVal) ?? 0;
+      return leftNum < 10;
+    }).length;
+
+    final color = insufficient > 0 ? Colors.redAccent : Colors.green;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12.w),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            insufficient > 0 ? Icons.error_outline : Icons.check_circle_outline,
+            size: 14.w,
+            color: Colors.white,
+          ),
+          SizedBox(width: 6.w),
+          Text(
+            '$insufficient/$total',
+            style: TextStyle(color: Colors.white, fontSize: 12.sp, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCalendar() {
     return Container(
       padding: EdgeInsets.all(16.w),
@@ -538,6 +718,8 @@ class _ShowMedicationState extends State<ShowMedication> {
             'Selected: ${_selectedScheduleDate.toLocal().toString().split(' ').first}',
             style: TextStyle(fontSize: 14.sp, color: Colors.black54),
           ),
+          SizedBox(height: 12.h),
+          const StatusCard(),
         ],
       ),
     );
@@ -1072,70 +1254,80 @@ class _ShowMedicationState extends State<ShowMedication> {
                     SizedBox(height: 8.h),
                     (_selectedSegment == 0)
                         ? _buildCalendar()
-                        : Container(
-                            padding: EdgeInsets.all(16.w),
-                            width: constraints.maxWidth,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Type of Medication',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                SizedBox(height: 8.h),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildOption(
-                                        type: MedicineType.capsule,
-                                        assetName: 'assets/icons/capsule.png',
-                                        label: 'Capsule',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildOption(
-                                        type: MedicineType.tablet,
-                                        assetName: 'assets/icons/tablet.png',
-                                        label: 'Tablet',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildOption(
-                                        type: MedicineType.injection,
-                                        assetName: 'assets/icons/injection.png',
-                                        label: 'Injection',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildOption(
-                                        type: MedicineType.cream,
-                                        assetName: 'assets/icons/cream.png',
-                                        label: 'Cream',
-                                      ),
+                        : Stack(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(16.w),
+                                width: constraints.maxWidth,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 2),
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Type of Medication',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(height: 8.h),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildOption(
+                                            type: MedicineType.capsule,
+                                            assetName: 'assets/icons/capsule.png',
+                                            label: 'Capsule',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: _buildOption(
+                                            type: MedicineType.tablet,
+                                            assetName: 'assets/icons/tablet.png',
+                                            label: 'Tablet',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: _buildOption(
+                                            type: MedicineType.injection,
+                                            assetName: 'assets/icons/injection.png',
+                                            label: 'Injection',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: _buildOption(
+                                            type: MedicineType.cream,
+                                            assetName: 'assets/icons/cream.png',
+                                            label: 'Cream',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Positioned(
+                                top: 12.h,
+                                right: 12.w,
+                                child: _buildCompactStatus(),
+                              ),
+                            ],
                           ),
                     SizedBox(height: 12.h),
+
                     _buildSegmentContent(),
                   ],
                 ),
@@ -1154,7 +1346,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(height: 10.h),
-                  const StatusCard(),
+
                   SizedBox(height: 10.h),
                   Row(
                     mainAxisSize: MainAxisSize.max,
