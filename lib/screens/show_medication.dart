@@ -500,66 +500,7 @@ class _ShowMedicationState extends State<ShowMedication> {
             final globalIndex = _items.indexWhere(
               (e) => e['id']?.toString() == it['id']?.toString(),
             );
-            return Slidable(
-              key: Key('insuff-${it['name'] ?? ''}-$idx'),
-              endActionPane: ActionPane(
-                motion: const ScrollMotion(),
-                children: [
-                  SizedBox(width: 8.w),
-                  SlidableAction(
-                    onPressed: (ctx) {
-                      _showEditMedicineSheet(globalIndex);
-                    },
-                    backgroundColor: Colors.blueAccent,
-                    alignment: Alignment.center,
-                    foregroundColor: Colors.white,
-                    icon: Icons.edit,
-                    label: 'Edit',
-                    padding: EdgeInsets.symmetric(
-                      vertical: 12.h,
-                      horizontal: 12.w,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  SizedBox(width: 8.w),
-                  SlidableAction(
-                    onPressed: (ctx) async {
-                      final should = await showDialog<bool>(
-                        context: context,
-                        builder: (dctx) => AlertDialog(
-                          title: const Text('Delete medicine'),
-                          content: Text('Delete "${it['name']}"?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(dctx).pop(false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.of(dctx).pop(true),
-                              child: const Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (should == true) {
-                        final id = it['id']?.toString() ?? '';
-                        await _deleteMedicine(id, globalIndex);
-                      }
-                    },
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    icon: Icons.delete,
-                    label: 'Delete',
-                    padding: EdgeInsets.symmetric(
-                      vertical: 12.h,
-                      horizontal: 12.w,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ],
-              ),
-              child: buildCard(it, overrideColor: insuffColor),
-            );
+            return buildCard(it, overrideColor: insuffColor);
           }),
         ],
         if (sufficient.isNotEmpty) ...[
@@ -576,64 +517,7 @@ class _ShowMedicationState extends State<ShowMedication> {
             final globalIndex = _items.indexWhere(
               (e) => e['id']?.toString() == it['id']?.toString(),
             );
-            return Slidable(
-              key: Key('suff-${it['name'] ?? ''}-$idx'),
-              endActionPane: ActionPane(
-                motion: const ScrollMotion(),
-                children: [
-                  SlidableAction(
-                    onPressed: (ctx) {
-                      _showEditMedicineSheet(globalIndex);
-                    },
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                    icon: Icons.edit,
-                    label: 'Edit',
-                    padding: EdgeInsets.symmetric(
-                      vertical: 12.h,
-                      horizontal: 12.w,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  SizedBox(width: 8.w),
-                  SlidableAction(
-                    onPressed: (ctx) async {
-                      final should = await showDialog<bool>(
-                        context: context,
-                        builder: (dctx) => AlertDialog(
-                          title: const Text('Delete medicine'),
-                          content: Text('Delete "${it['name']}"?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(dctx).pop(false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.of(dctx).pop(true),
-                              child: const Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (should == true) {
-                        final id = it['id']?.toString() ?? '';
-                        await _deleteMedicine(id, globalIndex);
-                      }
-                    },
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    icon: Icons.delete,
-                    label: 'Delete',
-                    padding: EdgeInsets.symmetric(
-                      vertical: 12.h,
-                      horizontal: 12.w,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ],
-              ),
-              child: buildCard(it),
-            );
+            return buildCard(it);
           }),
         ],
       ],
