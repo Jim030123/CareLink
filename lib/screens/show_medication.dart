@@ -259,9 +259,13 @@ class _ShowMedicationState extends State<ShowMedication> {
     }
 
     Widget buildCard(Map<String, dynamic> it, {Color? overrideColor}) {
-      final bg =
-          overrideColor ?? (it['color'] as Color?) ?? const Color(0xFFF7EAD3);
       final asset = (it['asset'] as String?) ?? '';
+      final bool isInsufficient = overrideColor != null;
+      final bg = overrideColor ?? (it['color'] as Color?) ?? const Color(0xFFF7EAD3);
+      final borderColor = isInsufficient ? Colors.redAccent.withOpacity(0.9) : Colors.orange.shade100;
+      final gradientColors = isInsufficient
+          ? [bg.withOpacity(0.95), bg.withOpacity(0.85)]
+          : const [Color(0xFFFFF4EE), Color(0xFFFFE0CC)];
       return Padding(
         padding: EdgeInsets.only(bottom: 12.h),
         child: Material(
@@ -452,9 +456,9 @@ class _ShowMedicationState extends State<ShowMedication> {
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.orange.shade100, width: 2.w),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+                border: Border.all(color: borderColor, width: 2.w),
+                gradient: LinearGradient(
+                  colors: gradientColors,
                 ),
 
                 borderRadius: BorderRadius.circular(12),
