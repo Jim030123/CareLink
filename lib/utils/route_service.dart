@@ -4,7 +4,7 @@ import 'package:carelink_mobile/screens/caregiver_home_page.dart';
 import 'package:carelink_mobile/screens/cr_emergency_call.dart';
 import 'package:carelink_mobile/screens/doctor_home_page.dart';
 import 'package:carelink_mobile/screens/medication_handbook.dart';
-import 'package:carelink_mobile/screens/prescription.dart';
+import 'package:carelink_mobile/screens/medication_prescription.dart';
 import 'package:carelink_mobile/utils/home_resolver.dart';
 import 'package:carelink_mobile/screens/authentication/login_page.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
@@ -113,7 +113,7 @@ final GoRouter appRouter = GoRouter(
 
     GoRoute(
       path: '/prescription',
-      builder: (context, state) => const ShowPrescription(),
+      builder: (context, state) => const MedicationPrescription(),
     ),
 
     GoRoute(

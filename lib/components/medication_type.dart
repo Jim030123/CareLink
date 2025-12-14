@@ -56,5 +56,3 @@ Widget buildOption({
     ),
   );
 }
-
-

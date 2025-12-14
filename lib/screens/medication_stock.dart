@@ -1,7 +1,6 @@
 import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/status.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
-import 'package:carelink_mobile/utils/search_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:carelink_mobile/components/medication_info_chip.dart';
 import 'package:carelink_mobile/components/text_field.dart';
@@ -14,7 +13,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:carelink_mobile/components/medication_type.dart';
-import 'package:carelink_mobile/screens/medication_schedule.dart';
 
 typedef MedicineChanged = void Function(MedicineType type);
 
@@ -54,11 +52,11 @@ class ShowMedication extends StatefulWidget {
 
 class _ShowMedicationState extends State<ShowMedication> {
   late MedicineType _selected;
+  int _selectedSegment = 1; // 0=Schedule,1=Medicine
   late List<Map<String, dynamic>> _items;
-  late TextEditingController _searchCtrl;
-  bool _searching = false;
   final MedicationController _controller = MedicationController();
-  // MedicationSchedule removed — this page shows medicine list only
+  late DateTime _selectedScheduleDate;
+  late List<Map<String, dynamic>> _schedules;
   final MedicationHandBookController _smController =
       MedicationHandBookController();
 
@@ -69,20 +67,16 @@ class _ShowMedicationState extends State<ShowMedication> {
     super.initState();
     _selected = widget.initial ?? MedicineType.capsule;
     _items = <Map<String, dynamic>>[];
+    _selectedScheduleDate = DateTime.now();
+    _schedules = <Map<String, dynamic>>[];
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchMedications();
-    });
-    _searchCtrl = TextEditingController();
-
-    _searchCtrl.addListener(() {
-      if (mounted) setState(() {});
     });
   }
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -219,30 +213,35 @@ class _ShowMedicationState extends State<ShowMedication> {
   Widget _buildPile([List<Map<String, dynamic>>? items]) {
     final source = items ?? _items;
     final selectedKey = _selected.toString().split('.').last;
-
-    // Delegate filtering and search to shared util.
-    final filtered = filterMedications(
-      source,
-      _searchCtrl.text,
-      selectedType: selectedKey,
-      searching: _searching,
-    );
+    final filtered = source
+        .where((it) => (it['type'] ?? '') == selectedKey)
+        .toList();
 
     if (filtered.isEmpty) {
       return Padding(
         padding: EdgeInsets.symmetric(vertical: 24.h),
         child: Center(
           child: Text(
-            _searching
-                ? 'No medications found'
-                : 'No medications for selected type',
+            'No medications for selected type',
             style: TextStyle(fontSize: 14.sp, color: Colors.black54),
           ),
         ),
       );
     }
 
-    // Render all filtered items as a single list (no separate insufficient/sufficient sections)
+    final List<Map<String, dynamic>> insufficient = [];
+    final List<Map<String, dynamic>> sufficient = [];
+
+    for (final it in filtered) {
+      final packageNumberVal = (it['packageQuantity'] ?? '').toString();
+      final packageNumber = int.tryParse(packageNumberVal) ?? 0;
+      if (packageNumber < 10) {
+        insufficient.add(it);
+      } else {
+        sufficient.add(it);
+      }
+    }
+
     Widget buildCard(Map<String, dynamic> it, {Color? overrideColor}) {
       final asset = (it['asset'] as String?) ?? '';
       final bool isInsufficient = overrideColor != null;
@@ -423,7 +422,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                                                   icon: Icons.medication,
                                                   label: 'Strength',
                                                   value:
-                                                      '${it['strength']} / ${it['standardUnit'] ?? '-'}',
+                                                      '${it['strength']} ${it['standardUnit'] ?? '-'}',
                                                   color: Colors.purple,
                                                 ),
 
@@ -658,26 +657,334 @@ class _ShowMedicationState extends State<ShowMedication> {
       );
     }
 
+    final insuffColor = const Color(0xFFFFCDD2);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (insufficient.isNotEmpty) ...[
+          Padding(
+            padding: EdgeInsets.only(bottom: 8.h),
+            child: Text(
+              'Insufficient Medication (${insufficient.length})',
+              style: TextStyle(
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w700,
+                color: Colors.redAccent,
+              ),
+            ),
+          ),
+          ...insufficient.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final it = entry.value;
+            final globalIndex = _items.indexWhere(
+              (e) => e['id']?.toString() == it['id']?.toString(),
+            );
+            return buildCard(it, overrideColor: insuffColor);
+          }),
+        ],
+        if (sufficient.isNotEmpty) ...[
+          Padding(
+            padding: EdgeInsets.only(bottom: 8.h),
+            child: Text(
+              'Sufficient Medication (${sufficient.length})',
+              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ...sufficient.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final it = entry.value;
+            final globalIndex = _items.indexWhere(
+              (e) => e['id']?.toString() == it['id']?.toString(),
+            );
+            return buildCard(it);
+          }),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCompactStatus() {
+    final total = _items.length;
+    final insufficient = _items.where((it) {
+      final leftVal = (it['packageQuantity'] ?? '').toString();
+      final leftNum = int.tryParse(leftVal) ?? 0;
+      return leftNum < 10;
+    }).length;
+
+    final color = insufficient > 0 ? Colors.redAccent : Colors.green;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12.w),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            insufficient > 0 ? Icons.error_outline : Icons.check_circle_outline,
+            size: 14.w,
+            color: Colors.white,
+          ),
+          SizedBox(width: 6.w),
+          Text(
+            insufficient > 0
+                ? '$insufficient Insufficient'
+                : 'Sufficient Medication',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendar() {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Schedule',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8.h),
+          TableCalendar(
+            firstDay: DateTime.now().subtract(const Duration(days: 365)),
+            lastDay: DateTime.now().add(const Duration(days: 365)),
+            focusedDay: _selectedScheduleDate,
+            selectedDayPredicate: (day) =>
+                isSameDay(day, _selectedScheduleDate),
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _selectedScheduleDate = selectedDay;
+              });
+            },
+            headerStyle: const HeaderStyle(
+              formatButtonVisible: false,
+              titleCentered: true,
+            ),
+            calendarStyle: const CalendarStyle(outsideDaysVisible: false),
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            'Selected: ${_selectedScheduleDate.toLocal().toString().split(' ').first}',
+            style: TextStyle(fontSize: 14.sp, color: Colors.black54),
+          ),
+          SizedBox(height: 12.h),
+          const StatusCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSchedule() {
+    final daySchedules = _schedules.where((s) {
+      final d = s['date'] as DateTime;
+      return d.year == _selectedScheduleDate.year &&
+          d.month == _selectedScheduleDate.month &&
+          d.day == _selectedScheduleDate.day;
+    }).toList();
+
+    if (daySchedules.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: 24.h),
+        child: Center(
+          child: Text(
+            'No scheduled medications for selected date',
+            style: TextStyle(fontSize: 14.sp, color: Colors.black54),
+          ),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: EdgeInsets.only(bottom: 8.h),
           child: Text(
-            'Medications (${filtered.length})',
+            'Upcoming',
             style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
           ),
         ),
-        ...filtered.asMap().entries.map((entry) {
-          final it = entry.value;
-          return buildCard(it);
+        ...daySchedules.map((s) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: 12.h),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+              decoration: BoxDecoration(
+                color: s['color'] as Color? ?? const Color(0xFFF7EAD3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.medical_services, size: 20.w, color: Colors.white),
+                  SizedBox(width: 12.w),
+                  Expanded(child: Text(s['name'] as String)),
+                  Text(
+                    '${s['time'] ?? ''}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          );
         }),
       ],
     );
   }
 
-  // Schedule UI and logic live in `medication_schedule.dart` but this
-  // page no longer shows the schedule segment — it displays medicines only.
+  void _showAddScheduleSheet() async {
+    final nameCtrl = TextEditingController();
+    TimeOfDay selectedTime = const TimeOfDay(hour: 8, minute: 0);
+
+    final result = await showModalBottomSheet<Map<String, dynamic>?>(
+      context: context,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        // use StatefulBuilder for local state updates inside the sheet
+        return StatefulBuilder(
+          builder: (ctx2, setModalState) {
+            // local copies if you want to mutate without touching parent directly
+            DateTime _localDate = _selectedScheduleDate;
+            TimeOfDay _localTime = selectedTime;
+
+            // Wrap with SingleChildScrollView to avoid overflow when keyboard opens
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx2).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                child: Container(
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40.w,
+                        height: 4.h,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      SizedBox(height: 12.h),
+                      Text(
+                        'Add Schedule',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 12.h),
+                      TextField(
+                        controller: nameCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Medication name',
+                        ),
+                        autofocus: true,
+                      ),
+                      SizedBox(height: 12.h),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Date: ${_localDate.toLocal().toString().split(' ').first}',
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final d = await showDatePicker(
+                                context: ctx2,
+                                initialDate: _localDate,
+                                firstDate: DateTime.now().subtract(
+                                  const Duration(days: 365),
+                                ),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 365),
+                                ),
+                              );
+                              if (d != null) {
+                                setModalState(() => _localDate = d);
+                              }
+                            },
+                            child: const Text('Change'),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12.h),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text('Time: ${_localTime.format(ctx2)}'),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final t = await showTimePicker(
+                                context: ctx2,
+                                initialTime: _localTime,
+                              );
+                              if (t != null) {
+                                setModalState(() => _localTime = t);
+                              }
+                            },
+                            child: const Text('Pick'),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12.h),
+                      ElevatedButton(
+                        onPressed: () {
+                          final name = nameCtrl.text.trim();
+                          if (name.isEmpty) return;
+                          final entry = {
+                            'name': name,
+                            'date': _localDate,
+                            'time': _localTime.format(ctx2),
+                            'color': const Color(0xFFB3E5FC),
+                          };
+                          // 返回 entry 给调用者（父 widget）
+                          Navigator.of(ctx2).pop(entry);
+                        },
+                        child: const Text('Save'),
+                      ),
+                      SizedBox(height: 12.h),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    // result is the entry (or null if cancelled)
+    if (result != null) {
+      setState(() => _schedules.add(result));
+    }
+  }
 
   Future<void> _showAddMedicineSheet() async {
     final nameCtrl = TextEditingController();
@@ -878,7 +1185,57 @@ class _ShowMedicationState extends State<ShowMedication> {
   // Use shared `buildOption` from `components/medicine_type.dart`.
   // Local implementation removed to avoid duplication.
 
-  // segmented control removed — page shows medicine list only
+  Widget _buildSegmentedControl() {
+    Widget seg(String label, int idx) {
+      final bool sel = _selectedSegment == idx;
+      return Expanded(
+        child: InkWell(
+          onTap: () => setState(() => _selectedSegment = idx),
+          child: Container(
+            height: 44.h,
+            decoration: BoxDecoration(
+              color: sel ? const Color(0xFFF7EAD3) : Colors.transparent,
+              boxShadow: sel
+                  ? const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.sp,
+                  fontWeight: FontWeight.w600,
+                  color: sel ? Colors.black87 : Colors.black54,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: 230.w,
+      height: 44.h,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24.w),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24.w),
+          child: Row(children: [seg('Schedule', 0), seg('Medicine', 1)]),
+        ),
+      ),
+    );
+  }
 
   /// Medicine segment：条件式订阅。传入 `enabled` 为 false 则不建立订阅，仅渲染本地数据。
   Widget _buildMedicineWithSubscription({bool enabled = true}) {
@@ -916,26 +1273,27 @@ class _ShowMedicationState extends State<ShowMedication> {
     );
   }
 
-  // segments removed — always show medicine list with subscription
   Widget _buildSegmentContent() {
-    return _buildMedicineWithSubscription(enabled: true);
+    switch (_selectedSegment) {
+      case 0:
+        return _buildSchedule();
+      case 1:
+        // only enable subscription when the Medicine tab is active
+        return _buildMedicineWithSubscription(enabled: _selectedSegment == 1);
+      default:
+        return _buildSchedule();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // no segment on this page; always show medicine list
+    final bool isSchedule = _selectedSegment == 0;
 
     return Scaffold(
-      appBar: PageAppBar(
+      appBar: const PageAppBar(
         title: 'Medicine Handbook',
         showBack: true,
         showSearch: true,
-        onSearch: () {
-          setState(() {
-            _searching = !_searching;
-            if (!_searching) _searchCtrl.clear();
-          });
-        },
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -947,145 +1305,105 @@ class _ShowMedicationState extends State<ShowMedication> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(height: 8.h),
-                    Column(
-                      children: [
-                        // Search input shown when toggled from AppBar
-                        if (_searching)
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12.w,
-                              vertical: 8.h,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12.r),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _searchCtrl,
-                                    decoration: InputDecoration(
-                                      hintText:
-                                          'Search name, brand, SKU, description',
-                                      border: InputBorder.none,
-                                    ),
+                    (_selectedSegment == 0)
+                        ? _buildCalendar()
+                        : Stack(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(16.w),
+                                width: constraints.maxWidth,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFFFF4EE),
+                                      Color(0xFFFFE0CC),
+                                    ],
                                   ),
-                                ),
-                                if (_searchCtrl.text.isNotEmpty)
-                                  IconButton(
-                                    icon: Icon(Icons.clear, size: 20.w),
-                                    onPressed: () => _searchCtrl.clear(),
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  border: Border.all(
+                                    color: Colors.orange.shade100,
+                                    width: 2.w,
                                   ),
-                                IconButton(
-                                  icon: Icon(Icons.close, size: 20.w),
-                                  onPressed: () {
-                                    setState(() {
-                                      _searching = false;
-                                      _searchCtrl.clear();
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
 
-                        // hide type selector while searching — show when not searching
-                        if (!_searching) ...[
-                          SizedBox(height: 12.h),
-
-                          Container(
-                            padding: EdgeInsets.all(16.w),
-                            width: constraints.maxWidth,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
-                              ),
-                              borderRadius: BorderRadius.circular(12.r),
-                              border: Border.all(
-                                color: Colors.orange.shade100,
-                                width: 2.w,
-                              ),
-
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Type of Medication',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                SizedBox(height: 8.h),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: buildOption(
-                                        type: MedicineType.capsule,
-                                        assetName: 'assets/icons/capsule.png',
-                                        label: 'Capsule',
-                                        selected: _selected,
-                                        onSelect: (t) =>
-                                            setState(() => _selected = t),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: buildOption(
-                                        type: MedicineType.tablet,
-                                        assetName: 'assets/icons/tablet.png',
-                                        label: 'Tablet',
-                                        selected: _selected,
-                                        onSelect: (t) =>
-                                            setState(() => _selected = t),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: buildOption(
-                                        type: MedicineType.injection,
-                                        assetName: 'assets/icons/injection.png',
-                                        label: 'Injection',
-                                        selected: _selected,
-                                        onSelect: (t) =>
-                                            setState(() => _selected = t),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: buildOption(
-                                        type: MedicineType.cream,
-                                        assetName: 'assets/icons/cream.png',
-                                        label: 'Cream',
-                                        selected: _selected,
-                                        onSelect: (t) =>
-                                            setState(() => _selected = t),
-                                      ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 2),
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Type of Medication',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(height: 8.h),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: buildOption(
+                                            type: MedicineType.capsule,
+                                            assetName:
+                                                'assets/icons/capsule.png',
+                                            label: 'Capsule',
+                                            selected: _selected,
+                                            onSelect: (t) =>
+                                                setState(() => _selected = t),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: buildOption(
+                                            type: MedicineType.tablet,
+                                            assetName:
+                                                'assets/icons/tablet.png',
+                                            label: 'Tablet',
+                                            selected: _selected,
+                                            onSelect: (t) =>
+                                                setState(() => _selected = t),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: buildOption(
+                                            type: MedicineType.injection,
+                                            assetName:
+                                                'assets/icons/injection.png',
+                                            label: 'Injection',
+                                            selected: _selected,
+                                            onSelect: (t) =>
+                                                setState(() => _selected = t),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: buildOption(
+                                            type: MedicineType.cream,
+                                            assetName: 'assets/icons/cream.png',
+                                            label: 'Cream',
+                                            selected: _selected,
+                                            onSelect: (t) =>
+                                                setState(() => _selected = t),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Positioned(
+                                top: 12.h,
+                                right: 12.w,
+                                child: _buildCompactStatus(),
+                              ),
+                            ],
                           ),
-                        ],
-                      ],
-                    ),
                     SizedBox(height: 12.h),
 
                     _buildSegmentContent(),
@@ -1110,17 +1428,31 @@ class _ShowMedicationState extends State<ShowMedication> {
                   Row(
                     mainAxisSize: MainAxisSize.max,
                     children: [
+                      _buildSegmentedControl(),
+                      SizedBox(width: 5.w),
                       Expanded(
                         child: TextButton(
-                          onPressed: _showAddMedicineSheet,
+                          onPressed: () {
+                            if (isSchedule) {
+                              _showAddScheduleSheet();
+                            } else {
+                              _showAddMedicineSheet();
+                            }
+                          },
+
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.add, size: 18.w),
+                              Icon(
+                                isSchedule ? Icons.schedule : Icons.add,
+                                size: 18.w,
+                              ),
                               SizedBox(width: 6.w),
                               Flexible(
                                 child: Text(
-                                  'Add Medication',
+                                  isSchedule
+                                      ? 'Add Schedule'
+                                      : 'Add Medication',
                                   softWrap: false,
                                   overflow: TextOverflow.ellipsis,
                                   maxLines: 1,

@@ -1,37 +1,4 @@
-import 'package:carelink_mobile/components/page_appbar.dart';
-import 'package:flutter/material.dart';
-import 'package:carelink_mobile/components/medicine_type.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-
-class ShowPrescription extends StatefulWidget {
-  const ShowPrescription({super.key});
-
-  @override
-  State<ShowPrescription> createState() => _ShowPrescriptionState();
-}
-
-class _ShowPrescriptionState extends State<ShowPrescription> {
-  MedicineType _selected = MedicineType.capsule;
-  @override
-  Widget build(BuildContext context) {
-    return  Scaffold(
-       appBar: const PageAppBar(
-        title: 'Medicine Prescription',
-        showBack: true,
-        showSearch: true,
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SafeArea(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: 8.h),
-
-                         Container(
+   Container(
                            padding: EdgeInsets.all(16.w),
                            width: constraints.maxWidth,
                            decoration: BoxDecoration(
@@ -115,19 +82,3 @@ class _ShowPrescriptionState extends State<ShowPrescription> {
                              ],
                            ),
                          ),
-                    SizedBox(height: 12.h),
-
-
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-
-
-
-    );
-  }
-}

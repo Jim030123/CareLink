@@ -13,27 +13,26 @@ class MedicationHandBookController {
     final packageQuantity = m['packageQuantity']?.toString() ?? '';
     final packageUnit = m['packageUnit'] ?? '';
     final name = m['name'] ?? '';
-    final dosageAmount = m['strength']?.toString() ?? '';
-    final dosageUnit = m['standardUnit'] ?? '';
-    final qty = m['packageQuantity']?.toString() ?? '';
-    final rawType = (m['form'] ?? '').toString();
-    final type = rawType.trim().toLowerCase();
+    final strength = m['strength']?.toString() ?? '';
+    final standardUnit = m['standardUnit'] ?? '';
+    final form = (m['form'] ?? '').toString();
+    final type = form.trim().toLowerCase();
     final assetName = 'assets/icons/${type.isNotEmpty ? type : 'capsule'}.png';
+    final sku = m['sku'] ?? '';
+    final brand = m['brand'] ?? '';
 
     return {
       'id': id,
       'name': name,
-      'dose': '$dosageAmount / $dosageUnit',
-      'left': int.tryParse(qty) ?? 0,
+      'strength': strength,
       'asset': assetName,
       'type': type,
+      'standardUnit': standardUnit,
       'description': description,
       'packageQuantity': packageQuantity,
       'packageUnit': packageUnit,
-      'brand': m['brand'] ?? '',
-      'sku': m['sku'] ?? '',
-      'strength': m['strength']?.toString() ?? '',
-      'standardUnit': m['standardUnit'] ?? '',
+      'brand': brand,
+      'sku': sku,
     };
   }
 
@@ -210,108 +209,101 @@ class MedicationHandBookController {
   ///
   /// Returns: `{'items': List<Map>, 'data': Map? , 'tempId': String? , 'previous': Map? }
   ///
-Map<String, dynamic> _normalizeMedicationInput(Map<String, dynamic> input) {
-  final out = <String, dynamic>{};
+  Map<String, dynamic> _normalizeMedicationInput(Map<String, dynamic> input) {
+    final out = <String, dynamic>{};
 
-  input.forEach((key, value) {
-    if (value == null) return;
-    out[key] = value.toString();
-  });
-
-  return out;
-}
-
-
-
-
-  Future<Map<String, dynamic>> upsertMedicationRemote(
-  GraphQLClient client,
-  MedicationController backend,
-  Map<String, dynamic> input,
-  List<Map<String, dynamic>> items,
-) async {
-  // 🔐 关键：先统一把 input 全部转成 String
-  final normalizedInput = _normalizeMedicationInput(input);
-
-  final isCreate =
-      normalizedInput['id'] == null ||
-      normalizedInput['id'].toString().isEmpty;
-
-  Map<String, dynamic>? previous;
-  String? tempId;
-  final working = List<Map<String, dynamic>>.from(items);
-
-  /// ---------- Optimistic UI ----------
-  if (isCreate) {
-    tempId = 'temp-${DateTime.now().millisecondsSinceEpoch}';
-
-    final optimisticMed = mapMedicationToItem({
-      'id': tempId,
-      'name': normalizedInput['name'] ?? '',
-      'strength': normalizedInput['strength'],
-      'standardUnit': normalizedInput['standardUnit'],
-      'packageQuantity': normalizedInput['packageQuantity'],
-      'form': normalizedInput['form'],
+    input.forEach((key, value) {
+      if (value == null) return;
+      out[key] = value.toString();
     });
 
-    working.insert(0, optimisticMed);
-  } else {
-    final idx = working.indexWhere(
-      (e) => e['id']?.toString() == normalizedInput['id']?.toString(),
-    );
-
-    if (idx >= 0) {
-      previous = Map<String, dynamic>.from(working[idx]);
-
-      final optimisticMed = mapMedicationToItem({
-        'id': normalizedInput['id'],
-        'name': normalizedInput['name'] ?? previous['name'],
-        'strength': normalizedInput['strength'] ?? previous['strength'],
-        'standardUnit':
-            normalizedInput['standardUnit'] ?? previous['standardUnit'],
-        'packageQuantity':
-            normalizedInput['packageQuantity'] ?? previous['packageQuantity'],
-        'form': normalizedInput['form'] ?? previous['form'],
-      });
-
-      working[idx] = optimisticMed;
-    }
+    return out;
   }
 
-  /// ---------- Call backend ----------
-  final data = await backend.upsertMedication(client, normalizedInput);
+  Future<Map<String, dynamic>> upsertMedicationRemote(
+    GraphQLClient client,
+    MedicationController backend,
+    Map<String, dynamic> input,
+    List<Map<String, dynamic>> items,
+  ) async {
+    // 🔐 关键：先统一把 input 全部转成 String
+    final normalizedInput = _normalizeMedicationInput(input);
 
-  /// ---------- Revert on failure ----------
-  if (data == null) {
-    final reverted = mergeUpsertResult(
-      working,
-      null,
-      tempId: tempId,
-      previous: previous,
-    );
+    final isCreate =
+        normalizedInput['id'] == null ||
+        normalizedInput['id'].toString().isEmpty;
+
+    Map<String, dynamic>? previous;
+    String? tempId;
+    final working = List<Map<String, dynamic>>.from(items);
+
+    /// ---------- Optimistic UI ----------
+    if (isCreate) {
+      tempId = 'temp-${DateTime.now().millisecondsSinceEpoch}';
+
+      final optimisticMed = mapMedicationToItem({
+        'id': tempId,
+        'name': normalizedInput['name'] ?? '',
+        'strength': normalizedInput['strength'],
+        'standardUnit': normalizedInput['standardUnit'],
+        'packageQuantity': normalizedInput['packageQuantity'],
+        'form': normalizedInput['form'],
+      });
+
+      working.insert(0, optimisticMed);
+    } else {
+      final idx = working.indexWhere(
+        (e) => e['id']?.toString() == normalizedInput['id']?.toString(),
+      );
+
+      if (idx >= 0) {
+        previous = Map<String, dynamic>.from(working[idx]);
+
+        final optimisticMed = mapMedicationToItem({
+          'id': normalizedInput['id'],
+          'name': normalizedInput['name'] ?? previous['name'],
+          'strength': normalizedInput['strength'] ?? previous['strength'],
+          'standardUnit':
+              normalizedInput['standardUnit'] ?? previous['standardUnit'],
+          'packageQuantity':
+              normalizedInput['packageQuantity'] ?? previous['packageQuantity'],
+          'form': normalizedInput['form'] ?? previous['form'],
+        });
+
+        working[idx] = optimisticMed;
+      }
+    }
+
+    /// ---------- Call backend ----------
+    final data = await backend.upsertMedication(client, normalizedInput);
+
+    /// ---------- Revert on failure ----------
+    if (data == null) {
+      final reverted = mergeUpsertResult(
+        working,
+        null,
+        tempId: tempId,
+        previous: previous,
+      );
+
+      return {
+        'items': reverted,
+        'data': null,
+        'tempId': tempId,
+        'previous': previous,
+      };
+    }
+
+    /// ---------- Merge server result ----------
+    final merged = mergeUpsertResult(working, data, tempId: tempId);
 
     return {
-      'items': reverted,
-      'data': null,
+      'items': merged,
+      'data': data,
       'tempId': tempId,
       'previous': previous,
     };
   }
-
-  /// ---------- Merge server result ----------
-  final merged = mergeUpsertResult(
-    working,
-    data,
-    tempId: tempId,
-  );
-
-  return {
-    'items': merged,
-    'data': data,
-    'tempId': tempId,
-    'previous': previous,
-  };
-}
 
   /// Perform delete operation and return updated items and result flag.
   /// Returns: `{'items': List<Map>, 'success': bool, 'error': String?}`
@@ -451,36 +443,36 @@ class MedicationController {
   }
 
   /// Upsert medication and return returned map (or null on failure)
- Future<Map<String, dynamic>?> upsertMedication(
-  GraphQLClient client,
-  Map<String, dynamic> input,
-) async {
-  final res = await client.mutate(
-    MutationOptions(
-      document: gql(_upsertMutation),
-      variables: {'object': input},
-    ),
-  );
+  Future<Map<String, dynamic>?> upsertMedication(
+    GraphQLClient client,
+    Map<String, dynamic> input,
+  ) async {
+    final res = await client.mutate(
+      MutationOptions(
+        document: gql(_upsertMutation),
+        variables: {'object': input},
+      ),
+    );
 
-  // ✅ 第一步：先看有没有 GraphQL 错误
-  if (res.hasException) {
-    print('❌ GraphQL Exception:');
-    print(res.exception);                 // 总览
-    print(res.exception?.graphqlErrors);  // GraphQL validation / resolver 错误
-    print(res.exception?.linkException);  // 网络 / 连接错误
-    return null;
+    // ✅ 第一步：先看有没有 GraphQL 错误
+    if (res.hasException) {
+      print('❌ GraphQL Exception:');
+      print(res.exception); // 总览
+      print(res.exception?.graphqlErrors); // GraphQL validation / resolver 错误
+      print(res.exception?.linkException); // 网络 / 连接错误
+      return null;
+    }
+
+    // ✅ 第二步：再安全地读 data
+    final list = res.data?['insert_medication'] as List<dynamic>?;
+
+    if (list == null || list.isEmpty) {
+      print('⚠️ insert_medication returned empty list');
+      return null;
+    }
+
+    return Map<String, dynamic>.from(list.first);
   }
-
-  // ✅ 第二步：再安全地读 data
-  final list = res.data?['insert_medication'] as List<dynamic>?;
-
-  if (list == null || list.isEmpty) {
-    print('⚠️ insert_medication returned empty list');
-    return null;
-  }
-
-  return Map<String, dynamic>.from(list.first);
-}
 
   /// Delete medication by id. Returns true if deletion request succeeded.
   Future<bool> deleteMedication(GraphQLClient client, String id) async {

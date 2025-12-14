@@ -70,19 +70,18 @@ String formatGreeting(DateTime now, {String? displayName}) {
       'Morning! 🌅',
       'Rise and shine! ✨',
       'Have a great morning ☀️',
-      'Hope you have a wonderful morning 🌞',
+      'Have a wonderful morning 🌞',
     ],
     GreetingPeriod.afternoon: [
       'Good day ☀️',
       'Hello 👋',
       'Hi 🙂',
-      'Hope your afternoon is going well 🌤️',
       'Have a nice afternoon ☀️',
     ],
     GreetingPeriod.evening: [
       'Good evening 🌇',
       'Hello 🌆',
-      'Hope you are having a pleasant evening 🌙',
+      'Have a pleasant evening 🌙',
     ],
     GreetingPeriod.night: [
       'Good night 🌙',
