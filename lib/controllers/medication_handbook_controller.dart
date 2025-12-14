@@ -24,12 +24,16 @@ class MedicationHandBookController {
       'id': id,
       'name': name,
       'dose': '$dosageAmount / $dosageUnit',
-      'left': qty,
+      'left': int.tryParse(qty) ?? 0,
       'asset': assetName,
       'type': type,
       'description': description,
       'packageQuantity': packageQuantity,
       'packageUnit': packageUnit,
+      'brand': m['brand'] ?? '',
+      'sku': m['sku'] ?? '',
+      'strength': m['strength']?.toString() ?? '',
+      'standardUnit': m['standardUnit'] ?? '',
     };
   }
 

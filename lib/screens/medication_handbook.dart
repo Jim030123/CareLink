@@ -2,6 +2,7 @@ import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/status.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:flutter/material.dart';
+import 'package:carelink_mobile/components/medication_info_chip.dart';
 import 'package:carelink_mobile/components/text_field.dart';
 import 'package:carelink_mobile/utils/barcode_scanner.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
@@ -9,11 +10,9 @@ import 'package:carelink_mobile/controllers/medication_handbook_controller.dart'
 import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-enum MedicineType { capsule, tablet, injection, cream }
+import 'package:carelink_mobile/components/medicine_type.dart';
 
 typedef MedicineChanged = void Function(MedicineType type);
 
@@ -294,110 +293,197 @@ class _ShowMedicationState extends State<ShowMedication> {
                             SizedBox(height: 12.h),
                             Row(
                               children: [
-                                Container(
-                                  padding: EdgeInsets.all(8.w),
-
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Builder(
-                                    builder: (_) {
-                                      if (asset.startsWith('http')) {
-                                        return Image.network(
-                                          asset,
-                                          width: 44.w,
-                                          height: 44.w,
-                                          fit: BoxFit.contain,
-                                          errorBuilder: (_, __, ___) =>
-                                              Image.asset(
-                                                'assets/icons/capsule.png',
-                                                width: 44.w,
-                                                height: 44.w,
-                                              ),
-                                        );
-                                      }
-                                      return Image.asset(
-                                        asset.isNotEmpty
-                                            ? asset
-                                            : 'assets/icons/capsule.png',
-                                        width: 44.w,
-                                        height: 44.w,
-                                        fit: BoxFit.contain,
-                                      );
-                                    },
-                                  ),
-                                ),
-                                SizedBox(width: 12.w),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        it['name'] ?? '',
-                                        style: TextStyle(
-                                          fontSize: 18.sp,
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12.r),
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
                                       ),
-                                      SizedBox(height: 6.h),
-
-                                      if ((it['description'] as String?)
-                                              ?.isNotEmpty ??
-                                          false) ...[
-                                        Text(
-                                          'Description',
-                                          style: TextStyle(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        SizedBox(height: 6.h),
-                                        Text(
-                                          it['description'] ?? '',
-                                          style: TextStyle(
-                                            fontSize: 13.sp,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        SizedBox(height: 12.h),
+                                      border: Border.all(color: Colors.orange.withOpacity(0.25), width: 2),
+                                      boxShadow: [
+                                        BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14),
                                       ],
+                                    ),
+                                    child: Padding(
+                                      padding: EdgeInsets.all(14.w),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          /// 药名
+                                          Center(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.center,
+                                              children: [
+                                                /// Image
+                                                Container(
+                                                  padding: EdgeInsets.all(8.w),
+                                                  decoration:
+                                                      const BoxDecoration(
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                  child: Builder(
+                                                    builder: (_) {
+                                                      if (asset.startsWith(
+                                                        'http',
+                                                      )) {
+                                                        return Image.network(
+                                                          asset,
+                                                          width: 32.w,
+                                                          height: 32.w,
+                                                          fit: BoxFit.contain,
+                                                          errorBuilder:
+                                                              (
+                                                                _,
+                                                                __,
+                                                                ___,
+                                                              ) => Image.asset(
+                                                                'assets/icons/capsule.png',
+                                                                width: 32.w,
+                                                                height: 32.w,
+                                                              ),
+                                                        );
+                                                      }
+                                                      return Image.asset(
+                                                        asset.isNotEmpty
+                                                            ? asset
+                                                            : 'assets/icons/capsule.png',
+                                                        width: 32.w,
+                                                        height: 32.w,
+                                                        fit: BoxFit.contain,
+                                                      );
+                                                    },
+                                                  ),
+                                                ),
 
-                                      SizedBox(height: 4.h),
+                                                SizedBox(height: 6.h),
 
-                                      Text(
-                                        'Dose: ${it['dose'] ?? ''}',
-                                        style: TextStyle(fontSize: 14.sp),
-                                      ),
+                                                /// Name
+                                                Text(
+                                                  it['name'] ?? '',
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    fontSize: 18.sp,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
 
-                                      Text(
-                                        '${it['left'] ?? ''} Left',
-                                        style: TextStyle(
-                                          fontSize: 12.sp,
-                                          color: Colors.black54,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4.h),
+                                                SizedBox(height: 2.h),
 
-                                      TextButton(
-                                        onPressed: () async {
-                                          try {
-                                            await launchUrl(
-                                              Uri.parse(
-                                                'https://www.drugs.com/${it['name'].toString().toLowerCase()}.html',
+                                                /// Brand
+                                                Text(
+                                                  'Brand: ${it['brand'] ?? '-'}',
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    fontSize: 12.sp,
+                                                    color: Colors.black54,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+
+                                          SizedBox(height: 12.h),
+
+                                          /// ====== 格子 + Icon ======
+                                          Wrap(
+                                            spacing: 10.w,
+                                            runSpacing: 10.h,
+                                            children: [
+                                              _infoChip(
+                                                icon: Icons.medication,
+                                                label: 'Dose',
+                                                value: it['dose'] ?? '-',
+                                                color: Colors.purple,
                                               ),
-                                              mode: LaunchMode
-                                                  .externalApplication,
-                                            );
-                                          } catch (e) {
-                                            debugPrint(
-                                              'Could not launch https://www.drugs.com/${it['name'].toString().toLowerCase()}.html',
-                                            );
-                                          }
-                                        },
-                                        child: const Text('More Detail'),
+                                              _infoChip(
+                                                icon: Icons.science,
+                                                label: 'Strength',
+                                                value: it['strength'] ?? '-',
+                                                color: Colors.indigo,
+                                              ),
+                                              _infoChip(
+                                                icon: Icons.inventory_2,
+                                                label: 'Package Size',
+                                                value: it['packageUnit'] ?? '-',
+                                                color: Colors.teal,
+                                              ),
+                                              _infoChip(
+                                                icon: Icons.inventory,
+                                                label: 'Left',
+                                                value: '${it['left'] ?? '-'}',
+                                                color: (it['left'] ?? 0) <= 10
+                                                    ? Colors.red
+                                                    : Colors.green,
+                                              ),
+                                            ],
+                                          ),
+
+                                          /// ====== Description ======
+                                          if ((it['description'] as String?)
+                                                  ?.isNotEmpty ??
+                                              false) ...[
+                                            SizedBox(height: 14.h),
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.info_outline,
+                                                  size: 16.sp,
+                                                  color: Colors.black54,
+                                                ),
+                                                SizedBox(width: 6.w),
+                                                Text(
+                                                  'Description',
+                                                  style: TextStyle(
+                                                    fontSize: 14.sp,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            SizedBox(height: 6.h),
+                                            Text(
+                                              it['description'],
+                                              style: TextStyle(
+                                                fontSize: 13.sp,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ],
+
+                                          /// ====== More Detail ======
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: TextButton.icon(
+                                              icon: const Icon(
+                                                Icons.open_in_new,
+                                                size: 16,
+                                              ),
+                                              label: const Text('More Detail'),
+                                              onPressed: () async {
+                                                final url =
+                                                    'https://www.drugs.com/${it['name'].toString().toLowerCase()}.html';
+                                                try {
+                                                  await launchUrl(
+                                                    Uri.parse(url),
+                                                    mode: LaunchMode
+                                                        .externalApplication,
+                                                  );
+                                                } catch (e) {
+                                                  debugPrint(
+                                                    'Could not launch $url',
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ],
@@ -625,7 +711,9 @@ class _ShowMedicationState extends State<ShowMedication> {
           ),
           SizedBox(width: 6.w),
           Text(
-            insufficient > 0 ? '$insufficient Insufficient' : 'Sufficient Medication',
+            insufficient > 0
+                ? '$insufficient Insufficient'
+                : 'Sufficient Medication',
             style: TextStyle(
               color: Colors.white,
               fontSize: 12.sp,
@@ -882,8 +970,6 @@ class _ShowMedicationState extends State<ShowMedication> {
     final qtyCtrl = TextEditingController();
     final dosageAmountCtrl = TextEditingController();
     final dosageUnitCtrl = TextEditingController();
-    final frequencyCtrl = TextEditingController();
-
     final packageUnitCtrl = TextEditingController();
     final brandCtrl = TextEditingController();
     final skuCtrl = TextEditingController();
@@ -918,18 +1004,16 @@ class _ShowMedicationState extends State<ShowMedication> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        return _AddMedicineSheet(
+        return AddMedicineSheet(
           nameCtrl: nameCtrl,
           descriptionCtrl: descriptionCtrl,
           qtyCtrl: qtyCtrl,
           dosageAmountCtrl: dosageAmountCtrl,
           dosageUnitCtrl: dosageUnitCtrl,
-          frequencyCtrl: frequencyCtrl,
           packageUnitCtrl: packageUnitCtrl,
           brandCtrl: brandCtrl,
           skuCtrl: skuCtrl,
           strengthCtrl: strengthCtrl,
-          caregiverCtrl: caregiverCtrl,
           statusCtrl: statusCtrl,
           initialType: selectedType, // 可选初始值
           upsertMedication: _upsertMedication, // 函数注入
@@ -941,7 +1025,8 @@ class _ShowMedicationState extends State<ShowMedication> {
     if (createdItem != null) {
       final newItem = _smController.mapMedicationToItem(createdItem);
       final newId = newItem['id']?.toString();
-      final exists = newId != null && _items.any((e) => e['id']?.toString() == newId);
+      final exists =
+          newId != null && _items.any((e) => e['id']?.toString() == newId);
       if (!exists) {
         setState(() => _items.add(newItem));
       } else {
@@ -954,70 +1039,82 @@ class _ShowMedicationState extends State<ShowMedication> {
     }
   }
 
-  void _showEditMedicineSheet(int index) {
+  Future<void> _showEditMedicineSheet(int index) async {
     if (index < 0 || index >= _items.length) return;
     final item = _items[index];
-    final nameCtrl = TextEditingController(text: item['name'] as String? ?? '');
-    final qtyCtrl = TextEditingController(text: item['left']?.toString() ?? '');
-    final doseCtrl = TextEditingController(text: item['dose'] as String? ?? '');
 
-    showModalBottomSheet(
+    final nameCtrl = TextEditingController(text: item['name'] as String? ?? '');
+    final descriptionCtrl = TextEditingController(
+      text: item['description'] as String? ?? '',
+    );
+    final qtyCtrl = TextEditingController(
+      text: (item['left'] ?? item['packageQuantity'] ?? '').toString(),
+    );
+    final dosageAmountCtrl = TextEditingController(
+      text: (item['dose'] ?? item['dosageAmount'] ?? '').toString(),
+    );
+    final dosageUnitCtrl = TextEditingController(
+      text: item['standardUnit'] as String? ?? '',
+    );
+    final frequencyCtrl = TextEditingController(
+      text: item['frequency'] as String? ?? '',
+    );
+    final packageUnitCtrl = TextEditingController(
+      text: item['packageUnit'] as String? ?? '',
+    );
+    final brandCtrl = TextEditingController(
+      text: item['brand'] as String? ?? '',
+    );
+    final skuCtrl = TextEditingController(text: item['sku'] as String? ?? '');
+    final strengthCtrl = TextEditingController(
+      text: item['strength'] as String? ?? '',
+    );
+
+    final statusCtrl = TextEditingController(
+      text: item['status'] as String? ?? 'active',
+    );
+
+    final initialType =
+        (item['form'] ?? item['type'] ?? _selected.toString().split('.').last)
+            ?.toString();
+
+    final createdItem = await showModalBottomSheet<Map<String, dynamic>?>(
       context: context,
       isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: Container(
-            padding: EdgeInsets.all(16.w),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40.w,
-                  height: 4.h,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                SizedBox(height: 12.h),
-                SizedBox(height: 12.h),
-                FormTextField(controller: nameCtrl, label: 'Medicine name'),
-                SizedBox(height: 12.h),
-                FormTextField(controller: doseCtrl, label: 'Dose'),
-                SizedBox(height: 12.h),
-                FormTextField(
-                  controller: qtyCtrl,
-                  label: 'Quantity',
-                  keyboardType: TextInputType.number,
-                ),
-                SizedBox(height: 12.h),
-                ElevatedButton(
-                  onPressed: () {
-                    final name = nameCtrl.text.trim();
-                    final qty = qtyCtrl.text.trim();
-                    final dose = doseCtrl.text.trim();
-                    if (name.isEmpty) return;
-                    setState(() {
-                      _items[index] = {
-                        ..._items[index],
-                        'name': name,
-                        'left': qty.isNotEmpty ? qty : '0',
-                        'dose': dose,
-                      };
-                    });
-                    Navigator.of(ctx).pop();
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            ),
-          ),
+        return AddMedicineSheet(
+          nameCtrl: nameCtrl,
+          descriptionCtrl: descriptionCtrl,
+          qtyCtrl: qtyCtrl,
+          dosageAmountCtrl: dosageAmountCtrl,
+          dosageUnitCtrl: dosageUnitCtrl,
+          packageUnitCtrl: packageUnitCtrl,
+          brandCtrl: brandCtrl,
+          skuCtrl: skuCtrl,
+          strengthCtrl: strengthCtrl,
+          statusCtrl: statusCtrl,
+          initialType: initialType,
+          existingId: item['id']?.toString(),
+          upsertMedication: _upsertMedication,
         );
       },
     );
+
+    if (createdItem != null) {
+      final newItem = _smController.mapMedicationToItem(createdItem);
+      final newId = newItem['id']?.toString();
+      setState(() {
+        final idx = _items.indexWhere((e) => e['id']?.toString() == newId);
+        if (idx >= 0) {
+          _items[idx] = newItem;
+        } else {
+          _items.insert(index.clamp(0, _items.length), newItem);
+        }
+      });
+    }
   }
 
   Widget statusRow({required String label, required Color color}) {
@@ -1051,58 +1148,27 @@ class _ShowMedicationState extends State<ShowMedication> {
     );
   }
 
-  Widget _buildOption({
-    required MedicineType type,
+  // Adapter wrapper for the project's shared `infoChip` component.
+  // The existing UI code calls `_infoChip(...)` so provide a small
+  // private wrapper that normalizes value to String and delegates
+  // to the shared `infoChip` widget exported from
+  // `components/medication_info_chip.dart`.
+  Widget _infoChip({
+    required IconData icon,
     required String label,
-    required String assetName,
+    required Object? value,
+    Color? color,
   }) {
-    final bool isSelected = _selected == type;
-    final bg = isSelected ? const Color(0xFFFFECB3) : Colors.white;
-    final border = isSelected
-        ? Border.all(color: Colors.orange, width: 1.6)
-        : Border.all(color: Colors.grey.shade300, width: 1);
-
-    return GestureDetector(
-      onTap: () => _select(type),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(12),
-              border: border,
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: Colors.orange.withOpacity(0.25),
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : const [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-            ),
-            child: Image.asset(assetName, width: 28, height: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: isSelected ? Colors.black87 : Colors.black54,
-            ),
-          ),
-        ],
-      ),
+    return infoChip(
+      icon: icon,
+      label: label,
+      value: value == null ? '-' : value.toString(),
+      color: color,
     );
   }
+
+  // Use shared `buildOption` from `components/medicine_type.dart`.
+  // Local implementation removed to avoid duplication.
 
   Widget _buildSegmentedControl() {
     Widget seg(String label, int idx) {
@@ -1204,6 +1270,7 @@ class _ShowMedicationState extends State<ShowMedication> {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     final bool isSchedule = _selectedSegment == 0;
@@ -1252,7 +1319,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                                     ),
                                   ],
                                 ),
-                                child: Column(
+                                child:  Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const Text(
@@ -1266,37 +1333,45 @@ class _ShowMedicationState extends State<ShowMedication> {
                                     Row(
                                       children: [
                                         Expanded(
-                                          child: _buildOption(
+                                          child: buildOption(
                                             type: MedicineType.capsule,
                                             assetName:
                                                 'assets/icons/capsule.png',
                                             label: 'Capsule',
+                                            selected: _selected,
+                                            onSelect: (t) => setState(() => _selected = t),
                                           ),
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
-                                          child: _buildOption(
+                                          child: buildOption(
                                             type: MedicineType.tablet,
                                             assetName:
                                                 'assets/icons/tablet.png',
                                             label: 'Tablet',
+                                            selected: _selected,
+                                            onSelect: (t) => setState(() => _selected = t),
                                           ),
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
-                                          child: _buildOption(
+                                          child: buildOption(
                                             type: MedicineType.injection,
                                             assetName:
                                                 'assets/icons/injection.png',
                                             label: 'Injection',
+                                            selected: _selected,
+                                            onSelect: (t) => setState(() => _selected = t),
                                           ),
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
-                                          child: _buildOption(
+                                          child: buildOption(
                                             type: MedicineType.cream,
                                             assetName: 'assets/icons/cream.png',
                                             label: 'Cream',
+                                            selected: _selected,
+                                            onSelect: (t) => setState(() => _selected = t),
                                           ),
                                         ),
                                       ],
@@ -1357,7 +1432,9 @@ class _ShowMedicationState extends State<ShowMedication> {
                               SizedBox(width: 6.w),
                               Flexible(
                                 child: Text(
-                                  isSchedule ? 'Add Schedule' : 'Add Medication',
+                                  isSchedule
+                                      ? 'Add Schedule'
+                                      : 'Add Medication',
                                   softWrap: false,
                                   overflow: TextOverflow.ellipsis,
                                   maxLines: 1,
@@ -1380,45 +1457,45 @@ class _ShowMedicationState extends State<ShowMedication> {
   }
 }
 
-class _AddMedicineSheet extends StatefulWidget {
+class AddMedicineSheet extends StatefulWidget {
   final TextEditingController nameCtrl;
   final TextEditingController descriptionCtrl;
   final TextEditingController qtyCtrl;
   final TextEditingController dosageAmountCtrl;
   final TextEditingController dosageUnitCtrl;
-  final TextEditingController frequencyCtrl;
   final TextEditingController packageUnitCtrl;
   final TextEditingController brandCtrl;
   final TextEditingController skuCtrl;
   final TextEditingController strengthCtrl;
-  final TextEditingController caregiverCtrl;
   final TextEditingController statusCtrl;
   final String? initialType;
+  final String? existingId;
   final Future<Map<String, dynamic>?> Function(Map<String, dynamic>)
   upsertMedication;
 
-  const _AddMedicineSheet({
+  const AddMedicineSheet({
     required this.nameCtrl,
     required this.descriptionCtrl,
     required this.qtyCtrl,
     required this.dosageAmountCtrl,
     required this.dosageUnitCtrl,
-    required this.frequencyCtrl,
     required this.packageUnitCtrl,
     required this.brandCtrl,
     required this.skuCtrl,
     required this.strengthCtrl,
-    required this.caregiverCtrl,
     required this.statusCtrl,
     required this.upsertMedication,
     this.initialType,
+    this.existingId,
   });
 
   @override
-  State<_AddMedicineSheet> createState() => _AddMedicineSheetState();
+  State<AddMedicineSheet> createState() => _AddMedicineSheetState();
 }
 
-class _AddMedicineSheetState extends State<_AddMedicineSheet> {
+
+
+class _AddMedicineSheetState extends State<AddMedicineSheet> {
   late String selectedType;
   bool _loading = false;
   final _formKey = GlobalKey<FormState>();
@@ -1450,7 +1527,6 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
       widget.dosageAmountCtrl.text = '500';
       widget.strengthCtrl.text = '500';
       widget.dosageUnitCtrl.text = 'mg';
-      widget.frequencyCtrl.text = 'Once a day';
       widget.packageUnitCtrl.text = 'box';
       widget.brandCtrl.text = 'Generic';
       widget.skuCtrl.text = 'PARA-500-30';
@@ -1482,7 +1558,7 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
               ),
               SizedBox(height: 12.h),
               Text(
-                'Add Medicine',
+                'Medication',
                 style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
               ),
               SizedBox(height: 12.h),
@@ -1533,11 +1609,7 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                       controller: widget.dosageUnitCtrl,
                       label: 'Dosage Unit (e.g. mg)',
                     ),
-                    SizedBox(height: 12.h),
-                    FormTextField(
-                      controller: widget.frequencyCtrl,
-                      label: 'Frequency (e.g. once a day)',
-                    ),
+
 
                     SizedBox(height: 12.h),
                     Padding(
@@ -1629,15 +1701,22 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                                     ? '${selectedType[0].toUpperCase()}${selectedType.substring(1)}'
                                     : selectedType;
 
-                              final id = await fetchGeneratedCode( GraphQLProvider.of(context).value,
-        messenger: ScaffoldMessenger.of(context), id: 5);
+                                final id =
+                                    widget.existingId ??
+                                    await fetchGeneratedCode(
+                                      GraphQLProvider.of(context).value,
+                                      messenger: ScaffoldMessenger.of(context),
+                                      id: 5,
+                                    );
 
                                 final input = {
                                   'id': id,
                                   'name': widget.nameCtrl.text.trim(),
                                   'description': widget.descriptionCtrl.text
                                       .trim(),
-                                  'packageQuantity': qtyText.isNotEmpty ? qtyText : '0',
+                                  'packageQuantity': qtyText.isNotEmpty
+                                      ? qtyText
+                                      : '0',
                                   'standardUnit': widget.dosageUnitCtrl.text
                                       .trim(),
                                   // 'picture' removed from form per requirement
@@ -1655,9 +1734,7 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                                   // store with capitalized first letter in DB
                                   'form': typeForDb,
 
-
                                   // doctorId intentionally omitted (not needed in UI/backend upsert)
-
                                 };
 
                                 try {

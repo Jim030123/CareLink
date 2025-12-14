@@ -27,21 +27,19 @@ class _HomeCalendarState extends State<HomeCalendar> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, constraints) =>  Container(
+      builder: (context, constraints) => Container(
         margin: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
         padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12.r),
-            gradient: const LinearGradient(
-          colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
-        ),
-       border: Border.all(color: Colors.orange.withOpacity(0.25),width: 2),
-        boxShadow: [
-          BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14),
-        ],
-
-
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+          ),
+          border: Border.all(color: Colors.orange.withOpacity(0.25), width: 2),
+          boxShadow: [
+            BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14),
+          ],
         ),
         width: double.infinity,
 
