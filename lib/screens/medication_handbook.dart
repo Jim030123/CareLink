@@ -939,9 +939,18 @@ class _ShowMedicationState extends State<ShowMedication> {
 
     // 父组件：收到返回结果后更新 _items
     if (createdItem != null) {
-      setState(
-        () => _items.add(_smController.mapMedicationToItem(createdItem)),
-      );
+      final newItem = _smController.mapMedicationToItem(createdItem);
+      final newId = newItem['id']?.toString();
+      final exists = newId != null && _items.any((e) => e['id']?.toString() == newId);
+      if (!exists) {
+        setState(() => _items.add(newItem));
+      } else {
+        // If the controller already updated `_items` (via upsert), keep it in sync
+        setState(() {
+          final idx = _items.indexWhere((e) => e['id']?.toString() == newId);
+          if (idx >= 0) _items[idx] = newItem;
+        });
+      }
     }
   }
 
@@ -1645,7 +1654,7 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
 
                                   // store with capitalized first letter in DB
                                   'form': typeForDb,
-                                  
+
 
                                   // doctorId intentionally omitted (not needed in UI/backend upsert)
 

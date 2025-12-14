@@ -128,32 +128,27 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       // tappable avatar with press animation + ripple
-                      AnimatedScale(
-                        scale: _avatarPressed ? 0.92 : 1.0,
-                        duration: const Duration(milliseconds: 120),
-                        curve: Curves.easeOut,
-                        child: Material(
-                          color: Colors.transparent,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTapDown: (_) =>
-                                setState(() => _avatarPressed = true),
-                            onTapCancel: () =>
-                                setState(() => _avatarPressed = false),
-                            onTapUp: (_) =>
-                                setState(() => _avatarPressed = false),
-                            onTap: () {
-                              setState(() => _avatarPressed = false);
-                              context.push('/profile');
-                            },
-                            child: Padding(
-                              padding: EdgeInsets.all(4.r),
-                              child: CircleAvatar(
-                                radius: 20.r,
-                                backgroundImage: const NetworkImage(
-                                  'https://i.pravatar.cc/150?img=3',
-                                ),
+                      Material(
+                        color: Colors.transparent,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTapDown: (_) =>
+                              setState(() => _avatarPressed = true),
+                          onTapCancel: () =>
+                              setState(() => _avatarPressed = false),
+                          onTapUp: (_) =>
+                              setState(() => _avatarPressed = false),
+                          onTap: () {
+                            setState(() => _avatarPressed = false);
+                            context.push('/profile');
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.all(4.r),
+                            child: CircleAvatar(
+                              radius: 20.r,
+                              backgroundImage: const NetworkImage(
+                                'https://i.pravatar.cc/150?img=3',
                               ),
                             ),
                           ),
