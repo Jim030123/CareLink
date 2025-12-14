@@ -1,16 +1,17 @@
+import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/status.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:flutter/material.dart';
 import 'package:carelink_mobile/components/text_field.dart';
 import 'package:carelink_mobile/utils/barcode_scanner.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
-import 'package:carelink_mobile/controllers/medication_controller.dart';
-import 'package:carelink_mobile/controllers/show_medication_controller.dart';
+import 'package:carelink_mobile/controllers/medication_handbook_controller.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum MedicineType { capsule, tablet, injection, cream }
 
@@ -57,7 +58,8 @@ class _ShowMedicationState extends State<ShowMedication> {
   final MedicationController _controller = MedicationController();
   late DateTime _selectedScheduleDate;
   late List<Map<String, dynamic>> _schedules;
-  final ShowMedicationController _smController = ShowMedicationController();
+  final MedicationHandBookController _smController =
+      MedicationHandBookController();
 
   // No longer filter by caregiverId — display all medications
 
@@ -126,31 +128,14 @@ class _ShowMedicationState extends State<ShowMedication> {
     if (!mounted) return <Map<String, dynamic>>[];
     try {
       final client = GraphQLProvider.of(context).value;
-      final meds = await _controller.fetchMedications(client);
+      final mapped = await _smController.fetchMappedMedications(
+        client,
+        _controller,
+      );
 
       if (!mounted) return <Map<String, dynamic>>[];
 
-      if (meds.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _items = <Map<String, dynamic>>[];
-          });
-        }
-        return <Map<String, dynamic>>[];
-      }
-
-      final mapped = meds
-          .map(
-            (e) =>
-                _smController.mapMedicationToItem(Map<String, dynamic>.from(e)),
-          )
-          .toList();
-
-      if (mounted) {
-        setState(() {
-          _items = mapped;
-        });
-      }
+      setState(() => _items = mapped);
       debugPrint('fetchMedications: loaded ${mapped.length} meds');
       return mapped;
     } catch (e, st) {
@@ -261,8 +246,11 @@ class _ShowMedicationState extends State<ShowMedication> {
     Widget buildCard(Map<String, dynamic> it, {Color? overrideColor}) {
       final asset = (it['asset'] as String?) ?? '';
       final bool isInsufficient = overrideColor != null;
-      final bg = overrideColor ?? (it['color'] as Color?) ?? const Color(0xFFF7EAD3);
-      final borderColor = isInsufficient ? Colors.redAccent.withOpacity(0.9) : Colors.orange.shade100;
+      final bg =
+          overrideColor ?? (it['color'] as Color?) ?? const Color(0xFFF7EAD3);
+      final borderColor = isInsufficient
+          ? Colors.redAccent.withOpacity(0.9)
+          : Colors.orange.shade100;
       final gradientColors = isInsufficient
           ? [bg.withOpacity(0.95), bg.withOpacity(0.85)]
           : const [Color(0xFFFFF4EE), Color(0xFFFFE0CC)];
@@ -293,7 +281,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                         padding: EdgeInsets.all(16.w),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          // crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
                               width: 40.w,
@@ -353,11 +341,35 @@ class _ShowMedicationState extends State<ShowMedication> {
                                         ),
                                       ),
                                       SizedBox(height: 6.h),
+
+                                      if ((it['description'] as String?)
+                                              ?.isNotEmpty ??
+                                          false) ...[
+                                        Text(
+                                          'Description',
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        SizedBox(height: 6.h),
+                                        Text(
+                                          it['description'] ?? '',
+                                          style: TextStyle(
+                                            fontSize: 13.sp,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        SizedBox(height: 12.h),
+                                      ],
+
+                                      SizedBox(height: 4.h),
+
                                       Text(
                                         'Dose: ${it['dose'] ?? ''}',
                                         style: TextStyle(fontSize: 14.sp),
                                       ),
-                                      SizedBox(height: 4.h),
+
                                       Text(
                                         '${it['left'] ?? ''} Left',
                                         style: TextStyle(
@@ -365,31 +377,33 @@ class _ShowMedicationState extends State<ShowMedication> {
                                           color: Colors.black54,
                                         ),
                                       ),
+                                      SizedBox(height: 4.h),
+
+                                      TextButton(
+                                        onPressed: () async {
+                                          try {
+                                            await launchUrl(
+                                              Uri.parse(
+                                                'https://www.drugs.com/${it['name'].toString().toLowerCase()}.html',
+                                              ),
+                                              mode: LaunchMode
+                                                  .externalApplication,
+                                            );
+                                          } catch (e) {
+                                            debugPrint(
+                                              'Could not launch https://www.drugs.com/${it['name'].toString().toLowerCase()}.html',
+                                            );
+                                          }
+                                        },
+                                        child: const Text('More Detail'),
+                                      ),
                                     ],
                                   ),
                                 ),
                               ],
                             ),
                             SizedBox(height: 12.h),
-                            if ((it['description'] as String?)?.isNotEmpty ??
-                                false) ...[
-                              Text(
-                                'Description',
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              SizedBox(height: 6.h),
-                              Text(
-                                it['description'] ?? '',
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              SizedBox(height: 12.h),
-                            ],
+
                             Row(
                               children: [
                                 Expanded(
@@ -457,9 +471,7 @@ class _ShowMedicationState extends State<ShowMedication> {
               padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
               decoration: BoxDecoration(
                 border: Border.all(color: borderColor, width: 2.w),
-                gradient: LinearGradient(
-                  colors: gradientColors,
-                ),
+                gradient: LinearGradient(colors: gradientColors),
 
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: const [
@@ -546,7 +558,7 @@ class _ShowMedicationState extends State<ShowMedication> {
           Padding(
             padding: EdgeInsets.only(bottom: 8.h),
             child: Text(
-              'Insufficient medicine (${insufficient.length})',
+              'Insufficient Medication (${insufficient.length})',
               style: TextStyle(
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w700,
@@ -567,7 +579,7 @@ class _ShowMedicationState extends State<ShowMedication> {
           Padding(
             padding: EdgeInsets.only(bottom: 8.h),
             child: Text(
-              'Sufficient medicine (${sufficient.length})',
+              'Sufficient Medication (${sufficient.length})',
               style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
             ),
           ),
@@ -613,7 +625,7 @@ class _ShowMedicationState extends State<ShowMedication> {
           ),
           SizedBox(width: 6.w),
           Text(
-            '$insufficient/$total',
+            insufficient > 0 ? '$insufficient Insufficient' : 'Sufficient Medication',
             style: TextStyle(
               color: Colors.white,
               fontSize: 12.sp,
@@ -779,7 +791,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                       TextField(
                         controller: nameCtrl,
                         decoration: const InputDecoration(
-                          labelText: 'Medicine name',
+                          labelText: 'Medication name',
                         ),
                         autofocus: true,
                       ),
@@ -811,7 +823,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                           ),
                         ],
                       ),
-                      SizedBox(height: 8.h),
+                      SizedBox(height: 12.h),
                       Row(
                         children: [
                           Expanded(
@@ -953,18 +965,20 @@ class _ShowMedicationState extends State<ShowMedication> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Edit Medicine',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
+                Container(
+                  width: 40.w,
+                  height: 4.h,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
                 SizedBox(height: 12.h),
+                SizedBox(height: 12.h),
                 FormTextField(controller: nameCtrl, label: 'Medicine name'),
-                SizedBox(height: 8.h),
+                SizedBox(height: 12.h),
                 FormTextField(controller: doseCtrl, label: 'Dose'),
-                SizedBox(height: 8.h),
+                SizedBox(height: 12.h),
                 FormTextField(
                   controller: qtyCtrl,
                   label: 'Quantity',
@@ -1117,7 +1131,7 @@ class _ShowMedicationState extends State<ShowMedication> {
     }
 
     return SizedBox(
-      width: 260.w,
+      width: 230.w,
       height: 44.h,
       child: Container(
         decoration: BoxDecoration(
@@ -1309,14 +1323,13 @@ class _ShowMedicationState extends State<ShowMedication> {
                 children: [
                   SizedBox(height: 10.h),
 
-                  SizedBox(height: 10.h),
                   Row(
                     mainAxisSize: MainAxisSize.max,
                     children: [
                       _buildSegmentedControl(),
-                      SizedBox(width: 12.w),
+                      SizedBox(width: 5.w),
                       Expanded(
-                        child: ElevatedButton(
+                        child: TextButton(
                           onPressed: () {
                             if (isSchedule) {
                               _showAddScheduleSheet();
@@ -1324,25 +1337,23 @@ class _ShowMedicationState extends State<ShowMedication> {
                               _showAddMedicineSheet();
                             }
                           },
-                          style: ElevatedButton.styleFrom(
-                            padding: EdgeInsets.symmetric(vertical: 14.h),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
+
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
                                 isSchedule ? Icons.schedule : Icons.add,
-                                size: 20.w,
+                                size: 18.w,
                               ),
-                              SizedBox(width: 8.w),
-                              Text(
-                                isSchedule ? 'Add Schedule' : 'Add Medicine',
-                                softWrap: true,
-                                style: TextStyle(fontSize: 11.sp),
+                              SizedBox(width: 6.w),
+                              Flexible(
+                                child: Text(
+                                  isSchedule ? 'Add Schedule' : 'Add Medication',
+                                  softWrap: false,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                  style: TextStyle(fontSize: 11.sp),
+                                ),
                               ),
                             ],
                           ),
@@ -1480,13 +1491,13 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                           ? 'Please enter name'
                           : null,
                     ),
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 12.h),
                     FormTextField(
                       controller: widget.descriptionCtrl,
                       label: 'Description',
                       keyboardType: TextInputType.multiline,
                     ),
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 12.h),
                     Row(
                       children: [
                         Expanded(
@@ -1496,7 +1507,7 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                             keyboardType: TextInputType.number,
                           ),
                         ),
-                        SizedBox(width: 8.w),
+                        SizedBox(width: 12.w),
                         Expanded(
                           child: FormTextField(
                             controller: widget.dosageAmountCtrl,
@@ -1508,49 +1519,47 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 12.h),
                     FormTextField(
                       controller: widget.dosageUnitCtrl,
                       label: 'Dosage Unit (e.g. mg)',
                     ),
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 12.h),
                     FormTextField(
                       controller: widget.frequencyCtrl,
                       label: 'Frequency (e.g. once a day)',
                     ),
-                    SizedBox(height: 8.h),
-                    // Care Recipient ID (always shown)
 
-                    // If caregiver ID is already provided (injected), hide the
-                    // Caregiver ID field — we still include its value in the
-                    // submitted `input`. Otherwise show both fields.
-                    SizedBox(height: 8.h),
-                    DropdownButtonFormField<String>(
-                      value: selectedType,
-                      items: ['capsule', 'tablet', 'injection', 'cream']
-                          .map(
-                            (t) => DropdownMenuItem(
-                              value: t,
-                              child: Text(
-                                t.isNotEmpty
-                                    ? '${t[0].toUpperCase()}${t.substring(1)}'
-                                    : t,
+                    SizedBox(height: 12.h),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4.w),
+                      child: DropdownButtonFormField<String>(
+                        value: selectedType,
+                        items: ['capsule', 'tablet', 'injection', 'cream']
+                            .map(
+                              (t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(
+                                  t.isNotEmpty
+                                      ? '${t[0].toUpperCase()}${t.substring(1)}'
+                                      : t,
+                                ),
                               ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) =>
-                          setState(() => selectedType = v ?? selectedType),
-                      decoration: const InputDecoration(labelText: 'Type'),
+                            )
+                            .toList(),
+                        onChanged: (v) =>
+                            setState(() => selectedType = v ?? selectedType),
+                        decoration: const InputDecoration(labelText: 'Type'),
+                      ),
                     ),
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 20.h),
                     FormTextField(
                       controller: widget.packageUnitCtrl,
                       label: 'Package Unit',
                     ),
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 12.h),
                     FormTextField(controller: widget.brandCtrl, label: 'Brand'),
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 12.h),
                     Row(
                       children: [
                         Expanded(
@@ -1559,7 +1568,7 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                             label: 'SKU (scanable)',
                           ),
                         ),
-                        SizedBox(width: 8.w),
+                        SizedBox(width: 12.w),
                         Material(
                           color: Colors.transparent,
                           child: IconButton(
@@ -1572,12 +1581,12 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 12.h),
                     FormTextField(
                       controller: widget.strengthCtrl,
                       label: 'Strength',
                     ),
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 12.h),
                     Row(
                       children: [
                         Expanded(
@@ -1611,13 +1620,15 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
                                     ? '${selectedType[0].toUpperCase()}${selectedType.substring(1)}'
                                     : selectedType;
 
+                              final id = await fetchGeneratedCode( GraphQLProvider.of(context).value,
+        messenger: ScaffoldMessenger.of(context), id: 5);
+
                                 final input = {
+                                  'id': id,
                                   'name': widget.nameCtrl.text.trim(),
                                   'description': widget.descriptionCtrl.text
                                       .trim(),
-                                  'packageQuantity': qtyText.isNotEmpty
-                                      ? int.tryParse(qtyText) ?? 0
-                                      : 0,
+                                  'packageQuantity': qtyText.isNotEmpty ? qtyText : '0',
                                   'standardUnit': widget.dosageUnitCtrl.text
                                       .trim(),
                                   // 'picture' removed from form per requirement
@@ -1634,9 +1645,10 @@ class _AddMedicineSheetState extends State<_AddMedicineSheet> {
 
                                   // store with capitalized first letter in DB
                                   'form': typeForDb,
+                                  
+
                                   // doctorId intentionally omitted (not needed in UI/backend upsert)
-                                  'caregiverId': widget.caregiverCtrl.text
-                                      .trim(),
+
                                 };
 
                                 try {
