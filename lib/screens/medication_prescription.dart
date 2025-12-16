@@ -139,6 +139,16 @@ query Prescriptions($careRecipientId: ID!) {
     }
   }
 
+  String _formatDate(dynamic date) {
+    if (date == null) return '-';
+    try {
+      final dt = DateTime.parse(date.toString());
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return date.toString();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -297,22 +307,30 @@ query Prescriptions($careRecipientId: ID!) {
                                       ),
                                       SizedBox(height: 6.h),
                                       Text(
-                                        'Frequency: ${p['frequencyNote'] ?? '-'}',
+                                        'Frequency Note: ${p['frequencyNote'] ?? '-'}',
                                         style: TextStyle(
-                                          fontSize: 16.sp,
+                                          fontSize: 14.sp,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       SizedBox(height: 6.h),
 
                                       Text(
-                                        'Dose Amount: $dosageAmount $standardUnit',
+                                        'Dose Amount: $dosageAmount $standardUnit / time',
                                         style: TextStyle(
-                                          fontSize: 16.sp,
+                                          fontSize: 14.sp,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       SizedBox(height: 6.h),
+
+                                      Text(
+                                        '${_formatDate(p['startDate'])} → ${_formatDate(p['endDate'])}',
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
                                       Wrap(
                                         spacing: 6.w,
                                         children: times
