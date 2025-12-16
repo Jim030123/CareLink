@@ -101,3 +101,41 @@ Future<Map<String, dynamic>?> fetchUserByUid(
   }
   return user;
 }
+
+
+
+Future<String? > fetchUserIdByUid(
+  String uid, {
+  String? idToken,
+}) async {
+  final token = idToken ?? await AuthService.instance.getIdToken();
+  if (token == null) {
+    debugPrint('fetchUserByUid: no idToken available for uid=$uid');
+    return null;
+  }
+
+  final client = createClient(idToken: token);
+
+  final result = await client.query(
+    QueryOptions(
+      document: gql(_getUserQuery),
+      variables: {'uid': uid},
+      fetchPolicy: FetchPolicy.networkOnly,
+    ),
+  );
+
+  if (result.hasException) {
+    debugPrint(
+      'fetchUserByUid: GraphQL exception for uid=$uid -> ${result.exception}',
+    );
+    return null;
+  }
+
+  final user = result.data?['user'] as Map<String, dynamic>?;
+  if (user == null) {
+    debugPrint(
+      'fetchUserByUid: query returned no user for uid=$uid, data=${result.data}',
+    );
+  }
+  return user?['id'] as String?;
+}

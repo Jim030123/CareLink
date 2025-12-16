@@ -371,7 +371,9 @@ class _RegisterCareRecipientPageState
                                             widget.caregiverId ??
                                             ref.read(currentUserIdProvider) ??
                                             '';
-
+                                        debugPrint(
+                                          'Caregiver ID: $caregiverId',
+                                        );
                                         if (caregiverId.isEmpty) {
                                           _showSnack(
                                             'Missing caregiver identifier. Cannot insert recipients.',
@@ -402,13 +404,13 @@ class _RegisterCareRecipientPageState
 
                                         setState(() => _saving = true);
                                         // Show a non-dismissible loading dialog while creating accounts
-                                        final dismissLoading = showLoadingDialog(
-                                          context,
-                                          'Account creation in progress..',
-                                        );
+                                        final dismissLoading =
+                                            showLoadingDialog(
+                                              context,
+                                              'Account creation in progress..',
+                                            );
 
                                         try {
-
                                           const String mutation = r'''
 mutation InsertRecipients($objects: [CareRecipientInput!]!) {
   insert_care_recipient(objects: $objects) {
@@ -416,10 +418,22 @@ mutation InsertRecipients($objects: [CareRecipientInput!]!) {
     firstName
     lastName
     email
+
     caregiverId
-    type
+    caregiver {
+      id
+      firstName
+      lastName
+    }
+
+    type {
+      id
+      careRecipientType
+    }
   }
 }
+
+
 ''';
 
                                           final List<Map<String, dynamic>>

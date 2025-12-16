@@ -5,6 +5,7 @@ import 'package:carelink_mobile/screens/cr_emergency_call.dart';
 import 'package:carelink_mobile/screens/doctor_home_page.dart';
 import 'package:carelink_mobile/screens/medication_handbook.dart';
 import 'package:carelink_mobile/screens/medication_prescription.dart';
+import 'package:carelink_mobile/screens/select_medication_prescription.dart';
 import 'package:carelink_mobile/utils/home_resolver.dart';
 import 'package:carelink_mobile/screens/authentication/login_page.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
@@ -27,7 +28,7 @@ import '../screens/authentication/register_doctor_page.dart';
 
 /// Central app router exported for use by `main.dart`.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/doctor',
+  initialLocation: '/',
   errorBuilder: (context, state) =>
       NotFoundPage(location: state.error?.toString()),
   routes: <GoRoute>[
@@ -82,6 +83,11 @@ final GoRouter appRouter = GoRouter(
       path: '/home/caregiver',
       builder: (context, state) => const CaregiverHomePage(),
     ),
+
+    GoRoute(path: '/home/doctor',
+    builder: (context, state) => const DoctorHomePage()
+    ),
+
     GoRoute(
       path: '/showappointment',
       builder: (context, state) => const ShowAppointmentPage(),
@@ -132,8 +138,10 @@ final GoRouter appRouter = GoRouter(
       ),
     ),
 
-    GoRoute(path: '/doctor',
-    builder: (context, state) => const DoctorHomePage()
-    )
+
+
+    GoRoute(path: '/selectMedicationPrescription',
+      builder: (context, state) => const SelectMedicationPrescription(),
+    ),
   ],
 );

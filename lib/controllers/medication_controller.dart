@@ -487,4 +487,7 @@ class MedicationController {
         dyn == true || (dyn is String && dyn.isNotEmpty) || dyn == null;
     return success;
   }
+
+
+
 }

@@ -1,8 +1,18 @@
+import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
+import 'package:carelink_mobile/utils/graphql_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:carelink_mobile/components/medication_type.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:carelink_mobile/utils/user_service.dart';
+import 'package:carelink_mobile/screens/medication_handbook.dart';
+import 'package:carelink_mobile/screens/select_medication_prescription.dart';
+import 'package:go_router/go_router.dart';
 
 class MedicationPrescription extends StatefulWidget {
   const MedicationPrescription({super.key});
@@ -12,20 +22,128 @@ class MedicationPrescription extends StatefulWidget {
 }
 
 class _MedicationPrescriptionState extends State<MedicationPrescription> {
-  MedicineType _selected = MedicineType.capsule;
+  MedicationType _selected = MedicationType.capsule;
   Map<String, String>? _selectedRecipient;
   String? _selectedDoctor;
-  final List<Map<String, String>> _medications = [
-    {'id': 'm1', 'name': 'Paracetamol', 'dosage': '500mg'},
-    {'id': 'm2', 'name': 'Amoxicillin', 'dosage': '250mg'},
-    {'id': 'm3', 'name': 'Cetirizine', 'dosage': '10mg'},
-  ];
+  final List<Map<String, dynamic>> _prescriptions = [];
+
+  int _segmentIndex = 0; // 0 = Add, 1 = View
+
   final Set<String> _selectedMedications = {};
+  bool _noneMedicationSelected = false;
+  String? _selectedMedicationSingle;
+
+  static const String _fetchCareRecipientsQuery = r'''
+query CareRecipients {
+  care_recipient {
+    id
+    firstName
+    lastName
+    phone
+  }
+}
+''';
+
+  static const String _fetchPrescriptionsQuery = r'''
+query Prescriptions($careRecipientId: ID!) {
+  medication_prescriptions_by_careRecipient(
+    careRecipientId: $careRecipientId
+  ) {
+    id
+    dosageAmount
+    takeTime
+    status
+
+    medication {
+      id
+      name
+      standardUnit
+    }
+
+    careRecipient {
+      id
+      firstName
+      lastName
+    }
+
+    doctor {
+      id
+      firstName
+      lastName
+    }
+  }
+}
+
+''';
+
+  Future<List<Map<String, dynamic>>> fetchPrescriptions(String careRecipientId) async {
+    debugPrint(careRecipientId);
+    try {
+      final client = createClient();
+      final options = QueryOptions(
+        document: gql(_fetchPrescriptionsQuery),
+        variables: {'careRecipientId': careRecipientId},
+        fetchPolicy: FetchPolicy.networkOnly,
+      );
+      final res = await client.query(options);
+      if (res.hasException) {
+        debugPrint('fetchPrescriptions error: ${res.exception}');
+        return [];
+      }
+      final list = (res.data?['medication_prescriptions_by_careRecipient'] as List<dynamic>?)
+              ?.map((e) => {
+                    'id': e['id']?.toString(),
+                    'medicationId': e['medicationId']?.toString(),
+                    'dosageAmount': e['dosageAmount'],
+                    'startDate': e['startDate'],
+                    'endDate': e['endDate'],
+                    'frequencyNote': e['frequencyNote'],
+                    'status': e['status'],
+                    'takeTime': e['takeTime'],
+                    'medication': e['medication'],
+                    'standardUnit': e['medication']?['standardUnit'] ?? '-',
+                  })
+              .toList() ?? [];
+
+      debugPrint(list.toString());
+      return List<Map<String, dynamic>>.from(list);
+    } catch (e, st) {
+      debugPrint('fetchPrescriptions exception: $e\n$st');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, String>>> fetchCareRecipients() async {
+    try {
+      final client = createClient();
+      final options = QueryOptions(document: gql(_fetchCareRecipientsQuery));
+      final res = await client.query(options);
+      if (res.hasException) {
+        debugPrint('fetchCareRecipients error: ${res.exception}');
+        return [];
+      }
+      final list =
+          (res.data?['care_recipient'] as List<dynamic>?)?.map((e) {
+            final first = (e['firstName'] ?? '') as String;
+            final last = (e['lastName'] ?? '') as String;
+            return {
+              'id': e['id']?.toString() ?? '',
+              'name': ('$first ${last}').trim(),
+            };
+          }).toList() ??
+          [];
+      return List<Map<String, String>>.from(list);
+    } catch (e, st) {
+      debugPrint('fetchCareRecipients exception: $e\n$st');
+      return [];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return  Scaffold(
-       appBar: const PageAppBar(
-        title: 'Medicine Prescription',
+    return Scaffold(
+      appBar: const PageAppBar(
+        title: 'Medication Prescription',
         showBack: true,
         showSearch: true,
       ),
@@ -39,7 +157,13 @@ class _MedicationPrescriptionState extends State<MedicationPrescription> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Care recipient card
-                    Text('Care Recipient', style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600)),
+                    Text(
+                      'Care Recipient',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     SizedBox(height: 8.h),
                     GestureDetector(
                       onTap: () => _showRecipientSelector(context),
@@ -47,22 +171,40 @@ class _MedicationPrescriptionState extends State<MedicationPrescription> {
                         width: double.infinity,
                         padding: EdgeInsets.all(12.w),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+                          ),
+                          border: Border.all(
+                            color: Colors.orange.shade300,
+                            width: 2.w,
+                          ),
                           borderRadius: BorderRadius.circular(10.r),
                           boxShadow: [
-                            BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
                           ],
                         ),
                         child: Row(
                           children: [
                             CircleAvatar(
                               radius: 26.r,
-                              backgroundColor: Colors.grey.shade200,
+                              backgroundColor: Colors.orange.shade300,
+                              foregroundColor: Colors.white,
                               child: Text(
                                 _selectedRecipient == null
                                     ? '?'
-                                    : _selectedRecipient!['name']!.split(' ').map((s) => s.isNotEmpty ? s[0] : '').take(2).join(),
-                                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                                    : _selectedRecipient!['name']!
+                                          .split(' ')
+                                          .map((s) => s.isNotEmpty ? s[0] : '')
+                                          .take(2)
+                                          .join(),
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                             SizedBox(width: 12.w),
@@ -71,18 +213,29 @@ class _MedicationPrescriptionState extends State<MedicationPrescription> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _selectedRecipient == null ? 'No care recipient selected' : _selectedRecipient!['name']!,
-                                    style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                                    _selectedRecipient == null
+                                        ? 'No care recipient selected'
+                                        : _selectedRecipient!['name']!,
+                                    style: TextStyle(
+                                      fontSize: 16.sp,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                   SizedBox(height: 6.h),
                                   Text(
-                                    _selectedRecipient == null ? 'Tap to select' : (_selectedRecipient!['relation'] ?? ''),
-                                    style: TextStyle(fontSize: 13.sp, color: Colors.black54),
+                                    _selectedRecipient == null
+                                        ? 'Tap to select'
+                                        : (_selectedRecipient![''] ??
+                                              ''),
+                                    style: TextStyle(
+                                      fontSize: 13.sp,
+                                      color: Colors.black54,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                            Icon(Icons.chevron_right),
+
                           ],
                         ),
                       ),
@@ -90,86 +243,224 @@ class _MedicationPrescriptionState extends State<MedicationPrescription> {
                     SizedBox(height: 16.h),
 
                     // Doctor selector (disabled until recipient selected)
-                    Text('Doctor', style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600)),
-                    SizedBox(height: 8.h),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12.w),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10.r),
-                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
-                      ),
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: _selectedDoctor,
-                        hint: Text(_selectedRecipient == null ? 'Select a care recipient first' : 'Choose doctor'),
-                        onChanged: _selectedRecipient == null
-                            ? null
-                            : (v) {
-                                setState(() {
-                                  _selectedDoctor = v;
-                                });
-                              },
-                        items: _selectedRecipient == null
-                            ? []
-                            : [
-                                DropdownMenuItem(value: 'dr_a', child: Text('Dr. Aaron Lee')),
-                                DropdownMenuItem(value: 'dr_b', child: Text('Dr. Bella Tan')),
-                              ],
-                        underline: SizedBox.shrink(),
-                      ),
-                    ),
                     SizedBox(height: 20.h),
 
                     // Medication selection list
-                    Text('Medications', style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600)),
-                    SizedBox(height: 8.h),
-                    Container(
-                      padding: EdgeInsets.all(8.w),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10.r),
-                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
+                    Text(
+                      'Medication',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w600,
                       ),
-                      child: Column(
-                        children: _medications.map((m) {
-                          final id = m['id']!;
-                          final selected = _selectedMedications.contains(id);
-                          return CheckboxListTile(
-                            value: selected,
-                            onChanged: _selectedRecipient == null
-                                ? null
-                                : (v) {
-                                    setState(() {
-                                      if (v == true) {
-                                        _selectedMedications.add(id);
-                                      } else {
-                                        _selectedMedications.remove(id);
-                                      }
-                                    });
+                    ),
+                    SizedBox(height: 8.h),
+
+                    // Show saved prescriptions if any, otherwise show placeholder
+                    if (_prescriptions.isEmpty)
+                      _buildNoMedicationPrescription()
+                    else
+                      Column(
+                        children: _prescriptions.map((p) {
+                          final med = p['medication'] as Map<String, dynamic>?;
+                          final name = med != null
+                              ? (med['name'] ?? '-')
+                              : (p['medicationId'] ?? '-');
+                          final times =
+                              (p['takeTime'] as List<dynamic>?)
+                                  ?.cast<String>() ??
+                              [];
+                          final dosageAmount = p['dosageAmount'] ?? '-';
+                          final standardUnit = med?['standardUnit'] ?? '-';
+                          return Container(
+                            margin: EdgeInsets.only(bottom: 8.h),
+                            padding: EdgeInsets.all(12.w),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8.r),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black12, blurRadius: 4),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name.toString(),
+                                        style: TextStyle(
+                                          fontSize: 16.sp,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(height: 6.h),
+                                      Text(
+                                        'Frequency: ${p['frequencyNote'] ?? '-'}',
+                                        style: TextStyle(
+                                          fontSize: 16.sp,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(height: 6.h),
+
+                                      Text(
+                                        'Dose Amount: $dosageAmount $standardUnit',
+                                        style: TextStyle(
+                                          fontSize: 16.sp,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(height: 6.h),
+                                      Wrap(
+                                        spacing: 6.w,
+                                        children: times
+                                            .map((t) => Chip(label: Text(t)))
+                                            .toList(),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.delete,
+                                    color: Colors.redAccent,
+                                  ),
+                                  onPressed: () {
+                                    setState(() => _prescriptions.remove(p));
                                   },
-                            title: Text(m['name']! + ' • ' + (m['dosage'] ?? '')),
-                            controlAffinity: ListTileControlAffinity.leading,
+                                ),
+                              ],
+                            ),
                           );
                         }).toList(),
                       ),
-                    ),
+
                     SizedBox(height: 12.h),
 
-                    ElevatedButton(
-                      onPressed: (_selectedRecipient != null && _selectedMedications.isNotEmpty)
-                          ? () {
-                              final meds = _medications
-                                  .where((m) => _selectedMedications.contains(m['id']))
-                                  .map((m) => '${m['name']} (${m['dosage']})')
-                                  .join(', ');
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                  content: Text('Assigned to ${_selectedRecipient!['name']}: $meds')));
-                            }
-                          : null,
-                      child: Text('Assign Medication'),
-                    ),
+                    // Row: single-select dropdown on left, assign button on right
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (_selectedRecipient != null &&
+                            (_prescriptions.isNotEmpty ||
+                                _selectedMedications.isNotEmpty ||
+                                _noneMedicationSelected ||
+                                _selectedMedicationSingle != null))
+                          TextButton(
+                            style: ButtonStyle(
+                              backgroundColor: MaterialStateProperty.all(
+                                Colors.transparent,
+                              ),
+                              foregroundColor: MaterialStateProperty.all(
+                                Theme.of(context).colorScheme.primary,
+                              ),
+                              side: MaterialStateProperty.all(
+                                BorderSide(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                            onPressed: () async {
+                              debugPrint(
+                                'Assign Medication clicked. Prescriptions: $_prescriptions',
+                              );
 
+                              final client = createClient();
+
+                              const String insertMutation = r'''
+                              mutation InsertMedication($object: medication_prescription_insert_input!) {
+                                insert_medication_prescription_one(object: $object) {
+                                  id
+                                }
+                              }
+                              ''';
+
+                              final messenger = ScaffoldMessenger.of(context);
+
+
+                              try {
+                                int success = 0;
+                                for (final p in _prescriptions) {
+                                  // Resolve backend doctor id if not provided
+                                  String? doctorBackendId = p['doctor'] as String?;
+                                  if (doctorBackendId == null) {
+                                    final candidate = FirebaseAuth.instance.currentUser?.uid;
+                                    if (candidate != null) {
+                                      try {
+                                        doctorBackendId = await fetchUserIdByUid(candidate.toString());
+                                        debugPrint(doctorBackendId);
+                                      } catch (e) {
+                                        debugPrint('Failed to resolve doctor backend id for $candidate: $e');
+                                      }
+                                    }
+                                  }
+
+                                  final obj = {
+                                    'id': p['id'],
+                                    'careRecipientId':
+                                        p['careRecipientId'] ??
+                                        p['care_recipient_id'],
+                                    'medicationId':
+                                        p['medicationId'] ??
+                                        p['medication_id'] ??
+                                        (p['medication'] != null
+                                            ? p['medication']['id']
+                                            : null),
+                                    'doctorId': doctorBackendId,
+                                    // backend doctor id field expected by some schemas
+
+                                    'dosageAmount': p['dosageAmount'] ?? '',
+                                    'startDate':
+                                        p['startDate'] ?? p['start_date'],
+                                    'endDate': p['endDate'] ?? p['end_date'],
+                                    'frequencyNote':
+                                        p['note'] ??
+                                        p['frequencyNote'] ??
+                                        p['frequency_note'] ??
+                                        '',
+                                    'takeTime': p['takeTime'] ?? '',
+                                    'status': p['status'] ?? 'active',
+                                  };
+
+                                  final options = MutationOptions(
+                                    document: gql(insertMutation),
+                                    variables: {'object': obj},
+                                  );
+
+                                  final res = await client.mutate(options);
+                                  if (res.hasException) {
+                                    debugPrint(
+                                      'Insert failed for ${p['id']}: ${res.exception}',
+                                    );
+                                  } else {
+                                    success += 1;
+                                  }
+                                }
+
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Assigned $success prescriptions',
+                                    ),
+                                  ),
+                                );
+                              } catch (e, st) {
+                                debugPrint('Assign mutation failed: $e\n$st');
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Failed to assign prescriptions',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Text('Assign'),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -177,51 +468,392 @@ class _MedicationPrescriptionState extends State<MedicationPrescription> {
           );
         },
       ),
+      bottomNavigationBar: LayoutBuilder(
+        builder: (context, constraints) {
+          return SafeArea(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+              color: Colors.transparent,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                    SizedBox(height: 10.h),
 
+                    // Segmented control: Add / View
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w),
+                      child: CupertinoSegmentedControl<int>(
+                        children: {
+                          0: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 12.w),
+                            child: Text('Add', style: TextStyle(fontSize: 12.sp)),
+                          ),
+                          1: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 12.w),
+                            child: Text('View', style: TextStyle(fontSize: 12.sp)),
+                          ),
+                        },
+                        groupValue: _segmentIndex,
+                        onValueChanged: (v) => setState(() => _segmentIndex = v),
+                      ),
+                    ),
 
+                    SizedBox(height: 10.h),
 
+                    Row(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () async {
+                              if (_segmentIndex == 0) {
+                                // Add flow (existing behaviour)
+                                final result = await context
+                                    .push<Map<String, dynamic>>(
+                                      '/selectMedicationPrescription',
+                                    );
+                                final messenger = ScaffoldMessenger.of(context);
+                                final client = createClient();
+
+                                final generatedCode = await fetchGeneratedCode(
+                                  client,
+                                  messenger: messenger,
+                                  id: 6,
+                                );
+                                debugPrint('Generated Code = $generatedCode');
+                                if (result != null) {
+                                  String? doctorBackendId;
+                                  if (_selectedDoctor != null) {
+                                    // _selectedDoctor may be a firebase uid; resolve to backend id
+                                    doctorBackendId = await fetchUserIdByUid(_selectedDoctor!);
+                                  }
+
+                                  final mapped = {
+                                    'id': generatedCode,
+                                    'medicationId':
+                                        result['medicationId'] ??
+                                        (result['medication'] != null
+                                            ? result['medication']['id']
+                                            : null),
+                                    'doctorId': _selectedDoctor,
+                                    // backend doctor id expected by backend field 'doctor'
+                                    'doctor': doctorBackendId,
+                                    'dosageAmount': result['dosageAmount'] ?? '',
+                                    'startDate': result['startDate'],
+                                    'endDate': result['endDate'],
+                                    'status': result['status'] ?? 'active',
+                                    'frequencyNote': result['frequencyNote'],
+                                    'careRecipientId': _selectedRecipient?['id'],
+                                    'takeTime':
+                                        (result['takeTime'] as List<dynamic>?)
+                                            ?.cast<String>() ??
+                                        [],
+                                    'medication': result['medication'],
+                                    'standardUnit': result['standardUnit'] ?? '-',
+                                  };
+                                  setState(() => _prescriptions.add(mapped));
+                                }
+                              } else {
+                                // View flow: fetch previous prescriptions for selected recipient
+                                final messenger = ScaffoldMessenger.of(context);
+                                if (_selectedRecipient == null) {
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Please select a care recipient to view prescriptions.'),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                // show loading indicator while fetching
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (_) => const Center(child: CircularProgressIndicator()),
+                                );
+
+                                final prescriptions = await fetchPrescriptions(_selectedRecipient!['id']!);
+
+                                Navigator.of(context).pop(); // remove loading
+
+                                _showViewPrescriptions(context, prescriptions);
+                              }
+                            },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(_segmentIndex == 0 ? Icons.add : Icons.visibility, size: 18.w),
+                                SizedBox(width: 6.w),
+                                Flexible(
+                                  child: Text(
+                                    _segmentIndex == 0
+                                        ? 'Add Medication Prescription'
+                                        : 'View Medication Prescriptions',
+                                    softWrap: false,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                    style: TextStyle(fontSize: 11.sp),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  void _showRecipientSelector(BuildContext context) {
-    final samples = [
-      {'id': 'rcp_1', 'name': 'John Doe', 'relation': 'Self'},
-      {'id': 'rcp_2', 'name': 'Mary Lim', 'relation': 'Mother'},
-    ];
+  Widget _buildMedicationPrescription() {
+    return Container(
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+        ),
+        border: Border.all(color: Colors.orange.shade300, width: 2.w),
 
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(12.r))),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(top: 12.h, left: 12.w, right: 12.w, bottom: 24.h),
+        borderRadius: BorderRadius.circular(12.w),
+        boxShadow: [
+          BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14),
+        ],
+      ),
+      child: Row(
+        children: [
+          ShaderMask(
+            shaderCallback: (bounds) => LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.orange.shade900, Colors.orange.shade100],
+            ).createShader(bounds),
+            blendMode: BlendMode.srcIn,
+            child: Icon(Icons.medication, size: 72.w, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoMedicationPrescription() {
+    return Container(
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+        ),
+        border: Border.all(color: Colors.orange.shade300, width: 2.w),
+
+        borderRadius: BorderRadius.circular(12.w),
+        boxShadow: [
+          BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14),
+        ],
+      ),
+      child: Row(
+        children: [
+          ShaderMask(
+            shaderCallback: (bounds) => LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.orange.shade900, Colors.orange.shade100],
+            ).createShader(bounds),
+            blendMode: BlendMode.srcIn,
+            child: Icon(Icons.medication, size: 72.w, color: Colors.white),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'No Medication Prescription',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showViewPrescriptions(
+  BuildContext context, [
+  List<Map<String, dynamic>>? prescriptions,
+]) {
+  final list = prescriptions ?? _prescriptions;
+
+  showModalBottomSheet(
+    isScrollControlled: true,
+    context: context,
+    useSafeArea: true,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
+    ),
+    builder: (ctx) {
+      return Padding(
+        padding: EdgeInsets.only(
+          top: 12.h,
+          left: 12.w,
+          right: 12.w,
+          bottom: 24.h,
+        ),
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Select Care Recipient', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+              Text(
+                'Medication Prescriptions',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               SizedBox(height: 8.h),
-              ...samples.map((s) => ListTile(
-                    leading: CircleAvatar(child: Text(s['name']!.split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join())),
-                    title: Text(s['name']!),
-                    subtitle: Text(s['relation']!),
+
+              if (list.isEmpty)
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                  child: const Text('No prescriptions available.'),
+                )
+              else
+                ...list.map((p) {
+                  final med = p['medication'] as Map<String, dynamic>?;
+                  final name = med != null
+                      ? (med['name'] ?? '-')
+                      : (p['medicationId'] ?? '-');
+
+                  final times =
+                      (p['takeTime'] as List<dynamic>?)?.cast<String>() ?? [];
+
+                  final dosageAmount = p['dosageAmount'] ?? '-';
+                  final standardUnit = p['standardUnit'] ?? '-';
+
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 8.h),
+                    padding: EdgeInsets.all(12.w),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8.r),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name.toString(),
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 6.h),
+                        Text('Frequency: ${p['frequencyNote'] ?? '-'}'),
+                        SizedBox(height: 6.h),
+                        Text('Dose Amount: $dosageAmount $standardUnit'),
+                        SizedBox(height: 6.h),
+                        if (times.isNotEmpty)
+                          Wrap(
+                            spacing: 6.w,
+                            children: times
+                                .map((t) => Chip(label: Text(t)))
+                                .toList(),
+                          ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+
+              SizedBox(height: 12.h),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+  void _showRecipientSelector(BuildContext context) async {
+    final care_recipient = await fetchCareRecipients();
+    debugPrint('care_recipient fetched: $care_recipient');
+
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            top: 12.h,
+            left: 12.w,
+            right: 12.w,
+            bottom: 24.h,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Select Care Recipient',
+                  style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 8.h),
+                ...care_recipient.map(
+                  (s) => ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.orange.shade300,
+                      foregroundColor: Colors.white,
+                      child: Text(
+                        s['name']!
+                            .split(' ')
+                            .map((p) => p.isNotEmpty ? p[0] : '')
+                            .take(2)
+                            .join(),
+                      ),
+                    ),
+                    title: Text('${s['name'] ?? 'Name'}'),
+                    subtitle: Text(s['id'] ?? ''),
+
                     onTap: () {
                       setState(() {
-                        _selectedRecipient = {'id': s['id']!, 'name': s['name']!, 'relation': s['relation']!};
+                        _selectedRecipient = {'id': s['id']!, 'name': s['name']!};
                         _selectedDoctor = null;
                       });
                       Navigator.of(ctx).pop();
                     },
-                  )),
-              SizedBox(height: 8.h),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManageCareRecipient()));
-                },
-                child: Text('Manage care recipients'),
-              ),
-            ],
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ManageCareRecipient(),
+                      ),
+                    );
+                  },
+                  child: Text('Manage care recipients'),
+                ),
+              ],
+            ),
           ),
         );
       },

@@ -10,6 +10,8 @@ class FormTextField extends StatefulWidget {
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
     this.validator,
+    this.readOnly = false,
+    this.onTap,
   });
 
   final TextEditingController controller;
@@ -18,6 +20,8 @@ class FormTextField extends StatefulWidget {
   final bool? obscureText;
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
+  final bool readOnly;
+  final VoidCallback? onTap;
 
   @override
   State<FormTextField> createState() => _FormTextFieldState();
@@ -32,7 +36,9 @@ class _FormTextFieldState extends State<FormTextField> {
       label: widget.label,
       obscureText: widget.obscureText ?? false,
       keyboardType: widget.keyboardType,
-      validator: widget.validator,
+        validator: widget.validator,
+        readOnly: widget.readOnly,
+        onTap: widget.onTap,
     );
   }
 }
@@ -44,6 +50,8 @@ Widget _buildTextField({
   bool obscureText = false,
   TextInputType keyboardType = TextInputType.text,
   String? Function(String?)? validator,
+  bool readOnly = false,
+  VoidCallback? onTap,
 }) {
   final border = OutlineInputBorder(
     borderRadius: BorderRadius.circular(8.w),
@@ -55,13 +63,15 @@ Widget _buildTextField({
     controller: controller,
     obscureText: obscureText,
     keyboardType: keyboardType,
+    readOnly: readOnly,
+    onTap: onTap,
     decoration: InputDecoration(
       hintText: hint,
       labelText: label,
       contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
       border: border,
       enabledBorder: border,
-   
+
     ),
 
     validator:

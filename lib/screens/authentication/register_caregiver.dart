@@ -127,7 +127,7 @@ class _RegisterCaregiverPageState extends ConsumerState<RegisterCaregiverPage> {
       final generatedCode = await fetchGeneratedCode(
         GraphQLProvider.of(context).value,
         messenger: ScaffoldMessenger.of(context),
-        id: 2,
+        id: 1,
       );
 
       // store generated caregiver id in Riverpod state so downstream pages

@@ -1,13 +1,13 @@
 import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/status.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
+import 'package:carelink_mobile/controllers/medication_controller.dart';
 import 'package:carelink_mobile/utils/search_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:carelink_mobile/components/medication_info_chip.dart';
 import 'package:carelink_mobile/components/text_field.dart';
 import 'package:carelink_mobile/utils/barcode_scanner.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
-import 'package:carelink_mobile/controllers/medication_handbook_controller.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -16,7 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:carelink_mobile/components/medication_type.dart';
 import 'package:carelink_mobile/screens/medication_schedule.dart';
 
-typedef MedicineChanged = void Function(MedicineType type);
+typedef MedicineChanged = void Function(MedicationType type);
 
 /// GraphQL subscription：实时监听护理员的用药变更
 const String medicationUpdatedSub = r'''
@@ -45,7 +45,7 @@ subscription OnMedicationUpdated {
 class ShowMedication extends StatefulWidget {
   const ShowMedication({super.key, this.initial, this.onChanged});
 
-  final MedicineType? initial;
+  final MedicationType? initial;
   final MedicineChanged? onChanged;
 
   @override
@@ -53,7 +53,7 @@ class ShowMedication extends StatefulWidget {
 }
 
 class _ShowMedicationState extends State<ShowMedication> {
-  late MedicineType _selected;
+  late MedicationType _selected;
   late List<Map<String, dynamic>> _items;
   late TextEditingController _searchCtrl;
   bool _searching = false;
@@ -67,11 +67,11 @@ class _ShowMedicationState extends State<ShowMedication> {
   @override
   void initState() {
     super.initState();
-    _selected = widget.initial ?? MedicineType.capsule;
+    _selected = widget.initial ?? MedicationType.capsule;
     _items = <Map<String, dynamic>>[];
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchMedications();
+      fetchMedications();
     });
     _searchCtrl = TextEditingController();
 
@@ -129,7 +129,7 @@ class _ShowMedicationState extends State<ShowMedication> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchMedications() async {
+  Future<List<Map<String, dynamic>>> fetchMedications() async {
     if (!mounted) return <Map<String, dynamic>>[];
     try {
       final client = GraphQLProvider.of(context).value;
@@ -197,7 +197,7 @@ class _ShowMedicationState extends State<ShowMedication> {
       } else {
         // optionally refetch to ensure server-side consistency
         try {
-          await _fetchMedications();
+          await fetchMedications();
         } catch (_) {}
       }
     } catch (e, st) {
@@ -208,7 +208,7 @@ class _ShowMedicationState extends State<ShowMedication> {
     }
   }
 
-  void _select(MedicineType t) {
+  void _select(MedicationType t) {
     setState(() {
       _selected = t;
     });
@@ -534,7 +534,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                                       final should = await showDialog<bool>(
                                         context: ctx,
                                         builder: (dctx) => AlertDialog(
-                                          title: const Text('Delete medicine'),
+                                          title: const Text('Delete medication'),
                                           content: Text(
                                             'Delete "${it['name']}"?',
                                           ),
@@ -637,7 +637,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'Dose: ${it['dose']}',
+                        'Brand: ${it['brand']}',
                         style: TextStyle(fontSize: 13.sp),
                       ),
                       SizedBox(height: 4.h),
@@ -703,7 +703,6 @@ class _ShowMedicationState extends State<ShowMedication> {
                 ?.toString();
     }
 
-    final caregiverCtrl = TextEditingController(text: caregiverIdVal ?? '');
     final statusCtrl = TextEditingController(text: 'active');
 
     String selectedType = _selected.toString().split('.').last;
@@ -927,7 +926,7 @@ class _ShowMedicationState extends State<ShowMedication> {
 
     return Scaffold(
       appBar: PageAppBar(
-        title: 'Medicine Handbook',
+        title: 'Medication Handbook',
         showBack: true,
         showSearch: true,
         onSearch: () {
@@ -1037,7 +1036,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                                   children: [
                                     Expanded(
                                       child: buildOption(
-                                        type: MedicineType.capsule,
+                                        type: MedicationType.capsule,
                                         assetName: 'assets/icons/capsule.png',
                                         label: 'Capsule',
                                         selected: _selected,
@@ -1048,7 +1047,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: buildOption(
-                                        type: MedicineType.tablet,
+                                        type: MedicationType.tablet,
                                         assetName: 'assets/icons/tablet.png',
                                         label: 'Tablet',
                                         selected: _selected,
@@ -1059,7 +1058,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: buildOption(
-                                        type: MedicineType.injection,
+                                        type: MedicationType.injection,
                                         assetName: 'assets/icons/injection.png',
                                         label: 'Injection',
                                         selected: _selected,
@@ -1070,7 +1069,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: buildOption(
-                                        type: MedicineType.cream,
+                                        type: MedicationType.cream,
                                         assetName: 'assets/icons/cream.png',
                                         label: 'Cream',
                                         selected: _selected,

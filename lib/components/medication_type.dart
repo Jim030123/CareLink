@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-enum MedicineType { capsule, tablet, injection, cream }
+enum MedicationType { capsule, tablet, injection, cream }
 
 Widget buildOption({
-  required MedicineType type,
+  required MedicationType type,
   required String label,
   required String assetName,
-  required MedicineType selected,
-  required void Function(MedicineType) onSelect,
+  required MedicationType selected,
+  required void Function(MedicationType) onSelect,
 }) {
   final bool isSelected = selected == type;
   final bg = isSelected ? const Color(0xFFFFECB3) : Colors.white;
