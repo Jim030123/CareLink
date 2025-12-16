@@ -149,6 +149,35 @@ query Prescriptions($careRecipientId: ID!) {
     }
   }
 
+  String _formatDateFriendly(dynamic date) {
+    if (date == null) return '';
+    try {
+      final dt = DateTime.parse(date.toString());
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      return '${months[dt.month - 1]} ${dt.day.toString().padLeft(2, '0')}, ${dt.year}';
+    } catch (e) {
+      return date.toString();
+    }
+  }
+
+  String _buildDateRangeText(Map<String, dynamic> p) {
+    final s = p['startDate'];
+    final e = p['endDate'];
+    final sText = _formatDateFriendly(s);
+    final eText = _formatDateFriendly(e);
+
+    if ((s == null || s.toString().isEmpty) && (e == null || e.toString().isEmpty)) {
+      return 'No dates specified';
+    }
+    if (s == null || s.toString().isEmpty) return 'Until $eText';
+    if (e == null || e.toString().isEmpty) return 'From $sText';
+    if (sText == eText) return sText;
+    return '$sText → $eText';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -281,75 +310,82 @@ query Prescriptions($careRecipientId: ID!) {
                               [];
                           final dosageAmount = p['dosageAmount'] ?? '-';
                           final standardUnit = med?['standardUnit'] ?? '-';
-                          return Container(
+                          return Card(
                             margin: EdgeInsets.only(bottom: 8.h),
-                            padding: EdgeInsets.all(12.w),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8.r),
-                              boxShadow: [
-                                BoxShadow(color: Colors.black12, blurRadius: 4),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+                            elevation: 2,
+                            child: Padding(
+                              padding: EdgeInsets.all(12.w),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 22.r,
+                                    backgroundColor: Colors.orange.shade100,
+                                    child: Icon(Icons.medication, color: Colors.orange.shade700, size: 20.w),
+                                  ),
+                                  SizedBox(width: 12.w),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name.toString(),
+                                          style: TextStyle(
+                                            fontSize: 16.sp,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        SizedBox(height: 6.h),
+                                        Text(
+                                          'Frequency Note: ${p['frequencyNote'] ?? '-'}',
+                                          style: TextStyle(fontSize: 13.sp, color: Colors.black87),
+                                        ),
+                                        SizedBox(height: 6.h),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                'Dose: $dosageAmount $standardUnit / time',
+                                                style: TextStyle(fontSize: 13.sp, color: Colors.black87),
+
+                                              ),
+                                            ),
+
+                                          ],
+                                        ),
+                                        SizedBox(height: 8.h),
+                                        Row(
+                                          children: [
+                                            Icon(Icons.calendar_today, size: 14.w, color: Colors.black45),
+                                            SizedBox(width: 8.w),
+                                            Expanded(
+                                              child: Text(
+                                                _buildDateRangeText(p),
+                                                style: TextStyle(fontSize: 13.sp, color: Colors.black54),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        SizedBox(height: 8.h),
+                                        if (times.isNotEmpty)
+                                          Wrap(
+                                            spacing: 6.w,
+                                            children: times.map((t) => Chip(label: Text(t))).toList(),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Column(
                                     children: [
-                                      Text(
-                                        name.toString(),
-                                        style: TextStyle(
-                                          fontSize: 16.sp,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      SizedBox(height: 6.h),
-                                      Text(
-                                        'Frequency Note: ${p['frequencyNote'] ?? '-'}',
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      SizedBox(height: 6.h),
-
-                                      Text(
-                                        'Dose Amount: $dosageAmount $standardUnit / time',
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      SizedBox(height: 6.h),
-
-                                      Text(
-                                        '${_formatDate(p['startDate'])} → ${_formatDate(p['endDate'])}',
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          color: Colors.black54,
-                                        ),
-                                      ),
-                                      Wrap(
-                                        spacing: 6.w,
-                                        children: times
-                                            .map((t) => Chip(label: Text(t)))
-                                            .toList(),
+                                      IconButton(
+                                        icon: Icon(Icons.delete, color: Colors.redAccent),
+                                        onPressed: () => setState(() => _prescriptions.remove(p)),
                                       ),
                                     ],
                                   ),
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.delete,
-                                    color: Colors.redAccent,
-                                  ),
-                                  onPressed: () {
-                                    setState(() => _prescriptions.remove(p));
-                                  },
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           );
                         }).toList(),
@@ -727,7 +763,7 @@ query Prescriptions($careRecipientId: ID!) {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Medication Prescriptions',
+                'Medication Prescription',
                 style: TextStyle(
                   fontSize: 16.sp,
                   fontWeight: FontWeight.w600,
@@ -753,42 +789,101 @@ query Prescriptions($careRecipientId: ID!) {
                   final dosageAmount = p['dosageAmount'] ?? '-';
                   final standardUnit = p['standardUnit'] ?? '-';
 
-                  return Container(
+                  // Card layout with type-based icon and compact info rows
+                  final medMap = p['medication'] as Map<String, dynamic>?;
+                  final form = ((medMap?['form'] ?? medMap?['type']) ?? '').toString().toLowerCase();
+                  String defaultAsset;
+                  if (form.contains('capsule')) {
+                    defaultAsset = 'assets/icons/capsule.png';
+                  } else if (form.contains('tablet')) {
+                    defaultAsset = 'assets/icons/tablet.png';
+                  } else if (form.contains('injection') || form.contains('inject')) {
+                    defaultAsset = 'assets/icons/injection.png';
+                  } else if (form.contains('cream') || form.contains('ointment')) {
+                    defaultAsset = 'assets/icons/cream.png';
+                  } else {
+                    defaultAsset = 'assets/icons/capsule.png';
+                  }
+
+                  // If medication entry contains an explicit asset/picture, prefer it
+                  final medAsset = (medMap?['asset'] ?? medMap?['picture'] ?? '')?.toString() ?? '';
+                  final displayAsset = medAsset.isNotEmpty ? medAsset : defaultAsset;
+
+                  return Card(
+                    color: Colors.white,
+                    borderOnForeground: true,
+                    shadowColor: Colors.orange.shade300,
                     margin: EdgeInsets.only(bottom: 8.h),
-                    padding: EdgeInsets.all(12.w),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8.r),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name.toString(),
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w600,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+                    elevation: 1,
+                    child: Padding(
+                      padding: EdgeInsets.all(12.w),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 44.w,
+                            height: 44.w,
+                            padding: EdgeInsets.all(6.w),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Builder(
+                              builder: (_) {
+                                if (displayAsset.startsWith('http')) {
+                                  return Image.network(
+                                    displayAsset,
+                                    width: 32.w,
+                                    height: 32.w,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Image.asset(
+                                      defaultAsset,
+                                      width: 32.w,
+                                      height: 32.w,
+                                    ),
+                                  );
+                                }
+                                return Image.asset(
+                                  displayAsset,
+                                  width: 32.w,
+                                  height: 32.w,
+                                  fit: BoxFit.contain,
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 6.h),
-                        Text('Frequency: ${p['frequencyNote'] ?? '-'}'),
-                        SizedBox(height: 6.h),
-                        Text('Dose Amount: $dosageAmount $standardUnit'),
-                        SizedBox(height: 6.h),
-                        if (times.isNotEmpty)
-                          Wrap(
-                            spacing: 6.w,
-                            children: times
-                                .map((t) => Chip(label: Text(t)))
-                                .toList(),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name.toString(),
+                                  style: TextStyle(
+                                    fontSize: 16.sp,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                SizedBox(height: 6.h),
+                                Row(
+                                  children: [
+                                    Expanded(child: Text('Frequency: ${p['frequencyNote'] ?? '-'}')),
+                                    Text('Dose: $dosageAmount $standardUnit', style: TextStyle(color: Colors.black54)),
+                                  ],
+                                ),
+                                if (times.isNotEmpty) ...[
+                                  SizedBox(height: 8.h),
+                                  Wrap(
+                                    spacing: 6.w,
+                                    children: times.map((t) => Chip(label: Text(t))).toList(),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 }).toList(),
