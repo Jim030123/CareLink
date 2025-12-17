@@ -58,6 +58,7 @@ query Prescriptions($careRecipientId: ID!) {
       id
       name
       standardUnit
+      form
     }
 
     careRecipient {
@@ -76,7 +77,9 @@ query Prescriptions($careRecipientId: ID!) {
 
 ''';
 
-  Future<List<Map<String, dynamic>>> fetchPrescriptions(String careRecipientId) async {
+  Future<List<Map<String, dynamic>>> fetchPrescriptions(
+    String careRecipientId,
+  ) async {
     debugPrint(careRecipientId);
     try {
       final client = createClient();
@@ -90,20 +93,25 @@ query Prescriptions($careRecipientId: ID!) {
         debugPrint('fetchPrescriptions error: ${res.exception}');
         return [];
       }
-      final list = (res.data?['medication_prescriptions_by_careRecipient'] as List<dynamic>?)
-              ?.map((e) => {
-                    'id': e['id']?.toString(),
-                    'medicationId': e['medicationId']?.toString(),
-                    'dosageAmount': e['dosageAmount'],
-                    'startDate': e['startDate'],
-                    'endDate': e['endDate'],
-                    'frequencyNote': e['frequencyNote'],
-                    'status': e['status'],
-                    'takeTime': e['takeTime'],
-                    'medication': e['medication'],
-                    'standardUnit': e['medication']?['standardUnit'] ?? '-',
-                  })
-              .toList() ?? [];
+      final list =
+          (res.data?['medication_prescriptions_by_careRecipient']
+                  as List<dynamic>?)
+              ?.map(
+                (e) => {
+                  'id': e['id']?.toString(),
+                  'medicationId': e['medicationId']?.toString(),
+                  'dosageAmount': e['dosageAmount'],
+                  'startDate': e['startDate'],
+                  'endDate': e['endDate'],
+                  'frequencyNote': e['frequencyNote'],
+                  'status': e['status'],
+                  'takeTime': e['takeTime'],
+                  'medication': e['medication'],
+                  'standardUnit': e['medication']?['standardUnit'] ?? '-',
+                },
+              )
+              .toList() ??
+          [];
 
       debugPrint(list.toString());
       return List<Map<String, dynamic>>.from(list);
@@ -154,8 +162,18 @@ query Prescriptions($careRecipientId: ID!) {
     try {
       final dt = DateTime.parse(date.toString());
       const months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       return '${months[dt.month - 1]} ${dt.day.toString().padLeft(2, '0')}, ${dt.year}';
     } catch (e) {
@@ -169,7 +187,8 @@ query Prescriptions($careRecipientId: ID!) {
     final sText = _formatDateFriendly(s);
     final eText = _formatDateFriendly(e);
 
-    if ((s == null || s.toString().isEmpty) && (e == null || e.toString().isEmpty)) {
+    if ((s == null || s.toString().isEmpty) &&
+        (e == null || e.toString().isEmpty)) {
       return 'No dates specified';
     }
     if (s == null || s.toString().isEmpty) return 'Until $eText';
@@ -264,8 +283,7 @@ query Prescriptions($careRecipientId: ID!) {
                                   Text(
                                     _selectedRecipient == null
                                         ? 'Tap to select'
-                                        : (_selectedRecipient![''] ??
-                                              ''),
+                                        : (_selectedRecipient![''] ?? ''),
                                     style: TextStyle(
                                       fontSize: 13.sp,
                                       color: Colors.black54,
@@ -274,7 +292,6 @@ query Prescriptions($careRecipientId: ID!) {
                                 ],
                               ),
                             ),
-
                           ],
                         ),
                       ),
@@ -310,24 +327,76 @@ query Prescriptions($careRecipientId: ID!) {
                               [];
                           final dosageAmount = p['dosageAmount'] ?? '-';
                           final standardUnit = med?['standardUnit'] ?? '-';
+                          final medMap = med as Map<String, dynamic>?;
+                          final form = ((medMap?['form'] ?? medMap?['type']) ?? '')
+                              .toString()
+                              .toLowerCase();
+                          String defaultAsset;
+                          if (form.contains('capsule')) {
+                            defaultAsset = 'assets/icons/capsule.png';
+                          } else if (form.contains('tablet')) {
+                            defaultAsset = 'assets/icons/tablet.png';
+                          } else if (form.contains('injection') ||
+                              form.contains('inject')) {
+                            defaultAsset = 'assets/icons/injection.png';
+                          } else if (form.contains('cream') ||
+                              form.contains('ointment')) {
+                            defaultAsset = 'assets/icons/cream.png';
+                          } else {
+                            defaultAsset = 'assets/icons/capsule.png';
+                          }
+
+                          final medAsset = (medMap?['asset'] ?? medMap?['picture'] ?? '')
+                                  ?.toString() ??
+                              '';
+                          final displayAsset = medAsset.isNotEmpty ? medAsset : defaultAsset;
+
                           return Card(
                             margin: EdgeInsets.only(bottom: 8.h),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
                             elevation: 2,
                             child: Padding(
                               padding: EdgeInsets.all(12.w),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  CircleAvatar(
-                                    radius: 22.r,
-                                    backgroundColor: Colors.orange.shade100,
-                                    child: Icon(Icons.medication, color: Colors.orange.shade700, size: 20.w),
+                                  Container(
+                                    padding: EdgeInsets.all(8.w),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Builder(
+                                      builder: (context) {
+                                        if (displayAsset.startsWith('http')) {
+                                          return Image.network(
+                                            displayAsset,
+                                            width: 20.w,
+                                            height: 20.w,
+                                            fit: BoxFit.contain,
+                                            errorBuilder: (_, __, ___) => Image.asset(
+                                              defaultAsset,
+                                              width: 20.w,
+                                              height: 20.w,
+                                            ),
+                                          );
+                                        }
+                                        return Image.asset(
+                                          displayAsset,
+                                          width: 20.w,
+                                          height: 20.w,
+                                          fit: BoxFit.contain,
+                                        );
+                                      },
+                                    ),
                                   ),
                                   SizedBox(width: 12.w),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           name.toString(),
@@ -339,7 +408,10 @@ query Prescriptions($careRecipientId: ID!) {
                                         SizedBox(height: 6.h),
                                         Text(
                                           'Frequency Note: ${p['frequencyNote'] ?? '-'}',
-                                          style: TextStyle(fontSize: 13.sp, color: Colors.black87),
+                                          style: TextStyle(
+                                            fontSize: 13.sp,
+                                            color: Colors.black87,
+                                          ),
                                         ),
                                         SizedBox(height: 6.h),
                                         Row(
@@ -347,22 +419,30 @@ query Prescriptions($careRecipientId: ID!) {
                                             Expanded(
                                               child: Text(
                                                 'Dose: $dosageAmount $standardUnit / time',
-                                                style: TextStyle(fontSize: 13.sp, color: Colors.black87),
-
+                                                style: TextStyle(
+                                                  fontSize: 13.sp,
+                                                  color: Colors.black87,
+                                                ),
                                               ),
                                             ),
-
                                           ],
                                         ),
                                         SizedBox(height: 8.h),
                                         Row(
                                           children: [
-                                            Icon(Icons.calendar_today, size: 14.w, color: Colors.black45),
+                                            Icon(
+                                              Icons.calendar_today,
+                                              size: 14.w,
+                                              color: Colors.black45,
+                                            ),
                                             SizedBox(width: 8.w),
                                             Expanded(
                                               child: Text(
                                                 _buildDateRangeText(p),
-                                                style: TextStyle(fontSize: 13.sp, color: Colors.black54),
+                                                style: TextStyle(
+                                                  fontSize: 13.sp,
+                                                  color: Colors.black54,
+                                                ),
                                               ),
                                             ),
                                           ],
@@ -371,7 +451,11 @@ query Prescriptions($careRecipientId: ID!) {
                                         if (times.isNotEmpty)
                                           Wrap(
                                             spacing: 6.w,
-                                            children: times.map((t) => Chip(label: Text(t))).toList(),
+                                            children: times
+                                                .map(
+                                                  (t) => Chip(label: Text(t)),
+                                                )
+                                                .toList(),
                                           ),
                                       ],
                                     ),
@@ -379,8 +463,13 @@ query Prescriptions($careRecipientId: ID!) {
                                   Column(
                                     children: [
                                       IconButton(
-                                        icon: Icon(Icons.delete, color: Colors.redAccent),
-                                        onPressed: () => setState(() => _prescriptions.remove(p)),
+                                        icon: Icon(
+                                          Icons.delete,
+                                          color: Colors.redAccent,
+                                        ),
+                                        onPressed: () => setState(
+                                          () => _prescriptions.remove(p),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -433,20 +522,26 @@ query Prescriptions($careRecipientId: ID!) {
 
                               final messenger = ScaffoldMessenger.of(context);
 
-
                               try {
                                 int success = 0;
                                 for (final p in _prescriptions) {
                                   // Resolve backend doctor id if not provided
-                                  String? doctorBackendId = p['doctor'] as String?;
+                                  String? doctorBackendId =
+                                      p['doctor'] as String?;
                                   if (doctorBackendId == null) {
-                                    final candidate = FirebaseAuth.instance.currentUser?.uid;
+                                    final candidate =
+                                        FirebaseAuth.instance.currentUser?.uid;
                                     if (candidate != null) {
                                       try {
-                                        doctorBackendId = await fetchUserIdByUid(candidate.toString());
+                                        doctorBackendId =
+                                            await fetchUserIdByUid(
+                                              candidate.toString(),
+                                            );
                                         debugPrint(doctorBackendId);
                                       } catch (e) {
-                                        debugPrint('Failed to resolve doctor backend id for $candidate: $e');
+                                        debugPrint(
+                                          'Failed to resolve doctor backend id for $candidate: $e',
+                                        );
                                       }
                                     }
                                   }
@@ -463,8 +558,8 @@ query Prescriptions($careRecipientId: ID!) {
                                             ? p['medication']['id']
                                             : null),
                                     'doctorId': doctorBackendId,
-                                    // backend doctor id field expected by some schemas
 
+                                    // backend doctor id field expected by some schemas
                                     'dosageAmount': p['dosageAmount'] ?? '',
                                     'startDate':
                                         p['startDate'] ?? p['start_date'],
@@ -531,130 +626,152 @@ query Prescriptions($careRecipientId: ID!) {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                    SizedBox(height: 10.h),
+                  SizedBox(height: 10.h),
 
-                    // Segmented control: Add / View
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w),
-                      child: CupertinoSegmentedControl<int>(
-                        children: {
-                          0: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 12.w),
-                            child: Text('Add', style: TextStyle(fontSize: 12.sp)),
+                  // Segmented control: Add / View
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8.w),
+                    child: CupertinoSegmentedControl<int>(
+                      children: {
+                        0: Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: 8.h,
+                            horizontal: 12.w,
                           ),
-                          1: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 12.w),
-                            child: Text('View', style: TextStyle(fontSize: 12.sp)),
+                          child: Text('Add', style: TextStyle(fontSize: 12.sp)),
+                        ),
+                        1: Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: 8.h,
+                            horizontal: 12.w,
                           ),
-                        },
-                        groupValue: _segmentIndex,
-                        onValueChanged: (v) => setState(() => _segmentIndex = v),
-                      ),
-                    ),
-
-                    SizedBox(height: 10.h),
-
-                    Row(
-                      mainAxisSize: MainAxisSize.max,
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () async {
-                              if (_segmentIndex == 0) {
-                                // Add flow (existing behaviour)
-                                final result = await context
-                                    .push<Map<String, dynamic>>(
-                                      '/selectMedicationPrescription',
-                                    );
-                                final messenger = ScaffoldMessenger.of(context);
-                                final client = createClient();
-
-                                final generatedCode = await fetchGeneratedCode(
-                                  client,
-                                  messenger: messenger,
-                                  id: 6,
-                                );
-                                debugPrint('Generated Code = $generatedCode');
-                                if (result != null) {
-                                  String? doctorBackendId;
-                                  if (_selectedDoctor != null) {
-                                    // _selectedDoctor may be a firebase uid; resolve to backend id
-                                    doctorBackendId = await fetchUserIdByUid(_selectedDoctor!);
-                                  }
-
-                                  final mapped = {
-                                    'id': generatedCode,
-                                    'medicationId':
-                                        result['medicationId'] ??
-                                        (result['medication'] != null
-                                            ? result['medication']['id']
-                                            : null),
-                                    'doctorId': _selectedDoctor,
-                                    // backend doctor id expected by backend field 'doctor'
-                                    'doctor': doctorBackendId,
-                                    'dosageAmount': result['dosageAmount'] ?? '',
-                                    'startDate': result['startDate'],
-                                    'endDate': result['endDate'],
-                                    'status': result['status'] ?? 'active',
-                                    'frequencyNote': result['frequencyNote'],
-                                    'careRecipientId': _selectedRecipient?['id'],
-                                    'takeTime':
-                                        (result['takeTime'] as List<dynamic>?)
-                                            ?.cast<String>() ??
-                                        [],
-                                    'medication': result['medication'],
-                                    'standardUnit': result['standardUnit'] ?? '-',
-                                  };
-                                  setState(() => _prescriptions.add(mapped));
-                                }
-                              } else {
-                                // View flow: fetch previous prescriptions for selected recipient
-                                final messenger = ScaffoldMessenger.of(context);
-                                if (_selectedRecipient == null) {
-                                  messenger.showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Please select a care recipient to view prescriptions.'),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                // show loading indicator while fetching
-                                showDialog(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder: (_) => const Center(child: CircularProgressIndicator()),
-                                );
-
-                                final prescriptions = await fetchPrescriptions(_selectedRecipient!['id']!);
-
-                                Navigator.of(context).pop(); // remove loading
-
-                                _showViewPrescriptions(context, prescriptions);
-                              }
-                            },
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(_segmentIndex == 0 ? Icons.add : Icons.visibility, size: 18.w),
-                                SizedBox(width: 6.w),
-                                Flexible(
-                                  child: Text(
-                                    _segmentIndex == 0
-                                        ? 'Add Medication Prescription'
-                                        : 'View Medication Prescriptions',
-                                    softWrap: false,
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                    style: TextStyle(fontSize: 11.sp),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          child: Text(
+                            'View',
+                            style: TextStyle(fontSize: 12.sp),
                           ),
                         ),
-                      ],
+                      },
+                      groupValue: _segmentIndex,
+                      onValueChanged: (v) => setState(() => _segmentIndex = v),
                     ),
+                  ),
+
+                  SizedBox(height: 10.h),
+
+                  Row(
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () async {
+                            if (_segmentIndex == 0) {
+                              // Add flow (existing behaviour)
+                              final result = await context
+                                  .push<Map<String, dynamic>>(
+                                    '/selectMedicationPrescription',
+                                  );
+                              final messenger = ScaffoldMessenger.of(context);
+                              final client = createClient();
+
+                              final generatedCode = await fetchGeneratedCode(
+                                client,
+                                messenger: messenger,
+                                id: 6,
+                              );
+                              debugPrint('Generated Code = $generatedCode');
+                              if (result != null) {
+                                String? doctorBackendId;
+                                if (_selectedDoctor != null) {
+                                  // _selectedDoctor may be a firebase uid; resolve to backend id
+                                  doctorBackendId = await fetchUserIdByUid(
+                                    _selectedDoctor!,
+                                  );
+                                }
+
+                                final mapped = {
+                                  'id': generatedCode,
+                                  'medicationId':
+                                      result['medicationId'] ??
+                                      (result['medication'] != null
+                                          ? result['medication']['id']
+                                          : null),
+                                  'doctorId': _selectedDoctor,
+                                  // backend doctor id expected by backend field 'doctor'
+                                  'doctor': doctorBackendId,
+                                  'dosageAmount': result['dosageAmount'] ?? '',
+                                  'startDate': result['startDate'],
+                                  'endDate': result['endDate'],
+                                  'status': result['status'] ?? 'active',
+                                  'frequencyNote': result['frequencyNote'],
+                                  'careRecipientId': _selectedRecipient?['id'],
+                                  'takeTime':
+                                      (result['takeTime'] as List<dynamic>?)
+                                          ?.cast<String>() ??
+                                      [],
+                                  'medication': result['medication'],
+                                  'standardUnit': result['standardUnit'] ?? '-',
+                                };
+                                setState(() => _prescriptions.add(mapped));
+                              }
+                            } else {
+                              // View flow: fetch previous prescriptions for selected recipient
+                              final messenger = ScaffoldMessenger.of(context);
+                              if (_selectedRecipient == null) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Please select a care recipient to view prescriptions.',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              // show loading indicator while fetching
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+
+                              final prescriptions = await fetchPrescriptions(
+                                _selectedRecipient!['id']!,
+                              );
+
+                              Navigator.of(context).pop(); // remove loading
+
+                              _showViewPrescriptions(context, prescriptions);
+                            }
+                          },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _segmentIndex == 0
+                                    ? Icons.add
+                                    : Icons.visibility,
+                                size: 18.w,
+                              ),
+                              SizedBox(width: 6.w),
+                              Flexible(
+                                child: Text(
+                                  _segmentIndex == 0
+                                      ? 'Add Medication Prescription'
+                                      : 'View Medication Prescriptions',
+                                  softWrap: false,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                  style: TextStyle(fontSize: 11.sp),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -737,169 +854,189 @@ query Prescriptions($careRecipientId: ID!) {
   }
 
   void _showViewPrescriptions(
-  BuildContext context, [
-  List<Map<String, dynamic>>? prescriptions,
-]) {
-  final list = prescriptions ?? _prescriptions;
+    BuildContext context, [
+    List<Map<String, dynamic>>? prescriptions,
+  ]) {
+    final list = prescriptions ?? _prescriptions;
 
-  showModalBottomSheet(
-    isScrollControlled: true,
-    context: context,
-    useSafeArea: true,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
-    ),
-    builder: (ctx) {
-      return Padding(
-        padding: EdgeInsets.only(
-          top: 12.h,
-          left: 12.w,
-          right: 12.w,
-          bottom: 24.h,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Medication Prescription',
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w600,
+    showModalBottomSheet(
+      isScrollControlled: true,
+      context: context,
+      useSafeArea: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            top: 12.h,
+            left: 12.w,
+            right: 12.w,
+            bottom: 24.h,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Medication Prescription',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              SizedBox(height: 8.h),
+                SizedBox(height: 8.h),
 
-              if (list.isEmpty)
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.h),
-                  child: const Text('No prescriptions available.'),
-                )
-              else
-                ...list.map((p) {
-                  final med = p['medication'] as Map<String, dynamic>?;
-                  final name = med != null
-                      ? (med['name'] ?? '-')
-                      : (p['medicationId'] ?? '-');
+                if (list.isEmpty)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16.h),
+                    child: const Text('No prescriptions available.'),
+                  )
+                else
+                  ...list.map((p) {
+                    final med = p['medication'] as Map<String, dynamic>?;
+                    final name = med != null
+                        ? (med['name'] ?? '-')
+                        : (p['medicationId'] ?? '-');
 
-                  final times =
-                      (p['takeTime'] as List<dynamic>?)?.cast<String>() ?? [];
+                    final times =
+                        (p['takeTime'] as List<dynamic>?)?.cast<String>() ?? [];
 
-                  final dosageAmount = p['dosageAmount'] ?? '-';
-                  final standardUnit = p['standardUnit'] ?? '-';
+                    final dosageAmount = p['dosageAmount'] ?? '-';
+                    final standardUnit = p['standardUnit'] ?? '-';
 
-                  // Card layout with type-based icon and compact info rows
-                  final medMap = p['medication'] as Map<String, dynamic>?;
-                  final form = ((medMap?['form'] ?? medMap?['type']) ?? '').toString().toLowerCase();
-                  String defaultAsset;
-                  if (form.contains('capsule')) {
-                    defaultAsset = 'assets/icons/capsule.png';
-                  } else if (form.contains('tablet')) {
-                    defaultAsset = 'assets/icons/tablet.png';
-                  } else if (form.contains('injection') || form.contains('inject')) {
-                    defaultAsset = 'assets/icons/injection.png';
-                  } else if (form.contains('cream') || form.contains('ointment')) {
-                    defaultAsset = 'assets/icons/cream.png';
-                  } else {
-                    defaultAsset = 'assets/icons/capsule.png';
-                  }
+                    // Card layout with type-based icon and compact info rows
+                    final medMap = p['medication'] as Map<String, dynamic>?;
+                    final form = ((medMap?['form'] ?? medMap?['type']) ?? '')
+                        .toString()
+                        .toLowerCase();
+                    String defaultAsset;
+                    if (form.contains('capsule')) {
+                      defaultAsset = 'assets/icons/capsule.png';
+                    } else if (form.contains('tablet')) {
+                      defaultAsset = 'assets/icons/tablet.png';
+                    } else if (form.contains('injection') ||
+                        form.contains('inject')) {
+                      defaultAsset = 'assets/icons/injection.png';
+                    } else if (form.contains('cream') ||
+                        form.contains('ointment')) {
+                      defaultAsset = 'assets/icons/cream.png';
+                    } else {
+                      defaultAsset = 'assets/icons/capsule.png';
+                    }
 
-                  // If medication entry contains an explicit asset/picture, prefer it
-                  final medAsset = (medMap?['asset'] ?? medMap?['picture'] ?? '')?.toString() ?? '';
-                  final displayAsset = medAsset.isNotEmpty ? medAsset : defaultAsset;
+                    // If medication entry contains an explicit asset/picture, prefer it
+                    final medAsset =
+                        (medMap?['asset'] ?? medMap?['picture'] ?? '')
+                            ?.toString() ??
+                        '';
+                    final displayAsset = medAsset.isNotEmpty
+                        ? medAsset
+                        : defaultAsset;
 
-                  return Card(
-                    color: Colors.white,
-                    borderOnForeground: true,
-                    shadowColor: Colors.orange.shade300,
-                    margin: EdgeInsets.only(bottom: 8.h),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
-                    elevation: 1,
-                    child: Padding(
-                      padding: EdgeInsets.all(12.w),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 44.w,
-                            height: 44.w,
-                            padding: EdgeInsets.all(6.w),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Builder(
-                              builder: (_) {
-                                if (displayAsset.startsWith('http')) {
-                                  return Image.network(
+                    return Card(
+                      color: Colors.white,
+                      borderOnForeground: true,
+                      shadowColor: Colors.orange.shade300,
+                      margin: EdgeInsets.only(bottom: 8.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                      elevation: 1,
+                      child: Padding(
+                        padding: EdgeInsets.all(12.w),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 44.w,
+                              height: 44.w,
+                              padding: EdgeInsets.all(6.w),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Builder(
+                                builder: (_) {
+                                  if (displayAsset.startsWith('http')) {
+                                    return Image.network(
+                                      displayAsset,
+                                      width: 32.w,
+                                      height: 32.w,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => Image.asset(
+                                        defaultAsset,
+                                        width: 32.w,
+                                        height: 32.w,
+                                      ),
+                                    );
+                                  }
+                                  return Image.asset(
                                     displayAsset,
                                     width: 32.w,
                                     height: 32.w,
                                     fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) => Image.asset(
-                                      defaultAsset,
-                                      width: 32.w,
-                                      height: 32.w,
-                                    ),
                                   );
-                                }
-                                return Image.asset(
-                                  displayAsset,
-                                  width: 32.w,
-                                  height: 32.w,
-                                  fit: BoxFit.contain,
-                                );
-                              },
+                                },
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 12.w),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name.toString(),
-                                  style: TextStyle(
-                                    fontSize: 16.sp,
-                                    fontWeight: FontWeight.w600,
+                            SizedBox(width: 12.w),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name.toString(),
+                                    style: TextStyle(
+                                      fontSize: 16.sp,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
-                                ),
-                                SizedBox(height: 6.h),
-                                Row(
-                                  children: [
-                                    Expanded(child: Text('Frequency: ${p['frequencyNote'] ?? '-'}')),
-                                    Text('Dose: $dosageAmount $standardUnit', style: TextStyle(color: Colors.black54)),
+                                  SizedBox(height: 6.h),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Frequency: ${p['frequencyNote'] ?? '-'}',
+                                        ),
+                                      ),
+                                      Text(
+                                        'Dose: $dosageAmount $standardUnit',
+                                        style: TextStyle(color: Colors.black54),
+                                      ),
+                                    ],
+                                  ),
+                                  if (times.isNotEmpty) ...[
+                                    SizedBox(height: 8.h),
+                                    Wrap(
+                                      spacing: 6.w,
+                                      children: times
+                                          .map((t) => Chip(label: Text(t)))
+                                          .toList(),
+                                    ),
                                   ],
-                                ),
-                                if (times.isNotEmpty) ...[
-                                  SizedBox(height: 8.h),
-                                  Wrap(
-                                    spacing: 6.w,
-                                    children: times.map((t) => Chip(label: Text(t))).toList(),
-                                  ),
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
 
-              SizedBox(height: 12.h),
-              ElevatedButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Close'),
-              ),
-            ],
+                SizedBox(height: 12.h),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
   void _showRecipientSelector(BuildContext context) async {
     final care_recipient = await fetchCareRecipients();
@@ -925,7 +1062,10 @@ query Prescriptions($careRecipientId: ID!) {
               children: [
                 Text(
                   'Select Care Recipient',
-                  style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 SizedBox(height: 8.h),
                 ...care_recipient.map(
@@ -946,7 +1086,10 @@ query Prescriptions($careRecipientId: ID!) {
 
                     onTap: () {
                       setState(() {
-                        _selectedRecipient = {'id': s['id']!, 'name': s['name']!};
+                        _selectedRecipient = {
+                          'id': s['id']!,
+                          'name': s['name']!,
+                        };
                         _selectedDoctor = null;
                       });
                       Navigator.of(ctx).pop();
