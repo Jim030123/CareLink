@@ -50,7 +50,7 @@ Future<void> showUnlockSuccessDialog(
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Unlocked',
+                  'Login Successful',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ],
