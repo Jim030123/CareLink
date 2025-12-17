@@ -1,5 +1,9 @@
 import 'package:carelink_mobile/utils/route_service.dart';
+import 'dart:io' show Platform;
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -32,6 +36,35 @@ Future<void> main() async {
 
   // 初始化 Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Configure Firebase Messaging background handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // On iOS, present notifications when app is in foreground
+  try {
+    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+  } catch (e) {
+    debugPrint('Could not set foreground notification options: $e');
+  }
+
+  // Log current FCM token for debugging (not sent to backend here)
+  try {
+    final currentToken = await FirebaseMessaging.instance.getToken();
+    debugPrint('FCM token at app start: $currentToken');
+  } catch (e) {
+    debugPrint('Error fetching FCM token at startup: $e');
+  }
+
+  // Request runtime permissions on first run (notifications, camera, mic, storage/photos)
+  try {
+    await _requestInitialPermissions();
+  } catch (e) {
+    debugPrint('Error requesting initial permissions: $e');
+  }
 
   // 初始化日期本地化（你 app 里有用到 Intl）
   await initializeDateFormatting();
@@ -69,6 +102,41 @@ Future<void> main() async {
       child: GraphQLProvider(client: clientNotifier, child: const MyApp()),
     ),
   );
+}
+
+/// Top-level background message handler. Must be a top-level or static function.
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // If you're going to use other Firebase services in the background, initialize Firebase.
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint('Handling a background message: ${message.messageId}');
+}
+
+/// Request commonly needed runtime permissions at first startup.
+Future<void> _requestInitialPermissions() async {
+  try {
+    final List<Permission> toRequest = [];
+
+    // Notification permission (Android 13+/iOS)
+    toRequest.add(Permission.notification);
+
+    // Camera & microphone for video/audio features
+    toRequest.add(Permission.camera);
+    toRequest.add(Permission.microphone);
+
+    if (Platform.isAndroid) {
+      // Storage on Android (legacy) — scoped storage may be used on newer Androids
+      toRequest.add(Permission.storage);
+    } else if (Platform.isIOS) {
+      // Photos permission on iOS
+      toRequest.add(Permission.photos);
+    }
+
+    final statuses = await toRequest.request();
+    debugPrint('Initial permission request results: $statuses');
+  } catch (e, st) {
+    debugPrint('Error while requesting permissions: $e');
+    debugPrint(st.toString());
+  }
 }
 
 // router 是从 lib/utils/route_service.dart 里导出的 appRouter

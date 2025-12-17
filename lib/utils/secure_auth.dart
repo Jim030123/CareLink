@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:carelink_mobile/utils/fcm.dart';
 
 enum SecureAuthStatus {
   success,
@@ -136,6 +139,24 @@ class SecureAuth {
       try {
         final uc = await FirebaseAuth.instance
             .signInWithEmailAndPassword(email: email, password: password);
+
+        // After successful sign-in, register FCM token with backend (fire-and-forget).
+        try {
+          final idToken = await uc.user?.getIdToken();
+          final backendBase = (dotenv.env['HTTP_URL'] ?? 'http://10.180.12.100:25001')
+              .replaceAll(RegExp(r'/graphql\/?\s*\$'), '');
+
+          if (idToken != null && idToken.isNotEmpty) {
+            // Fire-and-forget call to register FCM token. Intentionally not awaited.
+            registerDeviceFcmTokenAfterLogin(
+              backendBaseUrl: backendBase,
+              accessToken: idToken,
+            );
+          }
+        } catch (e, st) {
+          debugPrint('FCM registration post-login failed: $e');
+          debugPrint(st.toString());
+        }
 
         return SecureAuthResult(
           SecureAuthStatus.success,
