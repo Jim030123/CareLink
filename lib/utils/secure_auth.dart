@@ -1,3 +1,4 @@
+import 'package:carelink_mobile/components/numbering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -5,7 +6,10 @@ import 'package:local_auth/local_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:io';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:carelink_mobile/utils/fcm.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 enum SecureAuthStatus {
   success,
@@ -140,21 +144,87 @@ class SecureAuth {
         final uc = await FirebaseAuth.instance
             .signInWithEmailAndPassword(email: email, password: password);
 
-        // After successful sign-in, register FCM token with backend (fire-and-forget).
-        try {
-          final idToken = await uc.user?.getIdToken();
-          final backendBase = (dotenv.env['HTTP_URL'] ?? 'http://10.180.12.100:25001')
-              .replaceAll(RegExp(r'/graphql\/?\s*\$'), '');
 
-          if (idToken != null && idToken.isNotEmpty) {
-            // Fire-and-forget call to register FCM token. Intentionally not awaited.
-            registerDeviceFcmTokenAfterLogin(
-              backendBaseUrl: backendBase,
-              accessToken: idToken,
-            );
+        try {
+          final user = uc.user ?? FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            final fcmToken = await FirebaseMessaging.instance.getToken();
+
+            if (fcmToken == null || fcmToken.trim().isEmpty) {
+              debugPrint('No FCM token available; skipping device registration.');
+            } else {
+              String platform;
+              if (kIsWeb) {
+                platform = 'web';
+              } else if (Platform.isAndroid) {
+                platform = 'android';
+              } else if (Platform.isIOS) {
+                platform = 'ios';
+              } else {
+                platform = Platform.operatingSystem;
+              }
+
+              final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
+              Map<String, dynamic> deviceData = {};
+              try {
+                if (kIsWeb) {
+                  final info = await _deviceInfo.webBrowserInfo;
+                  deviceData = {
+                    'userAgent': info.userAgent,
+                    'vendor': info.vendor,
+                    'appName': info.appName,
+                    'appVersion': info.appVersion,
+                    'platform': info.platform,
+                  };
+                } else if (Platform.isAndroid) {
+                  final info = await _deviceInfo.androidInfo;
+                  deviceData = {
+                    'brand': info.brand,
+                    'device': info.device,
+                    'model': info.model,
+                    'id': info.id,
+                    // 'androidId': info.androidId,
+                    'version_sdkInt': info.version.sdkInt,
+                  };
+                } else if (Platform.isIOS) {
+                  final info = await _deviceInfo.iosInfo;
+                  deviceData = {
+                    'name': info.name,
+                    'systemName': info.systemName,
+                    'systemVersion': info.systemVersion,
+                    'model': info.model,
+                    'utsname': {
+                      'machine': info.utsname.machine,
+                      'release': info.utsname.release,
+                    }
+                  };
+                } else {
+                  deviceData = {'os': Platform.operatingSystem};
+                }
+              } catch (e, st) {
+                debugPrint('SecureAuth device info error: $e');
+                debugPrint(st.toString());
+              }
+
+              debugPrint('Device info at login: $deviceData');
+
+              final deviceName = (deviceData['model'] ?? deviceData['device'] ?? (Platform.isAndroid ? 'Android Device' : Platform.isIOS ? 'iOS Device' : 'Unknown Device')).toString();
+              final deviceIdFromInfo = deviceData['androidId'] ?? deviceData['id'] ?? user.uid;
+
+              final payload = {
+                'fcmToken': fcmToken,
+                'userId': user.uid,
+                'platform': platform,
+                'deviceName': deviceName,
+                'deviceId': deviceIdFromInfo,
+                'deviceInfo': deviceData,
+              };
+
+              await postDeviceRegistration(payload);
+            }
           }
         } catch (e, st) {
-          debugPrint('FCM registration post-login failed: $e');
+          debugPrint('SecureAuth post sign-in device registration error: $e');
           debugPrint(st.toString());
         }
 

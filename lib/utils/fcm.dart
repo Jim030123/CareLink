@@ -1,155 +1,232 @@
-import 'dart:convert';
 import 'dart:io';
 
+import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:uuid/uuid.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:carelink_mobile/utils/graphql_service.dart';
 
-/// Retrieves the FCM token and registers the device with your backend.
-///
-/// Call this function immediately after a successful login, when you have
-/// a valid `accessToken` (Bearer JWT).
-///
-/// - `backendBaseUrl`: e.g. "https://api.example.com" (no trailing slash)
-/// - `accessToken`: Bearer JWT for authenticated requests
-/// - `deviceName` / `deviceId`: optional; if omitted the function will try
-///   to auto-fill them using `device_info_plus`.
-Future<void> registerDeviceFcmTokenAfterLogin({
-  required String backendBaseUrl,
-  required String accessToken,
-  String? deviceName,
-  String? deviceId,
-  bool autoFillDeviceInfo = true,
-}) async {
-  // Ensure Firebase Messaging is ready and (on iOS) request permissions
+Future<Map<String, dynamic>> postDeviceRegistration(
+  Map<String, dynamic> payload,
+) async {
   try {
-    if (Platform.isIOS) {
-      final settings = await FirebaseMessaging.instance.requestPermission();
-      print('iOS notification permission status: $settings');
-    }
-  } catch (e) {
-    // Non-fatal; proceed to try getToken()
-    print('Warning: error requesting notification permissions: $e');
-  }
-
-  // Get FCM token
-  String? fcmToken;
-  try {
-    fcmToken = await FirebaseMessaging.instance.getToken();
-    print('FCM token obtained: $fcmToken');
-
-    // Log future token refreshes so you can debug token rotation
-    // Use a lightweight handler that posts the new token to backend without
-    // reattaching additional listeners.
-    FirebaseMessaging.instance.onTokenRefresh.listen((String? newToken) async {
-      print('FCM token refreshed: $newToken');
-      if (newToken == null || newToken.trim().isEmpty) return;
-
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) {
-          print('No signed-in user; skipping refreshed token backend registration.');
-          return;
-        }
-        final idToken = await user.getIdToken();
-        if (idToken == null || idToken.isEmpty) return;
-
-        // Derive backend base if not provided via dotenv
-        final backendBase = dotenv.env['HTTP_URL'] ?? backendBaseUrl;
-        final base = backendBase.replaceAll(RegExp(r'/graphql\/?\s*\$'), '');
-
-        final payload = {
-          'fcmToken': newToken,
-          'platform': Platform.isIOS ? 'ios' : Platform.isAndroid ? 'android' : Platform.operatingSystem,
-          if (deviceName != null) 'deviceName': deviceName,
-          if (deviceId != null) 'deviceId': deviceId,
-        };
-
-        await _postDeviceRegistration(base, idToken, payload);
-      } catch (e) {
-        print('Error handling refreshed FCM token: $e');
-      }
-    });
-  } catch (e) {
-    print('Error obtaining FCM token: $e');
-    return;
-  }
-
-  if (fcmToken == null || fcmToken.trim().isEmpty) {
-    print('FCM token is null/empty; skipping device registration.');
-    return;
-  }
-
-  // Determine platform string expected by backend
-  String platform;
-  if (Platform.isIOS) {
-    platform = 'ios';
-  } else if (Platform.isAndroid) {
-    platform = 'android';
-  } else {
-    platform = Platform.operatingSystem; // fallback
-  }
-
-  // Attempt to auto-fill device info if requested
-  if (autoFillDeviceInfo && (deviceName == null || deviceId == null)) {
+    // -----------------------------
+    // 1. Auth token
+    // -----------------------------
+    String? idToken;
     try {
-      final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-      if (Platform.isAndroid) {
-        final info = await deviceInfo.androidInfo;
-        deviceName ??= '${info.manufacturer ?? ''} ${info.model ?? ''}'.trim();
-        // Use the available Android identifier
-        deviceId ??= info.id;
-      } else if (Platform.isIOS) {
-        final info = await deviceInfo.iosInfo;
-        deviceName ??= info.name;
-        deviceId ??= info.identifierForVendor;
+      idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+    } catch (_) {
+      idToken = null;
+    }
+
+    print('[postDeviceRegistration] idToken ${idToken != null ? "present" : "null"}');
+
+    // try to determine a roleId: prefer provided payload, else fetch by Firebase uid
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    String? fetchedRoleId;
+    if (uid != null) {
+      try {
+        fetchedRoleId = await fetchUserIdByUid(uid);
+      } catch (e) {
+        fetchedRoleId = null;
       }
-    } catch (e) {
-      print('Warning: could not auto-fill device info: $e');
     }
-  }
+    final computedRoleId = payload['roleId'] ?? fetchedRoleId;
 
-  final payload = {
-    'fcmToken': fcmToken,
-    'platform': platform,
-    if (deviceName != null) 'deviceName': deviceName,
-    if (deviceId != null) 'deviceId': deviceId,
-  };
+    final client = createClient(idToken: idToken);
 
-  final uri = Uri.parse('$backendBaseUrl/user/device/register');
+    // -----------------------------
+    // 2. Required fields
+    // -----------------------------
+    final userId = payload['userId'];
+    final token = payload['fcmToken'];
 
-  try {
-    print('Registering device with payload: $payload');
-    final resp = await _postDeviceRegistration(backendBaseUrl, accessToken, payload);
+    print('[postDeviceRegistration] payload userId=$userId token=${token != null ? "present" : "null"} platform=${payload['platform']} deviceId=${payload['deviceId']}');
 
-    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      print('Device registered successfully (${resp.statusCode}).');
-    } else {
-      print('Failed to register device. Status: ${resp.statusCode}. Body: ${resp.body}');
+    if (userId == null || token == null) {
+      print('[postDeviceRegistration] missing userId or fcmToken');
+      return {'statusCode': 400, 'body': 'missing userId or fcmToken'};
     }
-  } catch (e) {
-    print('Error sending device registration request: $e');
-  }
-}
 
-/// Helper to POST device registration to backend. Returns the http.Response or
-/// throws on network errors.
-Future<http.Response> _postDeviceRegistration(String backendBaseUrl, String accessToken, Map payload) async {
-  final uri = Uri.parse('$backendBaseUrl/user/device/register');
-  final resp = await http.post(
-    uri,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $accessToken',
-    },
-    body: jsonEncode(payload),
-  );
-  if (resp.statusCode >= 200 && resp.statusCode < 300) {
-    print('Device registered successfully (${resp.statusCode}).');
-  } else {
-    print('Failed to register device. Status: ${resp.statusCode}. Body: ${resp.body}');
+    // -----------------------------
+    // 3. Query existing devices by user
+    // -----------------------------
+    const query = r'''
+      query UserDevicesByUser($userId: ID!) {
+        user_devices_by_user(userId: $userId) {
+          id
+          fcmToken
+        }
+      }
+    ''';
+
+    final qres = await client.query(
+      QueryOptions(
+        document: gql(query),
+        variables: {'userId': userId},
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+
+    if (qres.hasException) {
+      print('[postDeviceRegistration] query error: ${qres.exception}');
+      return {'statusCode': 500, 'body': qres.exception.toString()};
+    }
+
+    final List devices = (qres.data?['user_devices_by_user'] as List?) ?? [];
+    print('[postDeviceRegistration] found ${devices.length} existing devices for user $userId');
+
+    // -----------------------------
+    // 4. Check existing by fcmToken
+    // -----------------------------
+    final Map? existing = devices.cast<Map?>().firstWhere(
+      (d) => d != null && d['fcmToken'] == token,
+      orElse: () => null,
+    );
+
+    if (existing != null) print('[postDeviceRegistration] matched existing device id=${existing['id']}');
+
+    // -----------------------------
+    // 5A. Update existing device (try by_pk then fallback)
+    // -----------------------------
+    if (existing != null && existing['id'] != null) {
+      const updateByPkMut = r'''
+        mutation UpdateDeviceByPk(
+          $id: ID!,
+          $changes: user_device_insert_input!
+        ) {
+          update_user_device_by_pk(
+            id: $id,
+            changes: $changes
+          ) {
+            id
+            userId
+            platform
+            fcmToken
+            deviceName
+            deviceId
+            isActive
+            lastSeenAt
+            createdAt
+            roleId
+          }
+        }
+      ''';
+
+      final changes = {
+        'platform': payload['platform'],
+        'deviceName': payload['deviceName'],
+        'deviceId': payload['deviceId'],
+        'roleId': computedRoleId,
+        'isActive': true,
+        'lastSeenAt': DateTime.now().toUtc().toIso8601String(),
+      };
+
+      print('[postDeviceRegistration] updating device by pk id=${existing['id']} changes=$changes');
+
+      final mres = await client.mutate(
+        MutationOptions(
+          document: gql(updateByPkMut),
+          variables: {'id': existing['id'], 'changes': changes},
+        ),
+      );
+
+      if (mres.hasException) {
+        print('[postDeviceRegistration] update_by_pk failed: ${mres.exception}');
+        // Fallback to update_user_device (pk + _set)
+        const updateMut = r'''
+          mutation UpdateDevice($pk_columns: user_device_pk_columns_input!, $_set: user_device_insert_input!) {
+            update_user_device(pk_columns: $pk_columns, _set: $_set) {
+              id
+              userId
+              platform
+              fcmToken
+              deviceName
+              deviceId
+              isActive
+              lastSeenAt
+              createdAt
+              roleId
+            }
+          }
+        ''';
+
+        print('[postDeviceRegistration] attempting fallback update_user_device pk=${existing['id']}');
+
+        final fbRes = await client.mutate(
+          MutationOptions(
+            document: gql(updateMut),
+            variables: {
+              'pk_columns': {'id': existing['id']},
+              '_set': changes,
+            },
+          ),
+        );
+
+        if (fbRes.hasException) {
+          print('[postDeviceRegistration] fallback update failed: ${fbRes.exception}');
+          return {'statusCode': 500, 'body': fbRes.exception.toString()};
+        }
+
+        print('[postDeviceRegistration] fallback update succeeded: ${fbRes.data}');
+        return {'statusCode': 200, 'body': fbRes.data};
+      }
+
+      print('[postDeviceRegistration] update_by_pk succeeded: ${mres.data}');
+      return {'statusCode': 200, 'body': mres.data};
+    }
+
+    // -----------------------------
+    // 5B. Insert new device
+    // -----------------------------
+    const insertMut = r'''
+      mutation InsertDevice(
+        $object: user_device_insert_input!
+      ) {
+        insert_user_device_one(object: $object) {
+          id
+          userId
+          platform
+          fcmToken
+          deviceName
+          deviceId
+          isActive
+          lastSeenAt
+          createdAt
+          roleId
+        }
+      }
+    ''';
+
+    final object = {
+      'id': payload['id'] ?? Uuid().v4(),
+      'userId': userId,
+      'platform': payload['platform'],
+      'deviceName': payload['deviceName'],
+      'deviceId': payload['deviceId'],
+      'roleId': computedRoleId,
+      'fcmToken': token,
+      'isActive': true,
+      'lastSeenAt': DateTime.now().toUtc().toIso8601String(),
+    };
+
+    print('[postDeviceRegistration] inserting new device object=$object');
+
+    final mres = await client.mutate(
+      MutationOptions(document: gql(insertMut), variables: {'object': object}),
+    );
+
+    if (mres.hasException) {
+      print('[postDeviceRegistration] insert failed: ${mres.exception}');
+      return {'statusCode': 500, 'body': mres.exception.toString()};
+    }
+
+    print('[postDeviceRegistration] insert succeeded: ${mres.data}');
+    return {'statusCode': 201, 'body': mres.data};
+  } catch (e, st) {
+    print('GraphQL device registration failed: $e\n$st');
+    return {'statusCode': 500, 'body': e.toString()};
   }
-  return resp;
 }

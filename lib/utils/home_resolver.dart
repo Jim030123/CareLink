@@ -64,23 +64,18 @@ class _HomeResolverState extends State<HomeResolver> {
         print('userType: $userType');
       }
 
-      if (userType == 'Caregiver') {
-        if (mounted) context.go('/home/caregiver');
-      } else {
-        if (mounted) context.go('/notFound');
-      }
-
-      if (userType == 'Care Recipient') {
-        if (mounted) context.go('/home/careRecipient');
-      } else {
-        if (mounted) context.go('/notFound');
-      }
-
-
-      if (userType == 'Doctor') {
-        if (mounted) context.go('/home/doctor');
-      } else {
-        if (mounted) context.go('/notFound');
+      switch (userType) {
+        case 'Caregiver':
+          if (mounted) context.go('/home/caregiver');
+          break;
+        case 'Care Recipient':
+          if (mounted) context.go('/home/careRecipient');
+          break;
+        case 'Doctor':
+          if (mounted) context.go('/home/doctor');
+          break;
+        default:
+          if (mounted) context.go('/notFound');
       }
     } catch (e, st) {
       debugPrint('HomeResolver error: $e\n$st');

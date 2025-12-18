@@ -1,5 +1,7 @@
 // lib/utils/auth_service.dart
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:carelink_mobile/utils/fcm.dart';
 
 class AuthService {
   AuthService._privateConstructor();
@@ -29,10 +31,15 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    return await _auth.signInWithEmailAndPassword(
+    final uc = await _auth.signInWithEmailAndPassword(
       email: email,
       password: password,
     );
+
+    // Fire-and-forget: register device FCM token with backend after login
+
+
+    return uc;
   }
 
 
