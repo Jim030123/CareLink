@@ -142,13 +142,18 @@ class SecureAuth {
 
       try {
         final uc = await FirebaseAuth.instance
-            .signInWithEmailAndPassword(email: email, password: password);
+          .signInWithEmailAndPassword(email: email, password: password);
+        debugPrint('SecureAuth: signInWithEmailAndPassword returned UserCredential: $uc');
+        debugPrint('SecureAuth: uc.user = ${uc.user}');
+        debugPrint('SecureAuth: FirebaseAuth.instance.currentUser = ${FirebaseAuth.instance.currentUser?.uid}');
 
 
         try {
-          final user = uc.user ?? FirebaseAuth.instance.currentUser;
+          final user = FirebaseAuth.instance.currentUser;
+          debugPrint('SecureAuth: resolved user = $user');
           if (user != null) {
             final fcmToken = await FirebaseMessaging.instance.getToken();
+            debugPrint('SecureAuth: FCM token = $fcmToken');
 
             if (fcmToken == null || fcmToken.trim().isEmpty) {
               debugPrint('No FCM token available; skipping device registration.');
@@ -219,6 +224,8 @@ class SecureAuth {
                 'deviceId': deviceIdFromInfo,
                 'deviceInfo': deviceData,
               };
+
+              debugPrint('SecureAuth: device registration payload = $payload');
 
               await postDeviceRegistration(payload);
             }
