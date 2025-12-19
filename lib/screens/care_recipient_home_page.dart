@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:carelink_mobile/utils/greeting_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
+import 'package:carelink_mobile/components/home_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:carelink_mobile/utils/secure_auth.dart';
 // removed unused import: care_recipient emergency screen not referenced here
@@ -20,8 +22,12 @@ class CareRecipientHomePage extends StatefulWidget {
 
 class _CareRecipientHomePageState extends State<CareRecipientHomePage>
     with SingleTickerProviderStateMixin {
+  bool _avatarPressed = false;
+  String? _displayName;
+
   late DateTime _now;
   Timer? _timer;
+  Timer? _clockTimer;
   // Help button state
   bool _helpActive = false;
   static const int _helpDurationSeconds = 3;
@@ -32,6 +38,8 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
     _helpDurationSeconds,
   );
   bool _helpDialogVisible = false;
+
+
 
   static const List<String> _monthAbbr = [
     '',
@@ -102,21 +110,38 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   @override
   void initState() {
     super.initState();
-    _now = DateTime.now();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() {
-        _now = DateTime.now();
-      });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      precacheImage(const AssetImage('assets/images/home.jpg'), context);
     });
-    // load current user display name
-    _loadCurrentUser();
-    // no-op: real-time ticker will drive the progress when HELP is pressed
+
+
+
+    _now = DateTime.now();
+    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
+    });
+
+    // Fetch displayName once; recompute greeting on each rebuild using _now.
+     fetchCurrentUser().then((user) {
+      debugPrint('caregiver_home_page: fetchCurrentUser returned: $user');
+      final name = user?['displayName'] as String?;
+      debugPrint('caregiver_home_page: raw displayName = "$name"');
+      if (!mounted) return;
+      if ((name ?? '').trim().isNotEmpty) {
+        setState(() => _displayName = name!.trim());
+      } else {
+        debugPrint('caregiver_home_page: displayName empty or missing');
+      }
+    });
   }
+
+
 
   @override
   void dispose() {
     _timer?.cancel();
+    _clockTimer?.cancel();
     _helpTicker?.cancel();
     _helpCountdownNotifier.dispose();
     super.dispose();
@@ -375,135 +400,51 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // logo + title
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-
-                      GestureDetector(
-                        onTap: () {
-                          // navigate to profile page
-                          context.push('/profile');
-                        },
-                        child: CircleAvatar(
-                          radius: 20.r,
-                          backgroundImage: const NetworkImage(
-                            'https://i.pravatar.cc/150?img=3',
-                          ),
+                  AnimatedScale(
+                    scale: _avatarPressed ? 0.9 : 1.0,
+                    duration: const Duration(milliseconds: 120),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(40),
+                      onTapDown: (_) => setState(() => _avatarPressed = true),
+                      onTapCancel: () => setState(() => _avatarPressed = false),
+                      onTapUp: (_) => setState(() => _avatarPressed = false),
+                      onTap: () => context.push('/profile'),
+                      child: CircleAvatar(
+                        radius: 20.r,
+                        backgroundImage: const NetworkImage(
+                          'https://i.pravatar.cc/150?img=3',
                         ),
                       ),
-                      Row(
-                        children: [
-                          SvgPicture.asset(
-                            'assets/icons/logo.svg',
-                            width: 64.w,
-                            height: 64.h,
-                          ),
-                          SizedBox(width: 8.w),
-                          Text(
-                            'Hi, ${_username.isNotEmpty ? _username : 'there'}',
-                            style: TextStyle(
-                              fontSize: 18.sp,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
-
+                  SizedBox(width: 8.w),
+                  Text(
+                    formatGreeting(_now, displayName: _displayName),
+                    style: TextStyle(
+                      fontSize: 18.sp,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const Spacer(),
-
-                  // time, date and logout button
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                timeString,
-                                style: TextStyle(
-                                  fontSize: 26.sp,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 4.h),
-                              Text(
-                                dateString,
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(width: 8.w),
-                          // Logout button with same logic as profile page
-                          IconButton(
-                            onPressed: () async {
-                              final confirmed = await showDialog<bool>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('Confirm Log Out'),
-                                  content: const Text(
-                                    'Are you sure you want to log out?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(ctx).pop(false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(ctx).pop(true),
-                                      child: const Text('Log Out'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirmed == true) {
-                                // Capture ScaffoldMessenger before async gap
-                                final messenger = ScaffoldMessenger.of(context);
-
-                                // Clear stored credentials and sign out
-                                await SecureAuth.clearCredentials();
-                                try {
-                                  await FirebaseAuth.instance.signOut();
-                                } catch (_) {}
-
-                                // Show snackbar using captured messenger if still mounted
-                                if (messenger.mounted) {
-                                  messenger.showSnackBar(
-                                    const SnackBar(content: Text('Logged out')),
-                                  );
-                                }
-
-                                // Navigate to the login page after logout if this State is still mounted
-                                if (!mounted) return;
-                                context.go('/login');
-                              }
-                            },
-                            icon: Icon(
-                              Icons.logout,
-                              color: Colors.red.shade600,
-                              size: 24.w,
-                            ),
-                            tooltip: 'Log out',
-                          ),
-                        ],
+                      Text(
+                        _formatTime(_now),
+                        style: TextStyle(
+                          fontSize: 22.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        _formatDate(_now),
+                        style: TextStyle(fontSize: 12.sp),
                       ),
                     ],
                   ),
                 ],
               ),
-
               SizedBox(height: 16.h),
 
               // Next Task card
@@ -605,26 +546,34 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                 physics: const NeverScrollableScrollPhysics(),
                 childAspectRatio: 1.15,
                 children: [
-                  _buildTile(
+                  buildServiceCard(HomeService(
+                    title: 'Medical Report',
+                    subtitle: '',
                     icon: Icons.description_outlined,
-                    label: 'Medical Report',
-                    badge: 12,
-                  ),
-                  _buildTile(
+                    color: Colors.teal,
+                    onTap: () => context.push('/medicalreport'),
+                  )),
+                  buildServiceCard(HomeService(
+                    title: 'Medication',
+                    subtitle: '',
                     icon: Icons.medication,
-                    label: 'Medicine',
-                    showDot: false,
-                  ),
-                  _buildTile(
+                    color: Colors.blue,
+                    onTap: () => context.push('/medication'),
+                  )),
+                  buildServiceCard(HomeService(
+                    title: 'Caregiver',
+                    subtitle: '',
                     icon: Icons.person_outline,
-                    label: 'Caregiver',
-                    badge: 12,
-                  ),
-                  _buildTile(
+                    color: Colors.purple,
+                    onTap: () => context.push('/caregiver'),
+                  )),
+                  buildServiceCard(HomeService(
+                    title: 'AI Chatbot',
+                    subtitle: '',
                     icon: Icons.smart_toy,
-                    label: 'AI Chatbot',
-                    badge: 12,
-                  ),
+                    color: Colors.indigo,
+                    onTap: () => context.push('/aichatbot'),
+                  )),
                 ],
               ),
 

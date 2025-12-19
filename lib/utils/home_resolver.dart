@@ -69,7 +69,7 @@ class _HomeResolverState extends State<HomeResolver> {
           if (mounted) context.go('/home/caregiver');
           break;
         case 'Care Recipient':
-          if (mounted) context.go('/home/careRecipient');
+          if (mounted) context.go('/home/recipient');
           break;
         case 'Doctor':
           if (mounted) context.go('/home/doctor');
