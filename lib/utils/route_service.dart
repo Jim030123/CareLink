@@ -28,7 +28,7 @@ import '../screens/authentication/register_doctor_page.dart';
 
 /// Central app router exported for use by `main.dart`.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/home/recipient',
   errorBuilder: (context, state) =>
       NotFoundPage(location: state.error?.toString()),
   routes: <GoRoute>[
@@ -104,13 +104,12 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const ManageCareRecipient(),
     ),
 
-    // GoRoute(
-    //   path: '/test',
-    //   builder: (context, state) => const TestPage(
-    //     caregiverId: 'CG-003',
-    //     signalingUrl: "ws://10.180.12.100:25101",
-    //   ),
-    // ),
+    GoRoute(
+      path: '/test',
+      builder: (context, state) => const TestPage2(
+
+      ),
+    ),
 
     GoRoute(
       path: '/medication',

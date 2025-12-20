@@ -3,6 +3,8 @@
          READ_EXTERNAL_STORAGE is requested for legacy access to files selected
          by file picker plugins. WRITE_EXTERNAL_STORAGE is kept for older
          Android versions (maxSdkVersion=28) where it's still applicable. -->
+        <!-- Internet permission required for network access -->
+        <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <!-- Notifications permission (Android 13 / API 33+) -->
@@ -20,6 +22,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
         android:label="carelink_mobile"
+        android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
