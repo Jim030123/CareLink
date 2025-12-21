@@ -68,6 +68,8 @@ dependencies:
   mobile_scanner: ^3.0.0
   video_player: ^2.10.1
   carousel_slider: ^5.1.1
+  syncfusion_flutter_pdfviewer: ^32.1.19
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

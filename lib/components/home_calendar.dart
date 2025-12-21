@@ -32,7 +32,7 @@ class _HomeCalendarState extends State<HomeCalendar> {
         padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12.r),
-          gradient: const LinearGradient(
+          gradient:  LinearGradient(
             colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
           ),
           border: Border.all(color: Colors.orange.withOpacity(0.25), width: 2),

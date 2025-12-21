@@ -1,7 +1,9 @@
 // caregiver_call_page.dart
 import 'dart:convert';
 import 'dart:async';
+import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
@@ -527,19 +529,92 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Caregiver - Incoming Calls')),
+      appBar:  PageAppBar(
+        title: 'Emergency Call',
+        showBack: true,
+        showSearch: false,
+        onSearch: () {
+          setState(() {
+
+          });
+        },
+      ),
       body: Column(
         children: [
-          Expanded(
+
+          // Debug-only button to simulate an incoming_call message locally
+
+              // split view: left = local (self), right = remote (other) with name overlays
+              _hasCurrentUser
+                  ? Stack(
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.all(16.w),
+                          child: Container(
+                            height: 300.h,
+                            margin: EdgeInsets.symmetric(vertical: 8.h),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    color: Colors.white,
+                                    child: RTCVideoView(_localRenderer, mirror: true),
+                                  ),
+                                ),
+                                SizedBox(width: 2.w),
+                                Expanded(
+                                  child: Container(
+                                    color: Colors.white,
+                                    child: RTCVideoView(_remoteRenderer),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 8.w,
+                          bottom: 16.h,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(6.r),
+                            ),
+                            child: Text('You: ${localDisplayName.isNotEmpty ? localDisplayName : widget.careRecipientID}', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
+                          ),
+                        ),
+                        Positioned(
+                          right: 8.w,
+                          bottom: 16.h,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(6.r),
+                            ),
+                            child: Text('Other: ${remoteDisplayName.isNotEmpty ? remoteDisplayName : (incomingFrom ?? "-")}', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Container(
+                      height: 300,
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      color: Colors.black12,
+                      child: const Center(child: Text('Waiting', style: TextStyle(fontSize: 18))),
+                    ),
+
+                      Expanded(
             child: Center(
               child: inCall
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.call, size: 80, color: Colors.green),
-                        const SizedBox(height: 12),
-                        Text('In call with ${incomingFrom ?? 'CR'}'),
-                        const SizedBox(height: 12),
+                        Icon(Icons.call, size: 80.r, color: Colors.green),
+                        SizedBox(height: 12.h),
+                        Text('In call with ${incomingFrom ?? 'CR'}', style: TextStyle(fontSize: 16.sp)),
+                        SizedBox(height: 12.h),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -549,7 +624,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
                               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                               onPressed: hangup,
                             ),
-                            const SizedBox(width: 12),
+                            SizedBox(width: 12.w),
                             ElevatedButton.icon(
                               icon: Icon(isMuted ? Icons.mic_off : Icons.mic),
                               label: Text(isMuted ? 'Unmute' : 'Mute'),
@@ -561,68 +636,9 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
                     )
                   : isRinging
                       ? _incomingCallWidget()
-                      : const Text('Waiting for calls...', style: TextStyle(fontSize: 18)),
+                      : Text('Waiting for calls...', style: TextStyle(fontSize: 18.sp)),
             ),
           ),
-          // Debug-only button to simulate an incoming_call message locally
-         
-              // split view: left = local (self), right = remote (other) with name overlays
-              _hasCurrentUser
-                  ? Stack(
-                      children: [
-                        Container(
-                          height: 300,
-                          margin: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  color: Colors.black,
-                                  child: RTCVideoView(_localRenderer, mirror: true),
-                                ),
-                              ),
-                              const SizedBox(width: 2),
-                              Expanded(
-                                child: Container(
-                                  color: Colors.black,
-                                  child: RTCVideoView(_remoteRenderer),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          left: 8,
-                          bottom: 16,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text('You: ${localDisplayName.isNotEmpty ? localDisplayName : widget.careRecipientID}', style: const TextStyle(color: Colors.white)),
-                          ),
-                        ),
-                        Positioned(
-                          right: 8,
-                          bottom: 16,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text('Other: ${remoteDisplayName.isNotEmpty ? remoteDisplayName : (incomingFrom ?? "-")}', style: const TextStyle(color: Colors.white)),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Container(
-                      height: 300,
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      color: Colors.black12,
-                      child: const Center(child: Text('Waiting', style: TextStyle(fontSize: 18))),
-                    ),
         ],
       ),
     );
@@ -632,12 +648,12 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.notifications_active, size: 80, color: Colors.orange),
-        const SizedBox(height: 12),
-        Text('Incoming call from ${incomingFrom ?? 'CR'}', style: const TextStyle(fontSize: 18)),
+        Icon(Icons.notifications_active, size: 80.r, color: Colors.orange),
+        SizedBox(height: 12.h),
+        Text('Incoming call from ${incomingFrom ?? 'CR'}', style: TextStyle(fontSize: 18.sp)),
         if (incomingMeta != null && incomingMeta!['priority'] != null)
-          Text('Priority: ${incomingMeta!['priority']}'),
-        const SizedBox(height: 12),
+          Text('Priority: ${incomingMeta!['priority']}', style: TextStyle(fontSize: 14.sp)),
+        SizedBox(height: 12.h),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -646,7 +662,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
               label: const Text('Accept'),
               onPressed: acceptCall,
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             ElevatedButton.icon(
               icon: const Icon(Icons.close),
               label: const Text('Reject'),

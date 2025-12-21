@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:carelink_mobile/screens/cg_emergency_call.dart';
 import 'package:carelink_mobile/utils/signal_service.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
 
@@ -518,9 +520,28 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
   // ───────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    String displayNameForAvatar() {
+      final display = remoteDisplayName.isNotEmpty
+          ? remoteDisplayName
+          : (widget.caregiverId.isNotEmpty ? widget.caregiverId : 'Caregiver');
+      return display;
+    }
+
+    String _initials(String name) {
+      final parts = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
+      if (parts.isEmpty) return '?';
+      if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+      return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
+    }
     return Scaffold(
-      appBar: AppBar(title: const Text("CR Emergency Call")),
-      body: Center(
+      appBar:  PageAppBar(
+        title: 'Emergency Call',
+        showBack: true,
+        showSearch: false,
+
+      ),
+      body: Padding(
+        padding:  EdgeInsets.all(16.h),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -529,20 +550,24 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
                 ? Stack(
                     children: [
                       Container(
-                        height: 300,
-                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24.r),
+                        ),
+                        height: 300.h,
+                        margin: EdgeInsets.symmetric(vertical: 8.h),
                         child: Row(
                           children: [
                             Expanded(
                               child: Container(
-                                color: Colors.black,
+                                color: Colors.white,
                                 child: RTCVideoView(_localRenderer, mirror: true),
                               ),
                             ),
-                            const SizedBox(width: 2),
+                            SizedBox(width: 2.w),
                             Expanded(
                               child: Container(
-                                color: Colors.black,
+                                color: Colors.white,
                                 child: RTCVideoView(_remoteRenderer),
                               ),
                             ),
@@ -551,28 +576,28 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
                       ),
                       // local name box (left)
                       Positioned(
-                        left: 8,
-                        bottom: 16,
+                        left: 8.w,
+                        bottom: 16.h,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                           decoration: BoxDecoration(
                             color: Colors.black54,
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(6.r),
                           ),
-                          child: Text('You: ${myDisplayName.isNotEmpty ? myDisplayName : myClientId}', style: const TextStyle(color: Colors.white)),
+                          child: Text('You: ${myDisplayName.isNotEmpty ? myDisplayName : myClientId}', style: TextStyle(color: Colors.white)),
                         ),
                       ),
                       // remote name box (right)
                       Positioned(
-                        right: 8,
-                        bottom: 16,
+                        right: 8.w,
+                        bottom: 16.h,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                           decoration: BoxDecoration(
                             color: Colors.black54,
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(6.r),
                           ),
-                          child: Text('Other: ${remoteDisplayName.isNotEmpty ? remoteDisplayName : (widget.caregiverId.isNotEmpty ? widget.caregiverId : "-")}', style: const TextStyle(color: Colors.white)),
+                          child: Text('Caregiver: ${remoteDisplayName.isNotEmpty ? remoteDisplayName : (widget.caregiverId.isNotEmpty ? widget.caregiverId : "-")}', style: TextStyle(color: Colors.white)),
                         ),
                       ),
                     ],
@@ -583,11 +608,11 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
                     color: Colors.black12,
                     child: const Center(child: Text('Waiting', style: TextStyle(fontSize: 18))),
                   ),
-            if (inCall) ...[
-              const Icon(Icons.call, size: 80, color: Colors.green),
-              const SizedBox(height: 12),
+              if (inCall) ...[
+              Icon(Icons.call, size: 80.r, color: Colors.green),
+              SizedBox(height: 12.h),
               Text('In call with ${widget.caregiverId}'),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -606,24 +631,41 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
                 ],
               ),
             ] else if (isCalling) ...[
-              const Icon(Icons.call_made, size: 80, color: Colors.orange),
-              const SizedBox(height: 12),
-              Text('Calling ${widget.caregiverId}...'),
-              const SizedBox(height: 12),
+              // Waiting for caregiver to accept: show avatar + name + status
+              SizedBox(height: 12.h),
+              CircleAvatar(
+                radius: 44.r,
+                backgroundColor: Colors.grey.shade200,
+                child: Text(
+                  _initials(displayNameForAvatar()),
+                  style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
+              ),
+              SizedBox(height: 12.h),
+              Text(
+                '${displayNameForAvatar()}',
+                style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 8.h),
+              Text(
+                'Waiting for caregiver to accept…',
+                style: TextStyle(fontSize: 14.sp, color: Colors.black54),
+              ),
+              SizedBox(height: 12.h),
               ElevatedButton(
                 onPressed: () {
                   // cancel the outgoing call
                   endCall();
                 },
-                child: const Text('Cancel'),
+                child: Text('Cancel', style: TextStyle(fontSize: 14.sp)),
               ),
             ] else ...[
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  padding: EdgeInsets.symmetric(horizontal: 40.w, vertical: 20.h),
                 ),
-                child: const Text('📞 Emergency Call', style: TextStyle(fontSize: 22)),
+                child: Text('📞 Emergency Call', style: TextStyle(fontSize: 22.sp)),
                 onPressed: _startCall,
               ),
 

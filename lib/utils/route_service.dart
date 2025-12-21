@@ -17,8 +17,8 @@ import 'package:carelink_mobile/screens/authentication/register_page.dart';
 import 'package:carelink_mobile/screens/show_appointment.dart';
 
 import 'package:carelink_mobile/screens/profile_page.dart';
-import 'package:carelink_mobile/utils/test_page.dart';
-import 'package:carelink_mobile/utils/test_page_2.dart';
+import 'package:carelink_mobile/screens/medical_report_viewer.dart';
+import 'package:carelink_mobile/screens/remote_monitor.dart';
 import 'package:carelink_mobile/screens/cg_emergency_call.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -28,7 +28,7 @@ import '../screens/authentication/register_doctor_page.dart';
 
 /// Central app router exported for use by `main.dart`.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/home/recipient',
+  initialLocation: '/',
   errorBuilder: (context, state) =>
       NotFoundPage(location: state.error?.toString()),
   routes: <GoRoute>[
@@ -106,7 +106,7 @@ final GoRouter appRouter = GoRouter(
 
     GoRoute(
       path: '/test',
-      builder: (context, state) => const TestPage2(
+      builder: (context, state) => const RemoteMonitor(
 
       ),
     ),
@@ -142,5 +142,14 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/selectMedicationPrescription',
       builder: (context, state) => const SelectMedicationPrescription(),
     ),
+
+    GoRoute(path: '/medicalreportviewer',
+      builder: (context, state) => const MedicalReportViewer(storagePath: 'medical_report/dummy_health_report.pdf',),
+    ),
+
+    GoRoute(path: '/remotemonitor',
+      builder: (context, state) => const RemoteMonitor(),
+
+    )
   ],
 );

@@ -14,6 +14,7 @@ import 'package:carelink_mobile/components/home_service.dart';
 import 'package:carelink_mobile/components/next_task_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:carelink_mobile/utils/secure_auth.dart';
+import 'package:lottie/lottie.dart';
 // removed unused import: care_recipient emergency screen not referenced here
 
 // Private model for carousel tasks
@@ -23,6 +24,7 @@ class _TaskItem {
   final String title;
   final String upcomingTitle;
   final String? subtitle;
+  final String? dosage;
   final IconData icon;
   final String rightInfo;
   bool completed;
@@ -34,6 +36,7 @@ class _TaskItem {
     required this.title,
     String? upcomingTitle,
     this.subtitle,
+    this.dosage,
     required this.icon,
     required this.rightInfo,
     this.completed = false,
@@ -95,16 +98,18 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
     try {
       final client = GraphQLProvider.of(context).value;
       if (client == null) return;
-      final result = await client.query(QueryOptions(
-        document: gql(_upcomingTasksQuery),
-        variables: {
-          // 'userId': _clientId ?? 'CR-071',
-          'userId': 'CR-071',
+      final result = await client.query(
+        QueryOptions(
+          document: gql(_upcomingTasksQuery),
+          variables: {
+            // 'userId': _clientId ?? 'CR-071',
+            'userId': 'CR-071',
 
-          'status': 'scheduled',
-        },
-        fetchPolicy: FetchPolicy.networkOnly,
-      ));
+            'status': 'scheduled',
+          },
+          fetchPolicy: FetchPolicy.networkOnly,
+        ),
+      );
       if (result.hasException) {
         debugPrint('loadTasks: GraphQL exception: ${result.exception}');
         return;
@@ -121,13 +126,26 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
 
         final dynamic medPreRaw = map['medicationPrescription'];
 
-
-        final Map<String, dynamic>? med = medRaw is Map ? Map<String, dynamic>.from(medRaw) : null;
+        final Map<String, dynamic>? med = medRaw is Map
+            ? Map<String, dynamic>.from(medRaw)
+            : null;
         final String medName = med?['name']?.toString() ?? '';
         final String medDesc = med?['description']?.toString() ?? '';
         final String medStrength = med?['strength']?.toString() ?? '';
-        final Map<String, dynamic>? medPre = medPreRaw is Map ? Map<String, dynamic>.from(medPreRaw) : null;
-        final String medPreDosageAmount = medPre?['dosageAmount']?.toString() ?? '';
+        // medicationPrescription may be an object or a list — handle both
+        final Map<String, dynamic>? medPre;
+        if (medPreRaw is Map) {
+          medPre = Map<String, dynamic>.from(medPreRaw);
+        } else if (medPreRaw is List && medPreRaw.isNotEmpty) {
+          medPre = Map<String, dynamic>.from(medPreRaw.first as Map);
+        } else {
+          medPre = null;
+        }
+        // Safely build dosage string from prescription and medication unit.
+        final String _dosageVal = medPre?['dosageAmount']?.toString() ?? '';
+        final String _unitVal = medPre?['standardUnit']?.toString() ?? med?['standardUnit']?.toString() ?? 'Capsule';
+        final String medPreDosageAmount =
+          _dosageVal.isNotEmpty ? '$_dosageVal $_unitVal' : '1 $_unitVal';
         final String medPreStartDate = medPre?['startDate']?.toString() ?? '';
         final String medPreEndDate = medPre?['endDate']?.toString() ?? '';
         final String medPreStatus = medPre?['status']?.toString() ?? '';
@@ -145,9 +163,15 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
             final n = int.parse(scheduledAt);
             // if length > 10 assume milliseconds
             if (n.abs().toString().length > 10) {
-              fromEpoch = DateTime.fromMillisecondsSinceEpoch(n, isUtc: true).toLocal();
+              fromEpoch = DateTime.fromMillisecondsSinceEpoch(
+                n,
+                isUtc: true,
+              ).toLocal();
             } else {
-              fromEpoch = DateTime.fromMillisecondsSinceEpoch(n * 1000, isUtc: true).toLocal();
+              fromEpoch = DateTime.fromMillisecondsSinceEpoch(
+                n * 1000,
+                isUtc: true,
+              ).toLocal();
             }
           } catch (_) {
             fromEpoch = null;
@@ -160,7 +184,10 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
         final off = parsed.timeZoneOffset;
         final String tzSign = off.isNegative ? '-' : '+';
         final String tzHours = off.inHours.abs().toString().padLeft(2, '0');
-        final String tzMinutes = (off.inMinutes.abs() % 60).toString().padLeft(2, '0');
+        final String tzMinutes = (off.inMinutes.abs() % 60).toString().padLeft(
+          2,
+          '0',
+        );
         final String tzOffset = '\GMT$tzSign$tzHours:$tzMinutes';
         final String dateStr = '${_formatDate(parsed)} ($tzOffset)';
 
@@ -168,9 +195,13 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
         final List<String> subtitleParts = [];
         if (medStrength.isNotEmpty) subtitleParts.add(medStrength);
         if (medDesc.isNotEmpty) subtitleParts.add(medDesc);
-        final String? subtitle = subtitleParts.isNotEmpty ? subtitleParts.join(' • ') : null;
+        final String? subtitle = subtitleParts.isNotEmpty
+            ? subtitleParts.join(' • ')
+            : null;
 
-        final String titleText = medName.isNotEmpty ? medName : (status.isNotEmpty ? status : 'Reminder');
+        final String titleText = medName.isNotEmpty
+            ? medName
+            : (status.isNotEmpty ? status : 'Reminder');
 
         return _TaskItem(
           id: map['id']?.toString() ?? UniqueKey().toString(),
@@ -178,15 +209,17 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
           time: timeStr,
           title: titleText,
           subtitle: subtitle,
+          dosage: medPreDosageAmount,
           icon: Icons.medication,
           rightInfo: dateStr,
         );
       }).toList();
-      if (mounted) setState(() {
-        _tasks.clear();
-        _tasks.addAll(loaded);
-        _currentCarouselIndex = 0;
-      });
+      if (mounted)
+        setState(() {
+          _tasks.clear();
+          _tasks.addAll(loaded);
+          _currentCarouselIndex = 0;
+        });
     } catch (e) {
       debugPrint('loadTasks failed: $e');
     }
@@ -669,13 +702,13 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
 
               // Next Task cards as a carousel with indicators
               SizedBox(
-                height: 250.h,
+                height: 290.h,
                 child: Column(
                   children: [
                     if (_tasks.isNotEmpty) ...[
                       CarouselSlider(
                         options: CarouselOptions(
-                          height: 220.h,
+                          height: 270.h,
                           enlargeCenterPage: true,
                           viewportFraction: 0.92,
                           enableInfiniteScroll: false,
@@ -693,6 +726,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                             time: t.time,
                             title: t.title,
                             subtitle: t.subtitle ?? '',
+                            dosage: t.dosage ?? '',
                             icon: t.icon,
                             rightInfo: t.rightInfo,
                             completed: t.completed,
@@ -723,20 +757,52 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                       ),
                     ] else ...[
                       Container(
-                        height: 220.h,
+                        height: 290.h,
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12.w),
-                          border: Border.all(color: Colors.grey.shade200),
+                          gradient: LinearGradient(
+                            colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+                          ),
+                          border: Border.all(
+                            color: Colors.orange.withOpacity(0.25),
+                            width: 4,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withOpacity(0.25),
+                              blurRadius: 14,
+                            ),
+                          ],
+                          borderRadius: BorderRadius.circular(12.r),
                         ),
                         child: Center(
-                          child: Text(
-                            'Not reminder upcoming',
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              color: Colors.black54,
-                            ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 88.w,
+                                height: 88.w,
+                                child: Lottie.asset(
+                                  'assets/animations/thumb_up.json',
+                                  width: 200.w,
+                                  height: 200.w,
+                                  repeat: true,
+                                  animate: true,
+                                ),
+                              ),
+                              SizedBox(width: 12.w),
+                              Flexible(
+                                child: Text(
+                                  'No Upcoming Reminders Found',
+                                  style: TextStyle(
+                                    fontSize: 20.sp,
+                                    color: Colors.black54,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -778,7 +844,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                       subtitle: '',
                       icon: Icons.description_outlined,
                       color: Colors.teal,
-                      onTap: () => context.push('/medicalreport'),
+                      onTap: () => context.push('/medicalreportviewer'),
                     ),
                   ),
                   buildServiceCard(
@@ -801,11 +867,11 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                   ),
                   buildServiceCard(
                     HomeService(
-                      title: 'AI Chatbot',
+                      title: 'Appointment',
                       subtitle: '',
-                      icon: Icons.smart_toy,
+                      icon: Icons.event,
                       color: Colors.indigo,
-                      onTap: () => context.push('/aichatbot'),
+                      onTap: () => context.push('/appointment'),
                     ),
                   ),
                 ],

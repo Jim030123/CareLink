@@ -48,7 +48,9 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         subtitle: '',
         icon: Icons.devices,
         color: Colors.green,
-        onTap: () {},
+        onTap: () {
+          context.push('/remotemonitor');
+        },
       ),
       HomeService(
         title: 'Manage Caregiver',
@@ -65,7 +67,7 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         onTap: () => context.push('/managecarerecipient'),
       ),
       HomeService(
-        title: 'Activity',
+        title: 'Emergency Call',
         subtitle: '',
         icon: Icons.directions_run,
         color: Colors.teal,
