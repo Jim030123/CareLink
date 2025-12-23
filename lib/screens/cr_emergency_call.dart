@@ -540,139 +540,141 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
         showSearch: false,
 
       ),
-      body: Padding(
-        padding:  EdgeInsets.all(16.h),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // split view: left = local (self), right = remote (other)
-            _hasCurrentUser
-                ? Stack(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24.r),
-                        ),
-                        height: 300.h,
-                        margin: EdgeInsets.symmetric(vertical: 8.h),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                color: Colors.white,
-                                child: RTCVideoView(_localRenderer, mirror: true),
-                              ),
-                            ),
-                            SizedBox(width: 2.w),
-                            Expanded(
-                              child: Container(
-                                color: Colors.white,
-                                child: RTCVideoView(_remoteRenderer),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // local name box (left)
-                      Positioned(
-                        left: 8.w,
-                        bottom: 16.h,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding:  EdgeInsets.all(16.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // split view: left = local (self), right = remote (other)
+              _hasCurrentUser
+                  ? Stack(
+                      children: [
+                        Container(
                           decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(6.r),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24.r),
                           ),
-                          child: Text('You: ${myDisplayName.isNotEmpty ? myDisplayName : myClientId}', style: TextStyle(color: Colors.white)),
-                        ),
-                      ),
-                      // remote name box (right)
-                      Positioned(
-                        right: 8.w,
-                        bottom: 16.h,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(6.r),
+                          height: 300.h,
+                          margin: EdgeInsets.symmetric(vertical: 8.h),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  color: Colors.white,
+                                  child: RTCVideoView(_localRenderer, mirror: true),
+                                ),
+                              ),
+                              SizedBox(width: 2.w),
+                              Expanded(
+                                child: Container(
+                                  color: Colors.white,
+                                  child: RTCVideoView(_remoteRenderer),
+                                ),
+                              ),
+                            ],
                           ),
-                          child: Text('Caregiver: ${remoteDisplayName.isNotEmpty ? remoteDisplayName : (widget.caregiverId.isNotEmpty ? widget.caregiverId : "-")}', style: TextStyle(color: Colors.white)),
                         ),
-                      ),
-                    ],
-                  )
-                : Container(
-                    height: 300,
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    color: Colors.black12,
-                    child: const Center(child: Text('Waiting', style: TextStyle(fontSize: 18))),
-                  ),
-              if (inCall) ...[
-              Icon(Icons.call, size: 80.r, color: Colors.green),
-              SizedBox(height: 12.h),
-              Text('In call with ${widget.caregiverId}'),
-              SizedBox(height: 12.h),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.call_end),
-                    label: const Text('Hang up'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                    onPressed: endCall,
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    icon: Icon(isMuted ? Icons.mic_off : Icons.mic),
-                    label: Text(isMuted ? 'Unmute' : 'Mute'),
-                    onPressed: _toggleMute,
-                  ),
-                ],
-              ),
-            ] else if (isCalling) ...[
-              // Waiting for caregiver to accept: show avatar + name + status
-              SizedBox(height: 12.h),
-              CircleAvatar(
-                radius: 44.r,
-                backgroundColor: Colors.grey.shade200,
-                child: Text(
-                  _initials(displayNameForAvatar()),
-                  style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold, color: Colors.black87),
+                        // local name box (left)
+                        Positioned(
+                          left: 8.w,
+                          bottom: 16.h,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(6.r),
+                            ),
+                            child: Text('You: ${myDisplayName.isNotEmpty ? myDisplayName : myClientId}', style: TextStyle(color: Colors.white)),
+                          ),
+                        ),
+                        // remote name box (right)
+                        Positioned(
+                          right: 8.w,
+                          bottom: 16.h,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(6.r),
+                            ),
+                            child: Text('Caregiver: ${remoteDisplayName.isNotEmpty ? remoteDisplayName : (widget.caregiverId.isNotEmpty ? widget.caregiverId : "-")}', style: TextStyle(color: Colors.white)),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Container(
+                      height: 300,
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      color: Colors.black12,
+                      child: const Center(child: Text('Waiting', style: TextStyle(fontSize: 18))),
+                    ),
+                if (inCall) ...[
+                Icon(Icons.call, size: 80.r, color: Colors.green),
+                SizedBox(height: 12.h),
+                Text('In call with ${widget.caregiverId}'),
+                SizedBox(height: 12.h),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.call_end),
+                      label: const Text('Hang up'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed: endCall,
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      icon: Icon(isMuted ? Icons.mic_off : Icons.mic),
+                      label: Text(isMuted ? 'Unmute' : 'Mute'),
+                      onPressed: _toggleMute,
+                    ),
+                  ],
                 ),
-              ),
-              SizedBox(height: 12.h),
-              Text(
-                '${displayNameForAvatar()}',
-                style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600),
-              ),
-              SizedBox(height: 8.h),
-              Text(
-                'Waiting for caregiver to accept…',
-                style: TextStyle(fontSize: 14.sp, color: Colors.black54),
-              ),
-              SizedBox(height: 12.h),
-              ElevatedButton(
-                onPressed: () {
-                  // cancel the outgoing call
-                  endCall();
-                },
-                child: Text('Cancel', style: TextStyle(fontSize: 14.sp)),
-              ),
-            ] else ...[
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  padding: EdgeInsets.symmetric(horizontal: 40.w, vertical: 20.h),
+              ] else if (isCalling) ...[
+                // Waiting for caregiver to accept: show avatar + name + status
+                SizedBox(height: 12.h),
+                CircleAvatar(
+                  radius: 44.r,
+                  backgroundColor: Colors.grey.shade200,
+                  child: Text(
+                    _initials(displayNameForAvatar()),
+                    style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold, color: Colors.black87),
+                  ),
                 ),
-                child: Text('📞 Emergency Call', style: TextStyle(fontSize: 22.sp)),
-                onPressed: _startCall,
-              ),
+                SizedBox(height: 12.h),
+                Text(
+                  '${displayNameForAvatar()}',
+                  style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  'Waiting for caregiver to accept…',
+                  style: TextStyle(fontSize: 14.sp, color: Colors.black54),
+                ),
+                SizedBox(height: 12.h),
+                ElevatedButton(
+                  onPressed: () {
+                    // cancel the outgoing call
+                    endCall();
+                  },
+                  child: Text('Cancel', style: TextStyle(fontSize: 14.sp)),
+                ),
+              ] else ...[
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: EdgeInsets.symmetric(horizontal: 40.w, vertical: 20.h),
+                  ),
+                  child: Text('📞 Emergency Call', style: TextStyle(fontSize: 22.sp)),
+                  onPressed: _startCall,
+                ),
+
+              ],
+
 
             ],
-
-
-          ],
+          ),
         ),
       ),
     );

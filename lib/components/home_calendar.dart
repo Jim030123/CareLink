@@ -13,10 +13,10 @@ class HomeCalendar extends StatefulWidget {
 class _HomeCalendarState extends State<HomeCalendar> {
   final Map<DateTime, List<String>> _events = {
     DateTime.utc(2025, 10, 5): ['a'],
-    DateTime.utc(2025, 10, 11): ['a'],
-    DateTime.utc(2025, 10, 17): ['a', 'b'],
-    DateTime.utc(2025, 10, 21): ['a'],
-    DateTime.utc(2025, 10, 28): ['a'],
+    DateTime.utc(2025, 12, 23): ['a'],
+    DateTime.utc(2025, 12, 17): ['a', 'b'],
+    DateTime.utc(2025, 12, 17): ['a'],
+    DateTime.utc(2025, 12, 28): ['a'],
   };
 
   List<String> _getEventsForDay(DateTime day) {
@@ -32,7 +32,7 @@ class _HomeCalendarState extends State<HomeCalendar> {
         padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12.r),
-          gradient:  LinearGradient(
+          gradient: LinearGradient(
             colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
           ),
           border: Border.all(color: Colors.orange.withOpacity(0.25), width: 2),
@@ -80,27 +80,19 @@ class _HomeCalendarState extends State<HomeCalendar> {
                     ),
                   );
                 },
-                // 在每个单元格右下角绘制 marker（小方块或数字徽章）
+                // 在每个单元格绘制基于 events 的 marker（有事件显示点或数量徽章）
                 markerBuilder: (context, date, events) {
                   if (events.isEmpty) return const SizedBox.shrink();
                   if (events.length == 1) {
                     return Align(
-                      alignment: Alignment.topRight,
+                      alignment: Alignment.bottomCenter,
                       child: Container(
-                        margin: EdgeInsets.only(bottom: 6.h, right: 6.w),
-                        width: 10.w,
-                        height: 10.h,
+                        margin: EdgeInsets.only(top: 10.h),
+                        width: 8.w,
+                        height: 8.w,
                         decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.rectangle,
-                          borderRadius: BorderRadius.circular(2.r),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 1,
-                              offset: Offset(0, 1),
-                            ),
-                          ],
+                          color: Colors.orange,
+                          shape: BoxShape.circle,
                         ),
                       ),
                     );

@@ -1,3 +1,4 @@
+import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -153,14 +154,10 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, size: 22.sp),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text('Profile', style: TextStyle(fontSize: 18.sp)),
-        centerTitle: false,
-        elevation: 0,
+      appBar: PageAppBar(
+        title: 'Profile',
+        showBack: true,
+        showSearch: false,
       ),
       body: LayoutBuilder(
         builder: (context, constraints) => SafeArea(
