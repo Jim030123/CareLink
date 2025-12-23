@@ -155,31 +155,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
 
 
   // Open the add-sheet with mock values populated into text fields
-  void _addMockData() {
-    setState(() {
-      // ensure ChoiceChip items exist so chips render and selections work
-      items = [
-        {'id': 'CR-001', 'name': 'Alice Tan'},
-        {'id': 'CR-002', 'name': 'Bob Lim'},
-        {'id': 'CR-003', 'name': 'Cheng Wei'},
-      ];
-      // clear any previously selected recipients
-      _selectedRecipients.value = <String>{};
-    });
 
-    // open the sheet with initial values filled into the text fields
-    _showAddCaregiverSheet(
-      initialData: {
-        'name': 'Mock Name',
-        'relationship': 'Friend',
-        'phoneNumber': '+60123456789',
-        'permission': 'Full',
-        'careRecipientIds': 'CR-001,CR-003',
-        'status': 'Alice Tan, Cheng Wei',
-        'email': 'mock@example.com',
-      },
-    );
-  }
 
   Future<void> _loadRecipients(String caregiverId) async {
     try {
@@ -273,7 +249,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
             ].whereType<String>().join(' ');
 
         final contact =
-            caregiver?['phone'] as String? ??
+            caregiver?['phoneNumber'] as String? ??
             caregiver?['email'] as String? ??
             '';
 
@@ -324,7 +300,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
           nameCtrl.text = initialData['name'] ?? '';
           relCtrl.text = initialData['relationship'] ?? '';
           // Accept either 'phone' or 'contact' from initialData (keys were inconsistent)
-          phoneNumberCtrl.text = initialData['phone'] ?? initialData['contact'] ?? '';
+          phoneNumberCtrl.text = initialData['phoneNumber'] ?? initialData['contact'] ?? '';
 
           emailCtrl.text = initialData['email'] ?? '';
           permCtrl.text = initialData['permission'] ?? '';
@@ -690,7 +666,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                           'Saving secondary caregiver: '
                           'roleId=${roleId}, caregiverId=${caregiverId}, '
                           'careRecipientIds=${careRecipientCtrl.text}, name=${name}, '
-                          'rel=${rel}, phone=${phoneNumber}, permission=${permission}, '
+                          'rel=${rel}, phoneNumber=${phoneNumber}, permission=${permission}, '
                           'selectedRecipients=${_selectedRecipients.value}',
                         );
                         if (!isEdit) {
@@ -714,8 +690,8 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                           'status': statusCtrl.text,
                           'name': name,
                           'email': email,
-                          // include phone so it is persisted to backend
-                          'phone': phoneNumber,
+                          // include phoneNumber so it is persisted to backend
+                          'phoneNumber': phoneNumber,
                           'createdAt': DateTime.now().toIso8601String(),
                         };
 
@@ -847,7 +823,6 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
   @override
   Widget build(BuildContext context) {
     // caregivers list is stored in state; used for grid rendering
-    // If a login prefix is set (e.g., 'CG-004'), only show caregivers matching that prefix.
     final visible = secondCaregivers
         .where((c) => c['caregiverId'] == 'CG-003')
         .toList();
@@ -1077,7 +1052,7 @@ class _CaregiverSheet extends StatelessWidget {
   const _CaregiverSheet({
     required this.nameCtrl,
     required this.relCtrl,
-    required this.phoneCtrl,
+    required this.phoneNumberCtrl,
     required this.emailCtrl,
     required this.permCtrl,
     required this.careRecipientCtrl,
@@ -1089,7 +1064,7 @@ class _CaregiverSheet extends StatelessWidget {
 
   final TextEditingController nameCtrl;
   final TextEditingController relCtrl;
-  final TextEditingController phoneCtrl;
+  final TextEditingController phoneNumberCtrl;
   final TextEditingController emailCtrl;
   final TextEditingController permCtrl;
   final TextEditingController careRecipientCtrl;
@@ -1116,7 +1091,7 @@ class _CaregiverSheet extends StatelessWidget {
                 style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600)),
 
             FormTextField(controller: nameCtrl, label: 'Name'),
-            FormTextField(controller: phoneCtrl, label: 'Phone'),
+            FormTextField(controller: phoneNumberCtrl, label: 'Phone'),
             FormTextField(controller: emailCtrl, label: 'Email'),
 
             DropdownButtonFormField<String>(
