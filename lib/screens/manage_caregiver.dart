@@ -16,10 +16,13 @@ class ManageCaregiver extends StatefulWidget {
 // Return the id only if it matches the CG-XXX-X pattern.
 String? _formatCaregiverId(String? id) {
   if (id == null || id.isEmpty) return null;
-  return null;
+  // Return only when matching expected pattern like CG-001 or CG-001-1
+  final reg = RegExp(r'^CG-\d{3}(?:-\d+)?$');
+  return reg.hasMatch(id) ? id : null;
 }
 
 class _ManageCaregiverState extends State<ManageCaregiver> {
+  bool _sheetInitialized = false;
   List<Map<String, String>> secondCaregivers = [];
   bool _loading = true;
   String? _loginPrefix;
@@ -29,6 +32,16 @@ class _ManageCaregiverState extends State<ManageCaregiver> {
   );
   // Items shown as possible care recipients (id/name pairs). Populated from loaded caregivers by default.
   List<Map<String, String>> items = [];
+
+  // Persistent controllers used by the bottom sheet so rebuilding the parent
+  // won't recreate controllers and wipe user input.
+  late final TextEditingController sheetNameCtrl;
+  late final TextEditingController sheetRelCtrl;
+  late final TextEditingController sheetPhoneNumberCtrl;
+  late final TextEditingController sheetEmailCtrl;
+  late final TextEditingController sheetPermCtrl;
+  late final TextEditingController sheetCareRecipientCtrl;
+  late final TextEditingController sheetStatusCtrl;
 
   static const String _getCaregiverByIdQuery = r"""
 query GetSecondaryByCaregiver($caregiverId: String) {
@@ -110,28 +123,21 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
 }
 ''';
 
-
-  late TextEditingController nameCtrl;
-  late TextEditingController relCtrl;
-  late TextEditingController phoneCtrl;
-  late TextEditingController emailCtrl;
-  late TextEditingController permCtrl;
-  late TextEditingController careRecipientCtrl;
-  late TextEditingController statusCtrl;
-
-
+  // Removed unused top-level TextEditingController fields —
+  // local controllers are created inside the bottom sheet instead.
 
   @override
   void initState() {
     super.initState();
 
-    nameCtrl = TextEditingController();
-    relCtrl = TextEditingController();
-    phoneCtrl = TextEditingController();
-    emailCtrl = TextEditingController();
-    permCtrl = TextEditingController();
-    careRecipientCtrl = TextEditingController();
-    statusCtrl = TextEditingController();
+    // initialize persistent sheet controllers
+    sheetNameCtrl = TextEditingController();
+    sheetRelCtrl = TextEditingController();
+    sheetPhoneNumberCtrl = TextEditingController();
+    sheetEmailCtrl = TextEditingController();
+    sheetPermCtrl = TextEditingController();
+    sheetCareRecipientCtrl = TextEditingController();
+    sheetStatusCtrl = TextEditingController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCaregivers('CG-003');
@@ -141,21 +147,19 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
 
   @override
   void dispose() {
-    nameCtrl.dispose();
-    relCtrl.dispose();
-    phoneCtrl.dispose();
-    emailCtrl.dispose();
-    permCtrl.dispose();
-    careRecipientCtrl.dispose();
-    statusCtrl.dispose();
+    // dispose persistent sheet controllers
+    sheetNameCtrl.dispose();
+    sheetRelCtrl.dispose();
+    sheetPhoneNumberCtrl.dispose();
+    sheetEmailCtrl.dispose();
+    sheetPermCtrl.dispose();
+    sheetCareRecipientCtrl.dispose();
+    sheetStatusCtrl.dispose();
     _selectedRecipients.dispose();
     super.dispose();
   }
 
-
-
   // Open the add-sheet with mock values populated into text fields
-
 
   Future<void> _loadRecipients(String caregiverId) async {
     try {
@@ -280,539 +284,614 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
   }
 
   void _showAddCaregiverSheet({Map<String, String>? initialData}) {
+    _sheetInitialized = false;
     showModalBottomSheet(
       context: context,
 
       isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
       ),
       builder: (ctx) {
-        final nameCtrl = TextEditingController();
-        final relCtrl = TextEditingController();
-        final phoneNumberCtrl = TextEditingController();
-        final permCtrl = TextEditingController();
-        final careRecipientCtrl = TextEditingController();
-        final emailCtrl = TextEditingController();
-        final statusCtrl = TextEditingController();
-        // If initialData provided, populate controllers and selected recipients
-        if (initialData != null) {
-          nameCtrl.text = initialData['name'] ?? '';
-          relCtrl.text = initialData['relationship'] ?? '';
-          // Accept either 'phone' or 'contact' from initialData (keys were inconsistent)
-          phoneNumberCtrl.text = initialData['phoneNumber'] ?? initialData['contact'] ?? '';
+        // reuse persistent controllers from state so rebuilds don't clear input
+        final nameCtrl = sheetNameCtrl;
+        final relCtrl = sheetRelCtrl;
+        final phoneNumberCtrl = sheetPhoneNumberCtrl;
+        final permCtrl = sheetPermCtrl;
+        final careRecipientCtrl = sheetCareRecipientCtrl;
+        final emailCtrl = sheetEmailCtrl;
+        final statusCtrl = sheetStatusCtrl;
+        // If initialData provided, populate controllers and selected recipients;
+        // otherwise clear controllers for a fresh form.
+        // =======================
+        // Initialize ONLY ONCE
+        // =======================
+        if (!_sheetInitialized) {
+          if (initialData != null) {
+            nameCtrl.text = initialData['name'] ?? '';
+            relCtrl.text = initialData['relationship'] ?? '';
+            phoneNumberCtrl.text =
+                initialData['phoneNumber'] ?? initialData['contact'] ?? '';
+            emailCtrl.text = initialData['email'] ?? '';
+            permCtrl.text = initialData['permission'] ?? '';
+            careRecipientCtrl.text = initialData['careRecipientIds'] ?? '';
+            statusCtrl.text = initialData['status'] ?? '';
 
-          emailCtrl.text = initialData['email'] ?? '';
-          permCtrl.text = initialData['permission'] ?? '';
-          careRecipientCtrl.text = initialData['careRecipientIds'] ?? '';
-          statusCtrl.text = initialData['status'] ?? '';
+            _selectedRecipients.value = (initialData['careRecipientIds'] ?? '')
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toSet();
+          } else {
+            nameCtrl.clear();
+            relCtrl.clear();
+            phoneNumberCtrl.clear();
+            emailCtrl.clear();
+            permCtrl.clear();
+            careRecipientCtrl.clear();
+            statusCtrl.clear();
+            _selectedRecipients.value = <String>{};
+          }
 
-          final sel = (initialData['careRecipientIds'] ?? '')
-              .split(',')
-              .map((s) => s.trim())
-              .where((s) => s.isNotEmpty)
-              .toSet();
-          _selectedRecipients.value = sel;
+          _sheetInitialized = true; // 👈 锁住，不再重复初始化
         }
-        return SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16.h,
-              left: 16.w,
-              right: 16.w,
-              top: 16.h,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40.w,
-                  height: 4.h,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
+
+        return WillPopScope(
+          onWillPop: () async {
+            final shouldClose = await showDialog<bool>(
+              context: ctx,
+              builder: (dctx) => AlertDialog(
+                title: Text('Discard changes?'),
+                content: Text('Discard changes and close this form?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dctx).pop(false),
+                    child: Text('Cancel'),
                   ),
-                ),
-
-                SizedBox(height: 12.h),
-
-                Text(
-                  'Add Secondary Caregiver',
-                  style: TextStyle(
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w600,
+                  TextButton(
+                    onPressed: () => Navigator.of(dctx).pop(true),
+                    child: Text('Discard'),
                   ),
-                ),
-                SizedBox(height: 12.h),
-                FormTextField(
-                  controller: nameCtrl,
-                  label: 'Name',
-                  keyboardType: TextInputType.text,
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Please enter name'
-                      : null,
-                ),
-                SizedBox(height: 8.h),
-
-                FormTextField(
-                  controller: phoneNumberCtrl,
-                  label: 'Phone Number',
-                  keyboardType: TextInputType.phone,
-                  validator: (v) => null,
-                ),
-                SizedBox(height: 8.h),
-
-                FormTextField(
-                  controller: emailCtrl,
-                  label: 'Email',
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (v) => null,
-                ),
-                SizedBox(height: 8.h),
-
-                Padding(
-                  padding: EdgeInsets.all(8.h),
-                  child: DropdownButtonFormField<String>(
-                    // only use controller value if it matches one of the options
-                    value: (['Sister', 'Brother', 'Daughter', 'Son', 'Parent', 'Spouse', 'Friend', 'Other']
-                            .contains(relCtrl.text))
-                        ? relCtrl.text
-                        : null,
-                    decoration: InputDecoration(labelText: 'Relationship'),
-                    items: [
-                      'Sister',
-                      'Brother',
-                      'Daughter',
-                      'Son',
-                      'Parent',
-                      'Spouse',
-                      'Friend',
-                      'Other',
-                    ].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                    onChanged: (v) {
-                      relCtrl.text = v ?? '';
-                    },
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Please select relationship'
-                        : null,
-                  ),
-                ),
-
-                Padding(
-                  padding: EdgeInsets.all(8.h),
-                  child: DropdownButtonFormField<String>(
-                    // only use controller value if it matches one of the options
-                    value: (['Full', 'Alert Only', 'View'].contains(permCtrl.text))
-                        ? permCtrl.text
-                        : null,
-                    decoration: InputDecoration(labelText: 'Permission Level'),
-                    items: ['Full', 'Alert Only', 'View']
-                        .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                        .toList(),
-                    onChanged: (v) {
-                      permCtrl.text = v ?? '';
-                    },
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Please select permission level'
-                        : null,
-                  ),
-                ),
-
-                SizedBox(height: 8.h),
-
-                Align(
-                  alignment: Alignment.topLeft,
-
-                  child: Text(
-                    'Assign the Care Recipient',
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w500,
+                ],
+              ),
+            );
+            return shouldClose == true;
+          },
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 16.h,
+                left: 16.w,
+                right: 16.w,
+                top: 16.h,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
-                ),
 
-                SizedBox(height: 8.h),
+                  SizedBox(height: 12.h),
 
-                ValueListenableBuilder<Set<String>>(
-                  valueListenable: _selectedRecipients,
-                  builder: (context, selectedIds, _) {
-                    return Wrap(
-                      spacing: 8.0,
-                      runSpacing: 8.0,
-                      children: items.map<Widget>((m) {
-                        final id = m['id']?.toString() ?? '';
-                        final name = (m['name']?.toString().isNotEmpty == true)
-                            ? m['name']!.toString()
-                            : id;
+                  Text(
+                    'Add Secondary Caregiver',
+                    style: TextStyle(
+                      fontSize: 18.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 12.h),
+                  FormTextField(
+                    controller: nameCtrl,
+                    label: 'Name',
+                    keyboardType: TextInputType.text,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Please enter name'
+                        : null,
+                  ),
+                  SizedBox(height: 8.h),
 
-                        final bool isSelected = selectedIds.contains(id);
+                  FormTextField(
+                    controller: phoneNumberCtrl,
+                    label: 'Phone Number',
+                    keyboardType: TextInputType.phone,
+                    validator: (v) => null,
+                  ),
+                  SizedBox(height: 8.h),
 
-                        return Align(
-                          alignment: AlignmentGeometry.centerLeft,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.orange.withOpacity(0.25),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 3),
+                  FormTextField(
+                    controller: emailCtrl,
+                    label: 'Email',
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) => null,
+                  ),
+                  SizedBox(height: 8.h),
+
+                  Padding(
+                    padding: EdgeInsets.all(8.h),
+                    child: DropdownButtonFormField<String>(
+                      // only use controller value if it matches one of the options
+                      value:
+                          ([
+                            'Sister',
+                            'Brother',
+                            'Daughter',
+                            'Son',
+                            'Parent',
+                            'Spouse',
+                            'Friend',
+                            'Other',
+                          ].contains(relCtrl.text))
+                          ? relCtrl.text
+                          : null,
+                      decoration: InputDecoration(labelText: 'Relationship'),
+                      items:
+                          [
+                                'Sister',
+                                'Brother',
+                                'Daughter',
+                                'Son',
+                                'Parent',
+                                'Spouse',
+                                'Friend',
+                                'Other',
+                              ]
+                              .map(
+                                (r) =>
+                                    DropdownMenuItem(value: r, child: Text(r)),
+                              )
+                              .toList(),
+                      onChanged: (v) {
+                        relCtrl.text = v ?? '';
+                      },
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Please select relationship'
+                          : null,
+                    ),
+                  ),
+
+                  Padding(
+                    padding: EdgeInsets.all(8.h),
+                    child: DropdownButtonFormField<String>(
+                      // only use controller value if it matches one of the options
+                      value:
+                          ([
+                            'Full',
+                            'Alert Only',
+                            'View',
+                          ].contains(permCtrl.text))
+                          ? permCtrl.text
+                          : null,
+                      decoration: InputDecoration(
+                        labelText: 'Permission Level',
+                      ),
+                      items: ['Full', 'Alert Only', 'View']
+                          .map(
+                            (p) => DropdownMenuItem(value: p, child: Text(p)),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        permCtrl.text = v ?? '';
+                      },
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Please select permission level'
+                          : null,
+                    ),
+                  ),
+
+                  SizedBox(height: 8.h),
+
+                  Align(
+                    alignment: Alignment.topLeft,
+
+                    child: Text(
+                      'Assign the Care Recipient',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: 8.h),
+
+                  ValueListenableBuilder<Set<String>>(
+                    valueListenable: _selectedRecipients,
+                    builder: (context, selectedIds, _) {
+                      return Wrap(
+                        spacing: 8.0,
+                        runSpacing: 8.0,
+                        children: items.map<Widget>((m) {
+                          final id = m['id']?.toString() ?? '';
+                          final name =
+                              (m['name']?.toString().isNotEmpty == true)
+                              ? m['name']!.toString()
+                              : id;
+
+                          final bool isSelected = selectedIds.contains(id);
+
+                          return Align(
+                            alignment: AlignmentGeometry.centerLeft,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.orange.withOpacity(
+                                            0.25,
+                                          ),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ]
+                                    : const [
+                                        BoxShadow(
+                                          color: Colors.black12,
+                                          blurRadius: 6,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                              ),
+                              child: ChoiceChip(
+                                label: Text(name),
+                                selected: isSelected,
+                                backgroundColor: Colors.white,
+                                selectedColor: const Color(0xFFFFECB3),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(
+                                    color: isSelected
+                                        ? Colors.orange
+                                        : Colors.grey.shade300,
+                                    width: isSelected ? 1.6 : 1,
+                                  ),
+                                ),
+                                elevation: 0,
+                                onSelected: (sel) {
+                                  final newSet = Set<String>.from(selectedIds);
+                                  if (sel) {
+                                    newSet.add(id);
+                                  } else {
+                                    newSet.remove(id);
+                                  }
+                                  _selectedRecipients.value = newSet;
+                                  careRecipientCtrl.text = newSet.join(',');
+                                  final names = items
+                                      .where((x) => newSet.contains(x['id']))
+                                      .map((x) => x['name'] ?? '')
+                                      .where((s) => s.isNotEmpty)
+                                      .toList();
+                                  statusCtrl.text = names.join(', ');
+                                },
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+
+                  SizedBox(height: 12.h),
+
+                  // Button inside bottom sheet to fill mock values into the form
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        // ensure recipient items exist for chips
+                        setState(() {
+                          items = [
+                            {'id': 'CR-001', 'name': 'Alice Tan'},
+                            {'id': 'CR-002', 'name': 'Bob Lim'},
+                            {'id': 'CR-003', 'name': 'Cheng Wei'},
+                          ];
+                        });
+
+                        // fill controllers and select chips
+                        nameCtrl.text = 'Mock Name';
+                        relCtrl.text = 'Friend';
+                        phoneNumberCtrl.text = '+60123456789';
+                        permCtrl.text = 'Full';
+                        careRecipientCtrl.text = 'CR-001,CR-003';
+                        statusCtrl.text = 'Alice Tan, Cheng Wei';
+                        _selectedRecipients.value = {'CR-001', 'CR-003'};
+                      },
+                      icon: Icon(Icons.auto_fix_high, size: 14.sp),
+                      label: Text('Fill Mock Data'),
+                    ),
+                  ),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Delete button (only enabled when editing an existing entry)
+                      OutlinedButton(
+                        onPressed:
+                            (initialData != null &&
+                                (initialData['id']?.isNotEmpty == true))
+                            ? () async {
+                                final idToDelete = initialData!['id'];
+                                final confirmed = await showDialog<bool>(
+                                  context: ctx,
+                                  builder: (dctx) => AlertDialog(
+                                    title: Text('Delete secondary caregiver'),
+                                    content: Text(
+                                      'Are you sure you want to delete this entry?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(dctx).pop(false),
+                                        child: Text('Cancel'),
                                       ),
-                                    ]
-                                  : const [
-                                      BoxShadow(
-                                        color: Colors.black12,
-                                        blurRadius: 6,
-                                        offset: Offset(0, 3),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(dctx).pop(true),
+                                        child: Text('Delete'),
                                       ),
                                     ],
-                            ),
-                            child: ChoiceChip(
-                              label: Text(name),
-                              selected: isSelected,
-                              backgroundColor: Colors.white,
-                              selectedColor: const Color(0xFFFFECB3),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                side: BorderSide(
-                                  color: isSelected
-                                      ? Colors.orange
-                                      : Colors.grey.shade300,
-                                  width: isSelected ? 1.6 : 1,
-                                ),
-                              ),
-                              elevation: 0,
-                              onSelected: (sel) {
-                                final newSet = Set<String>.from(selectedIds);
-                                if (sel) {
-                                  newSet.add(id);
-                                } else {
-                                  newSet.remove(id);
-                                }
-                                _selectedRecipients.value = newSet;
-                                careRecipientCtrl.text = newSet.join(',');
-                                final names = items
-                                    .where((x) => newSet.contains(x['id']))
-                                    .map((x) => x['name'] ?? '')
-                                    .where((s) => s.isNotEmpty)
-                                    .toList();
-                                statusCtrl.text = names.join(', ');
-                              },
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-
-                SizedBox(height: 12.h),
-
-                // Button inside bottom sheet to fill mock values into the form
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      // ensure recipient items exist for chips
-                      setState(() {
-                        items = [
-                          {'id': 'CR-001', 'name': 'Alice Tan'},
-                          {'id': 'CR-002', 'name': 'Bob Lim'},
-                          {'id': 'CR-003', 'name': 'Cheng Wei'},
-                        ];
-                      });
-
-                      // fill controllers and select chips
-                      nameCtrl.text = 'Mock Name';
-                      relCtrl.text = 'Friend';
-                      phoneNumberCtrl.text = '+60123456789';
-                      permCtrl.text = 'Full';
-                      careRecipientCtrl.text = 'CR-001,CR-003';
-                      statusCtrl.text = 'Alice Tan, Cheng Wei';
-                      _selectedRecipients.value = {'CR-001', 'CR-003'};
-                    },
-                    icon: Icon(Icons.auto_fix_high, size: 14.sp),
-                    label: Text('Fill Mock Data'),
-                  ),
-                ),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Delete button (only enabled when editing an existing entry)
-                    OutlinedButton(
-                      onPressed:
-                          (initialData != null &&
-                              (initialData['id']?.isNotEmpty == true))
-                          ? () async {
-                              final idToDelete = initialData!['id'];
-                              final confirmed = await showDialog<bool>(
-                                context: ctx,
-                                builder: (dctx) => AlertDialog(
-                                  title: Text('Delete secondary caregiver'),
-                                  content: Text(
-                                    'Are you sure you want to delete this entry?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(dctx).pop(false),
-                                      child: Text('Cancel'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(dctx).pop(true),
-                                      child: Text('Delete'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirmed != true) return;
-
-                              try {
-                                final client = GraphQLProvider.of(ctx).value;
-                                final pk = {'id': idToDelete};
-                                final res = await client.mutate(
-                                  MutationOptions(
-                                    document: gql(_deleteSecondaryMutation),
-                                    variables: {'pk_columns': pk},
                                   ),
                                 );
-                                if (res.exception != null) {
+                                if (confirmed != true) return;
+
+                                try {
+                                  final client = GraphQLProvider.of(ctx).value;
+                                  final pk = {'id': idToDelete};
+                                  final res = await client.mutate(
+                                    MutationOptions(
+                                      document: gql(_deleteSecondaryMutation),
+                                      variables: {'pk_columns': pk},
+                                    ),
+                                  );
+                                  if (res.exception != null) {
+                                    debugPrint(
+                                      'Delete (sheet) error: ${res.exception}',
+                                    );
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Delete failed: ${res.exception.toString()}',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  // remove locally and close sheet
+                                  setState(() {
+                                    secondCaregivers.removeWhere(
+                                      (e) => e['id'] == idToDelete,
+                                    );
+                                  });
+                                  Navigator.of(ctx).pop();
+                                } catch (e) {
                                   debugPrint(
-                                    'Delete (sheet) error: ${res.exception}',
+                                    'Exception deleting from sheet: $e',
                                   );
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     SnackBar(
-                                      content: Text(
-                                        'Delete failed: ${res.exception.toString()}',
-                                      ),
+                                      content: Text('Unexpected error: $e'),
                                     ),
                                   );
-                                  return;
                                 }
-
-                                // remove locally and close sheet
-                                setState(() {
-                                  secondCaregivers.removeWhere(
-                                    (e) => e['id'] == idToDelete,
-                                  );
-                                });
-                                Navigator.of(ctx).pop();
-                              } catch (e) {
-                                debugPrint('Exception deleting from sheet: $e');
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Unexpected error: $e'),
-                                  ),
-                                );
                               }
-                            }
-                          : null,
-                      child: Text('Delete'),
-                    ),
+                            : null,
+                        child: Text('Delete'),
+                      ),
 
-                    ElevatedButton(
-                      onPressed: () async {
-                        final name = nameCtrl.text.trim();
-                        final rel = relCtrl.text.trim();
-                        final phoneNumber = phoneNumberCtrl.text.trim();
-                        final permission = permCtrl.text.trim();
-                        final email = emailCtrl.text.trim();
+                      ElevatedButton(
+                        onPressed: () async {
+                          final name = nameCtrl.text.trim();
+                          final rel = relCtrl.text.trim();
+                          final phoneNumber = phoneNumberCtrl.text.trim();
+                          final permission = permCtrl.text.trim();
+                          final email = emailCtrl.text.trim();
 
-                        // Obtain GraphQL client and messenger from the sheet context
-                        final client = GraphQLProvider.of(ctx).value;
-                        final messenger = ScaffoldMessenger.of(ctx);
+                          // Obtain GraphQL client and messenger from the sheet context
+                          final client = GraphQLProvider.of(ctx).value;
+                          final messenger = ScaffoldMessenger.of(ctx);
 
-                        // Get current user id from backend helper
-                        final currentUser = await fetchCurrentUser();
-                        final caregiverId = currentUser?['id'] as String?;
+                          // Get current user id from backend helper
+                          final currentUser = await fetchCurrentUser();
+                          final caregiverId = currentUser?['id'] as String?;
 
-                        if (name.isEmpty || rel.isEmpty) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Please enter name and relationship',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        // Build payload for GraphQL insert (careRecipient as array)
-                        final careRecipientList = careRecipientCtrl.text
-                            .split(',')
-                            .map((s) => s.trim())
-                            .where((s) => s.isNotEmpty)
-                            .toList();
-
-                        // Only generate a new id when inserting (not when editing)
-                        String? roleId;
-                        final bool isEdit =
-                            initialData != null &&
-                            (initialData['id']?.isNotEmpty == true);
-                        if (!isEdit) {
-                          roleId = await fetchGeneratedCode(
-                            client,
-                            messenger: messenger,
-                            id: 9,
-                          );
-                        }
-
-                        // debug: print the values we're about to save
-                        debugPrint(
-                          'Saving secondary caregiver: '
-                          'roleId=${roleId}, caregiverId=${caregiverId}, '
-                          'careRecipientIds=${careRecipientCtrl.text}, name=${name}, '
-                          'rel=${rel}, phoneNumber=${phoneNumber}, permission=${permission}, '
-                          'selectedRecipients=${_selectedRecipients.value}',
-                        );
-                        if (!isEdit) {
-                          roleId = await fetchGeneratedCode(
-                            client,
-                            messenger: messenger,
-                            id: 9,
-                          );
-                        }
-                        final generatedId =
-                            roleId?.toString() ??
-                            (initialData?['id'] ??
-                                'local-${DateTime.now().millisecondsSinceEpoch}');
-                        final object = {
-                          // server schema requires `id: String!`
-                          'id': generatedId,
-                          'caregiverId': caregiverId ?? null,
-                          'careRecipientId': careRecipientList,
-                          'relationship': rel,
-                          'permissionLevel': permission,
-                          'status': statusCtrl.text,
-                          'name': name,
-                          'email': email,
-                          // include phoneNumber so it is persisted to backend
-                          'phoneNumber': phoneNumber,
-                          'createdAt': DateTime.now().toIso8601String(),
-                        };
-
-                        try {
-                          final bool isEdit =
-                              initialData != null &&
-                              (initialData['id']?.isNotEmpty == true);
-                          QueryResult mutRes;
-
-                          if (isEdit) {
-                            // update existing
-                            final pk = {'id': initialData!['id']};
-                            mutRes = await client.mutate(
-                              MutationOptions(
-                                document: gql(_updateSecondaryMutation),
-                                variables: {'pk_columns': pk, '_set': object},
-                              ),
-                            );
-                          } else {
-                            // insert new
-                            mutRes = await client.mutate(
-                              MutationOptions(
-                                document: gql(_insertSecondaryMutation),
-                                variables: {'object': object},
-                              ),
-                            );
-                          }
-
-                          if (mutRes.exception != null) {
-                            debugPrint(
-                              'Save secondary caregiver error: ${mutRes.exception}',
-                            );
+                          if (name.isEmpty || rel.isEmpty) {
                             ScaffoldMessenger.of(ctx).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Failed to save: ${mutRes.exception.toString()}',
+                                  'Please enter name and relationship',
                                 ),
                               ),
                             );
                             return;
                           }
 
-                          final row = isEdit
-                              ? (mutRes.data?['update_secondary_caregiver']
-                                    as Map<String, dynamic>?)
-                              : (mutRes.data?['insert_secondary_caregiver']
-                                    as Map<String, dynamic>?);
+                          // Build payload for GraphQL insert (careRecipient as array)
+                          final careRecipientList = careRecipientCtrl.text
+                              .split(',')
+                              .map((s) => s.trim())
+                              .where((s) => s.isNotEmpty)
+                              .toList();
 
-                          // Close sheet and update local state from returned row when available
-                          Navigator.of(ctx).pop();
-                          setState(() {
-                            final savedId = row != null
-                                ? (row['id'] as String? ?? generatedId)
-                                : generatedId;
-                            final entry = {
-                              'id': savedId,
-                              'caregiverId': row != null
-                                  ? (row['caregiverId'] as String? ??
-                                        caregiverId?.toString() ??
-                                        '')
-                                  : (caregiverId?.toString() ?? ''),
-                              'careRecipientId': row != null
-                                  ? ((row['careRecipientId'] as List<dynamic>?)
-                                            ?.join(',') ??
-                                        careRecipientCtrl.text)
-                                  : careRecipientCtrl.text,
-                              'name': row != null
-                                  ? (row['name'] as String? ?? name)
-                                  : name,
-                              'relationship': row != null
-                                  ? (row['relationship'] as String? ?? rel)
-                                  : rel,
-                              'contact': phoneNumber,
-                              'permission': row != null
-                                  ? (row['permissionLevel'] as String? ??
-                                        permission)
-                                  : permission,
-                              'status': row != null
-                                  ? (row['status'] as String? ?? 'active')
-                                  : 'active',
-                            };
-
-                            final idx = secondCaregivers.indexWhere(
-                              (e) => e['id'] == savedId,
+                          // Only generate a new id when inserting (not when editing)
+                          String? roleId;
+                          final bool isEdit =
+                              initialData != null &&
+                              (initialData['id']?.isNotEmpty == true);
+                          if (!isEdit) {
+                            roleId = await fetchGeneratedCode(
+                              client,
+                              messenger: messenger,
+                              id: 9,
                             );
-                            if (idx >= 0) {
-                              secondCaregivers[idx] = Map<String, String>.from(
-                                entry.map(
-                                  (k, v) => MapEntry(k, v?.toString() ?? ''),
+                          }
+
+                          // debug: print the values we're about to save
+                          debugPrint(
+                            'Saving secondary caregiver: '
+                            'roleId=${roleId}, caregiverId=${caregiverId}, '
+                            'careRecipientIds=${careRecipientCtrl.text}, name=${name}, '
+                            'rel=${rel}, phoneNumber=${phoneNumber}, permission=${permission}, '
+                            'selectedRecipients=${_selectedRecipients.value}',
+                          );
+                          if (!isEdit) {
+                            roleId = await fetchGeneratedCode(
+                              client,
+                              messenger: messenger,
+                              id: 9,
+                            );
+                          }
+                          final generatedId =
+                              roleId?.toString() ??
+                              (initialData?['id'] ??
+                                  'local-${DateTime.now().millisecondsSinceEpoch}');
+                          final object = {
+                            // server schema requires `id: String!`
+                            'id': generatedId,
+                            'caregiverId': caregiverId ?? null,
+                            'careRecipientId': careRecipientList,
+                            'relationship': rel,
+                            'permissionLevel': permission,
+                            'status': statusCtrl.text,
+                            'name': name,
+                            'email': email,
+                            // include phoneNumber so it is persisted to backend
+                            'phoneNumber': phoneNumber,
+                            'createdAt': DateTime.now().toIso8601String(),
+                          };
+
+                          try {
+                            final bool isEdit =
+                                initialData != null &&
+                                (initialData['id']?.isNotEmpty == true);
+                            QueryResult mutRes;
+
+                            if (isEdit) {
+                              // update existing
+                              final pk = {'id': initialData!['id']};
+                              mutRes = await client.mutate(
+                                MutationOptions(
+                                  document: gql(_updateSecondaryMutation),
+                                  variables: {'pk_columns': pk, '_set': object},
                                 ),
                               );
                             } else {
-                              secondCaregivers.add(
-                                Map<String, String>.from(
-                                  entry.map(
-                                    (k, v) => MapEntry(k, v?.toString() ?? ''),
-                                  ),
+                              // insert new
+                              mutRes = await client.mutate(
+                                MutationOptions(
+                                  document: gql(_insertSecondaryMutation),
+                                  variables: {'object': object},
                                 ),
                               );
                             }
 
+                            if (mutRes.exception != null) {
+                              debugPrint(
+                                'Save secondary caregiver error: ${mutRes.exception}',
+                              );
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Failed to save: ${mutRes.exception.toString()}',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+
+                            final row = isEdit
+                                ? (mutRes.data?['update_secondary_caregiver']
+                                      as Map<String, dynamic>?)
+                                : (mutRes.data?['insert_secondary_caregiver']
+                                      as Map<String, dynamic>?);
+
+                            // Close sheet and update local state from returned row when available
+                            Navigator.of(ctx).pop();
+                            setState(() {
+                              final savedId = row != null
+                                  ? (row['id'] as String? ?? generatedId)
+                                  : generatedId;
+                              final entry = {
+                                'id': savedId,
+                                'caregiverId': row != null
+                                    ? (row['caregiverId'] as String? ??
+                                          caregiverId?.toString() ??
+                                          '')
+                                    : (caregiverId?.toString() ?? ''),
+                                'careRecipientId': row != null
+                                    ? ((row['careRecipientId']
+                                                  as List<dynamic>?)
+                                              ?.join(',') ??
+                                          careRecipientCtrl.text)
+                                    : careRecipientCtrl.text,
+                                'name': row != null
+                                    ? (row['name'] as String? ?? name)
+                                    : name,
+                                'relationship': row != null
+                                    ? (row['relationship'] as String? ?? rel)
+                                    : rel,
+                                'contact': phoneNumber,
+                                'permission': row != null
+                                    ? (row['permissionLevel'] as String? ??
+                                          permission)
+                                    : permission,
+                                'status': row != null
+                                    ? (row['status'] as String? ?? 'active')
+                                    : 'active',
+                              };
+
+                              final idx = secondCaregivers.indexWhere(
+                                (e) => e['id'] == savedId,
+                              );
+                              if (idx >= 0) {
+                                secondCaregivers[idx] =
+                                    Map<String, String>.from(
+                                      entry.map(
+                                        (k, v) =>
+                                            MapEntry(k, v?.toString() ?? ''),
+                                      ),
+                                    );
+                              } else {
+                                secondCaregivers.add(
+                                  Map<String, String>.from(
+                                    entry.map(
+                                      (k, v) =>
+                                          MapEntry(k, v?.toString() ?? ''),
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              debugPrint(
+                                'secondCaregivers length after save=${secondCaregivers.length}',
+                              );
+                            });
+                          } catch (e, st) {
                             debugPrint(
-                              'secondCaregivers length after save=${secondCaregivers.length}',
+                              'Exception saving secondary caregiver: $e\n$st',
                             );
-                          });
-                        } catch (e, st) {
-                          debugPrint(
-                            'Exception saving secondary caregiver: $e\n$st',
-                          );
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            SnackBar(content: Text('Unexpected error: $e')),
-                          );
-                          return;
-                        }
-                      },
-                      child: Text('Save'),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8.h),
-              ],
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(content: Text('Unexpected error: $e')),
+                            );
+                            return;
+                          }
+                        },
+                        child: Text('Save'),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8.h),
+                ],
+              ),
             ),
           ),
         );
@@ -1048,107 +1127,8 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
   }
 }
 
-class _CaregiverSheet extends StatelessWidget {
-  const _CaregiverSheet({
-    required this.nameCtrl,
-    required this.relCtrl,
-    required this.phoneNumberCtrl,
-    required this.emailCtrl,
-    required this.permCtrl,
-    required this.careRecipientCtrl,
-    required this.statusCtrl,
-    required this.items,
-    required this.selectedRecipients,
-    required this.onSave,
-  });
-
-  final TextEditingController nameCtrl;
-  final TextEditingController relCtrl;
-  final TextEditingController phoneNumberCtrl;
-  final TextEditingController emailCtrl;
-  final TextEditingController permCtrl;
-  final TextEditingController careRecipientCtrl;
-  final TextEditingController statusCtrl;
-
-  final List<Map<String, String>> items;
-  final ValueNotifier<Set<String>> selectedRecipients;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16.h,
-        left: 16.w,
-        right: 16.w,
-        top: 16.h,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Secondary Caregiver',
-                style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600)),
-
-            FormTextField(controller: nameCtrl, label: 'Name'),
-            FormTextField(controller: phoneNumberCtrl, label: 'Phone'),
-            FormTextField(controller: emailCtrl, label: 'Email'),
-
-            DropdownButtonFormField<String>(
-              value: relCtrl.text.isEmpty ? null : relCtrl.text,
-              decoration: InputDecoration(labelText: 'Relationship'),
-              items: const [
-                'Sister', 'Brother', 'Parent', 'Friend', 'Other'
-              ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-              onChanged: (v) => relCtrl.text = v ?? '',
-            ),
-
-            DropdownButtonFormField<String>(
-              value: permCtrl.text.isEmpty ? null : permCtrl.text,
-              decoration: InputDecoration(labelText: 'Permission'),
-              items: const ['Full', 'View', 'Alert Only']
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (v) => permCtrl.text = v ?? '',
-            ),
-
-            SizedBox(height: 12.h),
-
-            ValueListenableBuilder<Set<String>>(
-              valueListenable: selectedRecipients,
-              builder: (_, selected, __) {
-                return Wrap(
-                  spacing: 8,
-                  children: items.map((m) {
-                    final id = m['id']!;
-                    final selectedNow = selected.contains(id);
-                    return ChoiceChip(
-                      label: Text(m['name'] ?? id),
-                      selected: selectedNow,
-                      onSelected: (v) {
-                        final newSet = Set<String>.from(selected);
-                        v ? newSet.add(id) : newSet.remove(id);
-                        selectedRecipients.value = newSet;
-                        careRecipientCtrl.text = newSet.join(',');
-                      },
-                    );
-                  }).toList(),
-                );
-              },
-            ),
-
-            SizedBox(height: 16.h),
-
-            ElevatedButton(
-              onPressed: onSave,
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// `_CaregiverSheet` removed — bottom sheet is implemented inline in
+// `_showAddCaregiverSheet`. This helper widget was unused.
 
 /// Reusable secondary caregiver card widget builder.
 Widget callSecondaryCaregiverCard({
