@@ -47,7 +47,7 @@ Widget buildServiceCard(HomeService s) {
             child: Icon(s.icon, size: 50.w, color: Colors.white),
           ),
           SizedBox(height: 10.h),
-          Container(
+          SizedBox(
             width: 120.w,
             child: Text(
               s.title,

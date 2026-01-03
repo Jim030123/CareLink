@@ -9,11 +9,11 @@ class AppFooter extends StatelessWidget {
   final double logoSize;
 
   const AppFooter({
-    Key? key,
+    super.key,
     this.version = 'Alpha Testing V3.12',
     this.copyrightText = '© 2025 CareLink™ — All rights reserved',
     this.logoSize = 72,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

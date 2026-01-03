@@ -99,7 +99,7 @@ class NextTaskCard extends StatelessWidget {
                     SizedBox(height: 8.h),
 
                     Text(
-                      'Dosage Amount: ${dosage}',
+                      'Dosage Amount: $dosage',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 15.sp, color: Colors.black87, fontWeight: FontWeight.bold),
@@ -109,7 +109,7 @@ class NextTaskCard extends StatelessWidget {
 
 
                     Text(
-                      'Note: \n${dosage}',
+                      'Note: \n$dosage',
 
                       style: TextStyle(fontSize: 14.sp, color: Colors.black87),
                     ),

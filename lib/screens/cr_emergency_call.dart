@@ -527,7 +527,7 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
       return display;
     }
 
-    String _initials(String name) {
+    String initials(String name) {
       final parts = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
       if (parts.isEmpty) return '?';
       if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
@@ -638,13 +638,13 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
                   radius: 44.r,
                   backgroundColor: Colors.grey.shade200,
                   child: Text(
-                    _initials(displayNameForAvatar()),
+                    initials(displayNameForAvatar()),
                     style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                 ),
                 SizedBox(height: 12.h),
                 Text(
-                  '${displayNameForAvatar()}',
+                  displayNameForAvatar(),
                   style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600),
                 ),
                 SizedBox(height: 8.h),
@@ -666,8 +666,8 @@ class _CREmergencyCallState extends State<CREmergencyCall> {
                     backgroundColor: Colors.red,
                     padding: EdgeInsets.symmetric(horizontal: 40.w, vertical: 20.h),
                   ),
-                  child: Text('📞 Emergency Call', style: TextStyle(fontSize: 22.sp)),
                   onPressed: _startCall,
+                  child: Text('📞 Emergency Call', style: TextStyle(fontSize: 22.sp)),
                 ),
 
               ],

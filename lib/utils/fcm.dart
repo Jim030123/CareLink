@@ -1,7 +1,5 @@
-import 'dart:io';
 
 import 'package:carelink_mobile/utils/user_service.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';

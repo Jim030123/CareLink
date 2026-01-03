@@ -38,7 +38,7 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
     'Dec',
   ];
 
-  String _username = '';
+  final String _username = '';
   late DateTime _now;
   late Timer _clockTimer;
   late final List<HomeService> services;
@@ -75,7 +75,7 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
         subtitle: 'Manage appointments',
         icon: Icons.event,
         color: Colors.yellow,
-        onTap: () => context.push('/appointment'),
+        onTap: () => context.push('/addAppointment'),
       ),
     ];
 

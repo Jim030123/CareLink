@@ -27,8 +27,8 @@ class _TaskItem {
   final String? dosage;
   final IconData icon;
   final String rightInfo;
-  bool completed;
-  bool pending;
+  bool completed = false;
+  bool pending = false;
 
   _TaskItem({
     required this.id,
@@ -39,8 +39,6 @@ class _TaskItem {
     this.dosage,
     required this.icon,
     required this.rightInfo,
-    this.completed = false,
-    this.pending = false,
   }) : upcomingTitle = upcomingTitle ?? 'Upcoming Medication';
 }
 
@@ -97,7 +95,6 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   Future<void> _loadTasks() async {
     try {
       final client = GraphQLProvider.of(context).value;
-      if (client == null) return;
       final result = await client.query(
         QueryOptions(
           document: gql(_upcomingTasksQuery),
@@ -142,10 +139,10 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
           medPre = null;
         }
         // Safely build dosage string from prescription and medication unit.
-        final String _dosageVal = medPre?['dosageAmount']?.toString() ?? '';
-        final String _unitVal = medPre?['standardUnit']?.toString() ?? med?['standardUnit']?.toString() ?? 'Capsule';
+        final String dosageVal = medPre?['dosageAmount']?.toString() ?? '';
+        final String unitVal = medPre?['standardUnit']?.toString() ?? med?['standardUnit']?.toString() ?? 'Capsule';
         final String medPreDosageAmount =
-          _dosageVal.isNotEmpty ? '$_dosageVal $_unitVal' : '1 $_unitVal';
+          dosageVal.isNotEmpty ? '$dosageVal $unitVal' : '1 $unitVal';
         final String medPreStartDate = medPre?['startDate']?.toString() ?? '';
         final String medPreEndDate = medPre?['endDate']?.toString() ?? '';
         final String medPreStatus = medPre?['status']?.toString() ?? '';
@@ -188,7 +185,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
           2,
           '0',
         );
-        final String tzOffset = '\GMT$tzSign$tzHours:$tzMinutes';
+        final String tzOffset = 'GMT$tzSign$tzHours:$tzMinutes';
         final String dateStr = '${_formatDate(parsed)} ($tzOffset)';
 
         // Build a concise subtitle from strength and description
@@ -214,12 +211,13 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
           rightInfo: dateStr,
         );
       }).toList();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _tasks.clear();
           _tasks.addAll(loaded);
           _currentCarouselIndex = 0;
         });
+      }
     } catch (e) {
       debugPrint('loadTasks failed: $e');
     }
@@ -292,7 +290,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   //help me fetchCurrentUser from user_service.dart
   String _username = ''; // populated from backend
   String? _clientId;
-  bool _isCalling = false;
+  final bool _isCalling = false;
   String? _caregiverClientId;
   // TODO: replace with configured/assigned caregiver id from backend
 
@@ -326,7 +324,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   // Prefer configuration via environment variable `RTC_URL`.
   // Example fallback: ws://10.180.12.100:25101
   // NOTE: on Android emulators use 10.0.2.2 to reach host machine's localhost.
-  String? _signalingUrl = dotenv.env['RTC_URL'];
+  final String? _signalingUrl = dotenv.env['RTC_URL'];
 
   String _formatTime(DateTime dt) {
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
@@ -714,8 +712,9 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                           enableInfiniteScroll: false,
                           autoPlay: false,
                           onPageChanged: (index, reason) {
-                            if (mounted)
+                            if (mounted) {
                               setState(() => _currentCarouselIndex = index);
+                            }
                           },
                         ),
                         items: _tasks.asMap().entries.map((entry) {

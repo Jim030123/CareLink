@@ -1,0 +1,444 @@
+import 'package:carelink_mobile/components/page_appbar.dart';
+import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
+import 'package:carelink_mobile/utils/graphql_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
+
+class AddAppointmentPage extends StatefulWidget {
+  const AddAppointmentPage({super.key});
+
+  @override
+  State<AddAppointmentPage> createState() => _AddAppointmentPageState();
+}
+
+class _AddAppointmentPageState extends State<AddAppointmentPage> {
+  Map<String, String>? _selectedRecipient;
+  DateTime? _selectedDate;
+  // Selected slots keyed by date string 'yyyy-MM-dd' -> list of hours
+  final Map<String, List<int>> _selectedSlots = {};
+
+  static const String _fetchCareRecipientsQuery = r'''
+query CareRecipients {
+  care_recipient {
+    id
+    firstName
+    lastName
+    phone
+  }
+}
+''';
+
+  Future<List<Map<String, String>>> fetchCareRecipients() async {
+    try {
+      final client = createClient();
+      final options = QueryOptions(document: gql(_fetchCareRecipientsQuery));
+      final res = await client.query(options);
+      if (res.hasException) return [];
+      final list = (res.data?['care_recipient'] as List<dynamic>?)?.map((e) {
+        final first = (e['firstName'] ?? '') as String;
+        final last = (e['lastName'] ?? '') as String;
+        return {
+          'id': e['id']?.toString() ?? '',
+          'name': ('$first $last').trim(),
+        };
+      }).toList() ?? [];
+      return List<Map<String, String>>.from(list);
+    } catch (e) {
+      debugPrint('fetchCareRecipients exception: $e');
+      return [];
+    }
+  }
+
+  void _showRecipientSelector(BuildContext context) async {
+    final careRecipient = await fetchCareRecipients();
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            top: 12.h,
+            left: 12.w,
+            right: 12.w,
+            bottom: 24.h,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Select Care Recipient',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                ...careRecipient.map((s) => ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.orange.shade300,
+                        foregroundColor: Colors.white,
+                        child: Text(
+                          s['name']!
+                              .split(' ')
+                              .map((p) => p.isNotEmpty ? p[0] : '')
+                              .take(2)
+                              .join(),
+                        ),
+                      ),
+                      title: Text(s['name'] ?? 'Name'),
+                      subtitle: Text(s['id'] ?? ''),
+                      onTap: () {
+                        setState(() {
+                          _selectedRecipient = {'id': s['id']!, 'name': s['name']!};
+                        });
+                        Navigator.of(ctx).pop();
+                      },
+                    )),
+                SizedBox(height: 8.h),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ManageCareRecipient(),
+                      ),
+                    );
+                  },
+                  child: Text('Manage care recipients'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickDateTime(BuildContext context) async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(Duration(days: 365)),
+      lastDate: DateTime.now().add(Duration(days: 365 * 5)),
+    );
+    if (date == null) return;
+
+    final selected = await showModalBottomSheet<List<int>>(
+      context: context,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
+      ),
+      builder: (ctx) {
+        final hours = List<int>.generate(13, (i) => 9 + i); // 9..21
+        final key = '${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}';
+        final selectedSet = <int>{...(_selectedSlots[key] ?? <int>[])};
+        return StatefulBuilder(builder: (context, setStateSB) {
+          return Padding(
+            padding: EdgeInsets.only(top: 12.h, left: 12.w, right: 12.w, bottom: 24.h),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Select Time Slots',
+                  style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 8.h),
+                Wrap(
+                  spacing: 8.w,
+                  runSpacing: 8.h,
+                  children: hours.map((h) {
+                    final label = '${h.toString().padLeft(2, '0')}:00';
+                    final isSelected = selectedSet.contains(h);
+                    return ChoiceChip(
+                      label: Text(label),
+                      selected: isSelected,
+                      onSelected: (v) {
+                        setStateSB(() {
+                          if (v) selectedSet.add(h); else selectedSet.remove(h);
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+                SizedBox(height: 12.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: Text('Cancel'),
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(ctx).pop(selectedSet.toList()..sort()),
+                        child: Text('Confirm'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+
+    if (selected == null || selected.isEmpty) return;
+    final key = '${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}';
+    setState(() {
+      final existing = _selectedSlots[key] ?? <int>[];
+      final newSet = {...existing, ...selected};
+      _selectedSlots[key] = (newSet.toList()..sort());
+      _selectedDate = date;
+    });
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: PageAppBar(
+        title: 'Add Appointment',
+        showBack: true,
+        showSearch: false,
+        onSearch: () {
+
+        },
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.all(16.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 8.h),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 8.h),
+                    // Care recipient selector
+                    Text(
+                      'Care Recipient',
+                      style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600),
+                    ),
+                    SizedBox(height: 8.h),
+                    GestureDetector(
+                      onTap: () => _showRecipientSelector(context),
+                      child: Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(12.w),
+                        decoration: BoxDecoration(
+                          color: _selectedRecipient == null ? Colors.white : Color(0xFFFFF4EE),
+                          border: Border.all(color: Colors.orange.shade300, width: 2.w),
+                          borderRadius: BorderRadius.circular(10.r),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 26.r,
+                              backgroundColor: Colors.orange.shade300,
+                              foregroundColor: Colors.white,
+                              child: Text(
+                                _selectedRecipient == null
+                                    ? '?'
+                                    : _selectedRecipient!['name']!.split(' ').map((s) => s.isNotEmpty ? s[0] : '').take(2).join(),
+                                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            SizedBox(width: 12.w),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _selectedRecipient == null ? 'No care recipient selected' : _selectedRecipient!['name']!,
+                                    style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+                                  ),
+                                  SizedBox(height: 6.h),
+                                  Text(
+                                    _selectedRecipient == null ? 'Tap to select' : (_selectedRecipient!['id'] ?? ''),
+                                    style: TextStyle(fontSize: 13.sp, color: Colors.black54),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(height: 16.h),
+
+                    Text(
+                      'Date & Time',
+                      style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600),
+                    ),
+                    SizedBox(height: 8.h),
+                    GestureDetector(
+                      onTap: _selectedRecipient == null ? null : () => _pickDateTime(context),
+                      child: Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(12.w),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: Colors.grey.shade300, width: 1.w),
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.access_time, color: Colors.black54),
+                                SizedBox(width: 12.w),
+                                Expanded(
+                                  child: Text(
+                                    _selectedSlots.isEmpty
+                                        ? (_selectedRecipient == null ? 'Select care recipient first' : 'Tap to select date & time')
+                                        : 'Selected slots',
+                                    style: TextStyle(fontSize: 15.sp, color: _selectedSlots.isEmpty ? Colors.black54 : Colors.black87),
+                                  ),
+                                ),
+                                if (_selectedSlots.isNotEmpty)
+                                  IconButton(
+                                    icon: Icon(Icons.clear, color: Colors.redAccent),
+                                    onPressed: () => setState(() {
+                                      _selectedSlots.clear();
+                                    }),
+                                  ),
+                              ],
+                            ),
+                            if (_selectedSlots.isNotEmpty) ...[
+                              SizedBox(height: 8.h),
+                              Column(
+                                children: _selectedSlots.entries.map((entry) {
+                                  final dateLabel = entry.key; // yyyy-MM-dd
+                                  final hours = entry.value;
+                                  return Padding(
+                                    padding: EdgeInsets.only(bottom: 8.h),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(dateLabel, style: TextStyle(fontWeight: FontWeight.w600)),
+                                              SizedBox(height: 6.h),
+                                              Wrap(
+                                                spacing: 8.w,
+                                                runSpacing: 8.h,
+                                                children: hours.map((h) {
+                                                  final label = '${h.toString().padLeft(2, '0')}:00';
+                                                  return Chip(
+                                                    label: Text(label),
+                                                    onDeleted: () => setState(() {
+                                                      final list = _selectedSlots[entry.key];
+                                                      list?.remove(h);
+                                                      if (list == null || list.isEmpty) _selectedSlots.remove(entry.key);
+                                                    }),
+                                                  );
+                                                }).toList(),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: Icon(Icons.delete_outline, color: Colors.redAccent),
+                                          onPressed: () => setState(() => _selectedSlots.remove(entry.key)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(height: 12.h),
+                  ],
+                ),
+              ]),
+            ),
+          ));
+        },
+      ),
+      bottomNavigationBar: LayoutBuilder(
+        builder: (context, constraints) {
+          return SafeArea(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+              color: Colors.transparent,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(height: 10.h),
+
+                  Row(
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (_selectedRecipient == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Please select a care recipient')),
+                              );
+                              return;
+                            }
+                            if (_selectedSlots.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Please select at least one date and time slot')),
+                              );
+                              return;
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Appointment saved')),
+                            );
+                            Navigator.of(context).pop({
+                              'careRecipient': _selectedRecipient,
+                              'slots': _selectedSlots,
+                            });
+                          },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.save, size: 18.w),
+                              SizedBox(width: 6.w),
+                              Flexible(
+                                child: Text(
+                                  'Save Appointment',
+                                  softWrap: false,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                  style: TextStyle(fontSize: 11.sp),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+  }

@@ -867,8 +867,8 @@ class _ShowMedicationState extends State<ShowMedication> {
         return StatefulBuilder(
           builder: (ctx2, setModalState) {
             // local copies if you want to mutate without touching parent directly
-            DateTime _localDate = _selectedScheduleDate;
-            TimeOfDay _localTime = selectedTime;
+            DateTime localDate = _selectedScheduleDate;
+            TimeOfDay localTime = selectedTime;
 
             // Wrap with SingleChildScrollView to avoid overflow when keyboard opens
             return Padding(
@@ -910,14 +910,14 @@ class _ShowMedicationState extends State<ShowMedication> {
                         children: [
                           Expanded(
                             child: Text(
-                              'Date: ${_localDate.toLocal().toString().split(' ').first}',
+                              'Date: ${localDate.toLocal().toString().split(' ').first}',
                             ),
                           ),
                           TextButton(
                             onPressed: () async {
                               final d = await showDatePicker(
                                 context: ctx2,
-                                initialDate: _localDate,
+                                initialDate: localDate,
                                 firstDate: DateTime.now().subtract(
                                   const Duration(days: 365),
                                 ),
@@ -926,7 +926,7 @@ class _ShowMedicationState extends State<ShowMedication> {
                                 ),
                               );
                               if (d != null) {
-                                setModalState(() => _localDate = d);
+                                setModalState(() => localDate = d);
                               }
                             },
                             child: const Text('Change'),
@@ -937,16 +937,16 @@ class _ShowMedicationState extends State<ShowMedication> {
                       Row(
                         children: [
                           Expanded(
-                            child: Text('Time: ${_localTime.format(ctx2)}'),
+                            child: Text('Time: ${localTime.format(ctx2)}'),
                           ),
                           TextButton(
                             onPressed: () async {
                               final t = await showTimePicker(
                                 context: ctx2,
-                                initialTime: _localTime,
+                                initialTime: localTime,
                               );
                               if (t != null) {
-                                setModalState(() => _localTime = t);
+                                setModalState(() => localTime = t);
                               }
                             },
                             child: const Text('Pick'),
@@ -960,8 +960,8 @@ class _ShowMedicationState extends State<ShowMedication> {
                           if (name.isEmpty) return;
                           final entry = {
                             'name': name,
-                            'date': _localDate,
-                            'time': _localTime.format(ctx2),
+                            'date': localDate,
+                            'time': localTime.format(ctx2),
                             'color': const Color(0xFFB3E5FC),
                           };
                           // 返回 entry 给调用者（父 widget）
@@ -1490,7 +1490,7 @@ class AddMedicineSheet extends StatefulWidget {
   final Future<Map<String, dynamic>?> Function(Map<String, dynamic>)
   upsertMedication;
 
-  const AddMedicineSheet({
+  const AddMedicineSheet({super.key,
     required this.nameCtrl,
     required this.descriptionCtrl,
     required this.packageQuantityCtrl,

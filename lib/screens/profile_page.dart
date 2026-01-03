@@ -566,35 +566,35 @@ class _ProfilePageState extends State<ProfilePage> {
                             );
                           case 3:
                             return ListTile(
-                              leading: Icon(Icons.security),
-                              title: Text('Security'),
+                              leading: Icon(Icons.phone_android),
+                              title: Text('Device'),
                               onTap: () {
                                 _showFeatureSheet(
                                   context,
-                                  'Security',
-                                  StatefulBuilder(builder: (c, setState) {
-                                    bool twoFA = false;
-                                    bool appLock = false;
-                                    return Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        SwitchListTile(
-                                          title: Text('Two-factor authentication'),
-                                          value: twoFA,
-                                          onChanged: (v) => setState(() => twoFA = v),
-                                        ),
-                                        SwitchListTile(
-                                          title: Text('App Lock'),
-                                          value: appLock,
-                                          onChanged: (v) => setState(() => appLock = v),
-                                        ),
-                                        SizedBox(height: 8.h),
-                                        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                                          TextButton(onPressed: () => Navigator.of(c).pop(), child: Text('Close')),
-                                        ]),
-                                      ],
-                                    );
-                                  }),
+                                  'Device',
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ListTile(
+                                        leading: Icon(Icons.qr_code),
+                                        title: Text('Scan QR Code'),
+                                        onTap: () {
+                                          // Navigate to your QR scanner route (ensure '/qrscanner' exists in your router)
+                                          context.push('/authScanner');
+                                        },
+                                      ),
+                                      SizedBox(height: 8.h),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(context).pop(),
+                                            child: Text('Close'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 );
                               },
                             );

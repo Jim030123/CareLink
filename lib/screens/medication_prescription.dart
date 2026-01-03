@@ -22,7 +22,7 @@ class MedicationPrescription extends StatefulWidget {
 }
 
 class _MedicationPrescriptionState extends State<MedicationPrescription> {
-  MedicationType _selected = MedicationType.capsule;
+  final MedicationType _selected = MedicationType.capsule;
   Map<String, String>? _selectedRecipient;
   String? _selectedDoctor;
   final List<Map<String, dynamic>> _prescriptions = [];
@@ -30,7 +30,7 @@ class _MedicationPrescriptionState extends State<MedicationPrescription> {
   int _segmentIndex = 0; // 0 = Add, 1 = View
 
   final Set<String> _selectedMedications = {};
-  bool _noneMedicationSelected = false;
+  final bool _noneMedicationSelected = false;
   String? _selectedMedicationSingle;
 
   static const String _fetchCareRecipientsQuery = r'''
@@ -136,7 +136,7 @@ query Prescriptions($careRecipientId: ID!) {
             final last = (e['lastName'] ?? '') as String;
             return {
               'id': e['id']?.toString() ?? '',
-              'name': ('$first ${last}').trim(),
+              'name': ('$first $last').trim(),
             };
           }).toList() ??
           [];
@@ -327,7 +327,7 @@ query Prescriptions($careRecipientId: ID!) {
                               [];
                           final dosageAmount = p['dosageAmount'] ?? '-';
                           final standardUnit = med?['standardUnit'] ?? '-';
-                          final medMap = med as Map<String, dynamic>?;
+                          final medMap = med;
                           final form = ((medMap?['form'] ?? medMap?['type']) ?? '')
                               .toString()
                               .toLowerCase();
@@ -1023,7 +1023,7 @@ query Prescriptions($careRecipientId: ID!) {
                         ),
                       ),
                     );
-                  }).toList(),
+                  }),
 
                 SizedBox(height: 12.h),
                 ElevatedButton(
@@ -1039,8 +1039,8 @@ query Prescriptions($careRecipientId: ID!) {
   }
 
   void _showRecipientSelector(BuildContext context) async {
-    final care_recipient = await fetchCareRecipients();
-    debugPrint('care_recipient fetched: $care_recipient');
+    final careRecipient = await fetchCareRecipients();
+    debugPrint('care_recipient fetched: $careRecipient');
 
     showModalBottomSheet(
       context: context,
@@ -1068,7 +1068,7 @@ query Prescriptions($careRecipientId: ID!) {
                   ),
                 ),
                 SizedBox(height: 8.h),
-                ...care_recipient.map(
+                ...careRecipient.map(
                   (s) => ListTile(
                     leading: CircleAvatar(
                       backgroundColor: Colors.orange.shade300,
@@ -1081,7 +1081,7 @@ query Prescriptions($careRecipientId: ID!) {
                             .join(),
                       ),
                     ),
-                    title: Text('${s['name'] ?? 'Name'}'),
+                    title: Text(s['name'] ?? 'Name'),
                     subtitle: Text(s['id'] ?? ''),
 
                     onTap: () {

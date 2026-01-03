@@ -10,7 +10,7 @@ class NotFoundPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Page Not Found')),
+
       body: Padding(
         padding: EdgeInsets.all(20.w),
         child: Center(
@@ -54,7 +54,7 @@ class NotFoundPage extends StatelessWidget {
             ],
           ),
         ),
-        
+
       ),
     );
   }

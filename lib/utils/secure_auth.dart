@@ -169,11 +169,11 @@ class SecureAuth {
                 platform = Platform.operatingSystem;
               }
 
-              final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
+              final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
               Map<String, dynamic> deviceData = {};
               try {
                 if (kIsWeb) {
-                  final info = await _deviceInfo.webBrowserInfo;
+                  final info = await deviceInfo.webBrowserInfo;
                   deviceData = {
                     'userAgent': info.userAgent,
                     'vendor': info.vendor,
@@ -182,7 +182,7 @@ class SecureAuth {
                     'platform': info.platform,
                   };
                 } else if (Platform.isAndroid) {
-                  final info = await _deviceInfo.androidInfo;
+                  final info = await deviceInfo.androidInfo;
                   deviceData = {
                     'brand': info.brand,
                     'device': info.device,
@@ -192,7 +192,7 @@ class SecureAuth {
                     'version_sdkInt': info.version.sdkInt,
                   };
                 } else if (Platform.isIOS) {
-                  final info = await _deviceInfo.iosInfo;
+                  final info = await deviceInfo.iosInfo;
                   deviceData = {
                     'name': info.name,
                     'systemName': info.systemName,

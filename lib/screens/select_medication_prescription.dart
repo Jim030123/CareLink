@@ -156,10 +156,11 @@ class _SelectMedicationPrescriptionState
                         if (picked != null) {
                           ctrl.text = picked.toIso8601String().split('T').first;
                           setModalState(() {
-                            if (isStart)
+                            if (isStart) {
                               startDate = picked;
-                            else
+                            } else {
                               endDate = picked;
+                            }
                           });
                         }
                       }
@@ -644,7 +645,7 @@ class _SelectMedicationPrescriptionState
                   'endDate': endCtrl.text.trim(),
                   'frequencyNote': frequencyNoteCtrl.text.trim(),
                   'localIndex': globalIndex,
-                  
+
 
                 };
 
@@ -768,7 +769,7 @@ class _SelectMedicationPrescriptionState
             style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
           ),
         ),
-        ...filtered.map((it) => buildCard(it)).toList(),
+        ...filtered.map((it) => buildCard(it)),
       ],
     );
   }
@@ -963,6 +964,5 @@ class _SelectMedicationPrescriptionState
         },
       ),
     );
-    ;
   }
 }

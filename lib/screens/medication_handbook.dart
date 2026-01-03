@@ -57,6 +57,7 @@ class _ShowMedicationState extends State<ShowMedication> {
   late List<Map<String, dynamic>> _items;
   late TextEditingController _searchCtrl;
   bool _searching = false;
+  String? _userType;
   final MedicationController _controller = MedicationController();
   // MedicationSchedule removed — this page shows medicine list only
   final MedicationHandBookController _smController =
@@ -70,14 +71,28 @@ class _ShowMedicationState extends State<ShowMedication> {
     _selected = widget.initial ?? MedicationType.capsule;
     _items = <Map<String, dynamic>>[];
 
+    // load current user type to control role-specific UI
     WidgetsBinding.instance.addPostFrameCallback((_) {
       fetchMedications();
+      _loadUserType();
     });
     _searchCtrl = TextEditingController();
 
     _searchCtrl.addListener(() {
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _loadUserType() async {
+    try {
+      final me = await fetchCurrentUser();
+      if (!mounted) return;
+      setState(() {
+        _userType = me?['userType'] as String?;
+      });
+    } catch (e) {
+      debugPrint('Failed to load user type: $e');
+    }
   }
 
   @override
@@ -1106,32 +1121,36 @@ class _ShowMedicationState extends State<ShowMedication> {
                 children: [
                   SizedBox(height: 10.h),
 
-                  Row(
-                    mainAxisSize: MainAxisSize.max,
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: _showAddMedicineSheet,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add, size: 18.w),
-                              SizedBox(width: 6.w),
-                              Flexible(
-                                child: Text(
-                                  'Add Medication',
-                                  softWrap: false,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                  style: TextStyle(fontSize: 11.sp),
+                  // Only show Add button for non-Care Recipient users
+                  if (_userType != 'Care Recipient')
+                    Row(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: _showAddMedicineSheet,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add, size: 18.w),
+                                SizedBox(width: 6.w),
+                                Flexible(
+                                  child: Text(
+                                    'Add Medication',
+                                    softWrap: false,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                    style: TextStyle(fontSize: 11.sp),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    )
+                  else
+                    const SizedBox.shrink(),
                 ],
               ),
             ),
@@ -1157,7 +1176,7 @@ class AddMedicineSheet extends StatefulWidget {
   final Future<Map<String, dynamic>?> Function(Map<String, dynamic>)
   upsertMedication;
 
-  const AddMedicineSheet({
+  const AddMedicineSheet({super.key,
     required this.nameCtrl,
     required this.descriptionCtrl,
     required this.packageQuantityCtrl,

@@ -44,7 +44,7 @@ class SignalingService {
         return;
       }
 
-      print('SignalingService: raw text (${text.length}) -> ${text.length > 200 ? text.substring(0,200) + "..." : text}');
+      print('SignalingService: raw text (${text.length}) -> ${text.length > 200 ? "${text.substring(0,200)}..." : text}');
 
       // NDJSON: line separated
       if (text.contains('\n')) {
@@ -112,7 +112,9 @@ class SignalingService {
   // Simple implementation: expects JSON object starting at index 0.
   Tuple2<String, String>? _extractFirstJson(String s) {
     int i = 0;
-    while (i < s.length && s[i].trim().isEmpty) i++;
+    while (i < s.length && s[i].trim().isEmpty) {
+      i++;
+    }
     if (i >= s.length) return null;
     if (s[i] != '{') {
       // not an object starting at 0; give up (could be array or other)
@@ -121,8 +123,9 @@ class SignalingService {
     int depth = 0;
     for (int j = i; j < s.length; j++) {
       final ch = s[j];
-      if (ch == '{') depth++;
-      else if (ch == '}') depth--;
+      if (ch == '{') {
+        depth++;
+      } else if (ch == '}') depth--;
       if (depth == 0) {
         final jsonStr = s.substring(i, j + 1);
         final remainder = s.substring(j + 1);

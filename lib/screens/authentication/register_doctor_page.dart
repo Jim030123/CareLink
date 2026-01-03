@@ -677,10 +677,12 @@ class _RegisterDoctorPageState extends State<RegisterDoctorPage> {
                               label: 'Email',
                               keyboardType: TextInputType.emailAddress,
                               validator: (v) {
-                                if (v == null || v.trim().isEmpty)
+                                if (v == null || v.trim().isEmpty) {
                                   return 'Enter email';
-                                if (!v.contains('@'))
+                                }
+                                if (!v.contains('@')) {
                                   return 'Enter a valid email';
+                                }
                                 return null;
                               },
                             ),
@@ -690,10 +692,12 @@ class _RegisterDoctorPageState extends State<RegisterDoctorPage> {
                               label: 'Password',
                               obscureText: true,
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Enter password';
-                                if (v.length < 6)
+                                }
+                                if (v.length < 6) {
                                   return 'Password must be at least 6 characters';
+                                }
                                 return null;
                               },
                             ),
@@ -703,10 +707,12 @@ class _RegisterDoctorPageState extends State<RegisterDoctorPage> {
                               label: 'Confirm Password',
                               obscureText: true,
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Confirm password';
-                                if (v != _password.text)
+                                }
+                                if (v != _password.text) {
                                   return 'Passwords do not match';
+                                }
                                 return null;
                               },
                             ),

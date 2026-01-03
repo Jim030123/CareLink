@@ -4,7 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class MedicationSchedule extends StatefulWidget {
-  const MedicationSchedule({Key? key}) : super(key: key);
+  const MedicationSchedule({super.key});
 
   @override
   MedicationScheduleState createState() => MedicationScheduleState();
@@ -131,8 +131,8 @@ class MedicationScheduleState extends State<MedicationSchedule> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx2, setModalState) {
-            DateTime _localDate = _selectedScheduleDate;
-            TimeOfDay _localTime = selectedTime;
+            DateTime localDate = _selectedScheduleDate;
+            TimeOfDay localTime = selectedTime;
 
             return Padding(
               padding: EdgeInsets.only(bottom: MediaQuery.of(ctx2).viewInsets.bottom),
@@ -161,16 +161,16 @@ class MedicationScheduleState extends State<MedicationSchedule> {
                       SizedBox(height: 12.h),
                       Row(
                         children: [
-                          Expanded(child: Text('Date: ${_localDate.toLocal().toString().split(' ').first}')),
+                          Expanded(child: Text('Date: ${localDate.toLocal().toString().split(' ').first}')),
                           TextButton(
                             onPressed: () async {
                               final d = await showDatePicker(
                                 context: ctx2,
-                                initialDate: _localDate,
+                                initialDate: localDate,
                                 firstDate: DateTime.now().subtract(const Duration(days: 365)),
                                 lastDate: DateTime.now().add(const Duration(days: 365)),
                               );
-                              if (d != null) setModalState(() => _localDate = d);
+                              if (d != null) setModalState(() => localDate = d);
                             },
                             child: const Text('Change'),
                           ),
@@ -179,11 +179,11 @@ class MedicationScheduleState extends State<MedicationSchedule> {
                       SizedBox(height: 12.h),
                       Row(
                         children: [
-                          Expanded(child: Text('Time: ${_localTime.format(ctx2)}')),
+                          Expanded(child: Text('Time: ${localTime.format(ctx2)}')),
                           TextButton(
                             onPressed: () async {
-                              final t = await showTimePicker(context: ctx2, initialTime: _localTime);
-                              if (t != null) setModalState(() => _localTime = t);
+                              final t = await showTimePicker(context: ctx2, initialTime: localTime);
+                              if (t != null) setModalState(() => localTime = t);
                             },
                             child: const Text('Pick'),
                           ),
@@ -196,8 +196,8 @@ class MedicationScheduleState extends State<MedicationSchedule> {
                           if (name.isEmpty) return;
                           final entry = {
                             'name': name,
-                            'date': _localDate,
-                            'time': _localTime.format(ctx2),
+                            'date': localDate,
+                            'time': localTime.format(ctx2),
                             'color': const Color(0xFFB3E5FC),
                           };
                           Navigator.of(ctx2).pop(entry);

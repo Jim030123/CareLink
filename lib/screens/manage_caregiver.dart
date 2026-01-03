@@ -1,6 +1,8 @@
+import 'package:carelink_mobile/components/bottom_sheet.dart';
 import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:carelink_mobile/components/text_field.dart';
+import 'package:carelink_mobile/models/secondary_caregiver_sheet.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -188,9 +190,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
       final List<Map<String, String>> recips = data.map((item) {
         final m = item as Map<String, dynamic>;
         final name =
-            ((m['firstName'] as String?) ?? '') +
-            ' ' +
-            ((m['lastName'] as String?) ?? '');
+            '${(m['firstName'] as String?) ?? ''} ${(m['lastName'] as String?) ?? ''}';
         return {'id': (m['id'] as String?) ?? '', 'name': name.trim()};
       }).toList();
 
@@ -313,7 +313,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
             nameCtrl.text = initialData['name'] ?? '';
             relCtrl.text = initialData['relationship'] ?? '';
             phoneNumberCtrl.text =
-                initialData['phoneNumber'] ?? initialData['contact'] ?? '';
+                initialData['phoneNumber']?? '';
             emailCtrl.text = initialData['email'] ?? '';
             permCtrl.text = initialData['permission'] ?? '';
             careRecipientCtrl.text = initialData['careRecipientIds'] ?? '';
@@ -338,7 +338,9 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
           _sheetInitialized = true; // 👈 锁住，不再重复初始化
         }
 
-        return WillPopScope(
+        return StatefulBuilder(
+          builder: (sheetCtx, sheetSetState) {
+            return WillPopScope(
           onWillPop: () async {
             final shouldClose = await showDialog<bool>(
               context: ctx,
@@ -382,7 +384,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                   SizedBox(height: 12.h),
 
                   Text(
-                    'Add Secondary Caregiver',
+                    'Secondary Caregiver',
                     style: TextStyle(
                       fontSize: 18.sp,
                       fontWeight: FontWeight.w600,
@@ -507,6 +509,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                     valueListenable: _selectedRecipients,
                     builder: (context, selectedIds, _) {
                       return Wrap(
+                        alignment: WrapAlignment.start,
                         spacing: 8.0,
                         runSpacing: 8.0,
                         children: items.map<Widget>((m) {
@@ -518,61 +521,58 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
 
                           final bool isSelected = selectedIds.contains(id);
 
-                          return Align(
-                            alignment: AlignmentGeometry.centerLeft,
-                            child: Container(
-                              decoration: BoxDecoration(
+                          return Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.orange.withOpacity(
+                                          0.25,
+                                        ),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ]
+                                  : const [
+                                      BoxShadow(
+                                        color: Colors.black12,
+                                        blurRadius: 6,
+                                        offset: Offset(0, 3),
+                                      ),
+                                    ],
+                            ),
+                            child: ChoiceChip(
+                              label: Text(name),
+                              selected: isSelected,
+                              backgroundColor: Colors.white,
+                              selectedColor: const Color(0xFFFFECB3),
+                              shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: Colors.orange.withOpacity(
-                                            0.25,
-                                          ),
-                                          blurRadius: 6,
-                                          offset: const Offset(0, 3),
-                                        ),
-                                      ]
-                                    : const [
-                                        BoxShadow(
-                                          color: Colors.black12,
-                                          blurRadius: 6,
-                                          offset: Offset(0, 3),
-                                        ),
-                                      ],
-                              ),
-                              child: ChoiceChip(
-                                label: Text(name),
-                                selected: isSelected,
-                                backgroundColor: Colors.white,
-                                selectedColor: const Color(0xFFFFECB3),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                  side: BorderSide(
-                                    color: isSelected
-                                        ? Colors.orange
-                                        : Colors.grey.shade300,
-                                    width: isSelected ? 1.6 : 1,
-                                  ),
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? Colors.orange
+                                      : Colors.grey.shade300,
+                                  width: isSelected ? 1.6 : 1,
                                 ),
-                                elevation: 0,
-                                onSelected: (sel) {
-                                  final newSet = Set<String>.from(selectedIds);
-                                  if (sel) {
-                                    newSet.add(id);
-                                  } else {
-                                    newSet.remove(id);
-                                  }
-                                  _selectedRecipients.value = newSet;
-                                  careRecipientCtrl.text = newSet.join(',');
-                                  final names = items
-                                      .where((x) => newSet.contains(x['id']))
-                                      .map((x) => x['name'] ?? '')
-                                      .where((s) => s.isNotEmpty)
-                                      .toList();
-                                  statusCtrl.text = names.join(', ');
-                                },
                               ),
+                              elevation: 0,
+                              onSelected: (sel) {
+                                final newSet = Set<String>.from(selectedIds);
+                                if (sel) {
+                                  newSet.add(id);
+                                } else {
+                                  newSet.remove(id);
+                                }
+                                _selectedRecipients.value = newSet;
+                                careRecipientCtrl.text = newSet.join(',');
+                                final names = items
+                                    .where((x) => newSet.contains(x['id']))
+                                    .map((x) => x['name'] ?? '')
+                                    .where((s) => s.isNotEmpty)
+                                    .toList();
+                                statusCtrl.text = names.join(', ');
+                              },
                             ),
                           );
                         }).toList(),
@@ -588,22 +588,33 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                     child: OutlinedButton.icon(
                       onPressed: () {
                         // ensure recipient items exist for chips
+                        // update parent-held items, then update sheet UI
                         setState(() {
                           items = [
                             {'id': 'CR-001', 'name': 'Alice Tan'},
                             {'id': 'CR-002', 'name': 'Bob Lim'},
                             {'id': 'CR-003', 'name': 'Cheng Wei'},
+                            {'id': 'CR-004', 'name': 'Cheng Wei'},
+
+                            {'id': 'CR-005', 'name': 'Cheng Wei'},
+
+                            {'id': 'CR-006', 'name': 'Cheng Wei'},
+
+                            {'id': 'CR-007', 'name': 'Cheng Wei'},
+
                           ];
                         });
 
-                        // fill controllers and select chips
-                        nameCtrl.text = 'Mock Name';
-                        relCtrl.text = 'Friend';
-                        phoneNumberCtrl.text = '+60123456789';
-                        permCtrl.text = 'Full';
-                        careRecipientCtrl.text = 'CR-001,CR-003';
-                        statusCtrl.text = 'Alice Tan, Cheng Wei';
-                        _selectedRecipients.value = {'CR-001', 'CR-003'};
+                        sheetSetState(() {
+                          nameCtrl.text = 'Mock Name';
+                          relCtrl.text = 'Friend';
+                          permCtrl.text = 'Full';
+                          phoneNumberCtrl.text = '+60123456789';
+                          emailCtrl.text = 'mock@example.com';
+                          careRecipientCtrl.text = 'CR-001,CR-003';
+                          statusCtrl.text = 'Alice Tan, Cheng Wei';
+                          _selectedRecipients.value = {'CR-001', 'CR-003'};
+                        });
                       },
                       icon: Icon(Icons.auto_fix_high, size: 14.sp),
                       label: Text('Fill Mock Data'),
@@ -619,7 +630,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                             (initialData != null &&
                                 (initialData['id']?.isNotEmpty == true))
                             ? () async {
-                                final idToDelete = initialData!['id'];
+                                final idToDelete = initialData['id'];
                                 final confirmed = await showDialog<bool>(
                                   context: ctx,
                                   builder: (dctx) => AlertDialog(
@@ -738,9 +749,9 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                           // debug: print the values we're about to save
                           debugPrint(
                             'Saving secondary caregiver: '
-                            'roleId=${roleId}, caregiverId=${caregiverId}, '
-                            'careRecipientIds=${careRecipientCtrl.text}, name=${name}, '
-                            'rel=${rel}, phoneNumber=${phoneNumber}, permission=${permission}, '
+                            'roleId=$roleId, caregiverId=$caregiverId, '
+                            'careRecipientIds=${careRecipientCtrl.text}, name=$name, '
+                            'rel=$rel, phoneNumber=$phoneNumber, permission=$permission, '
                             'selectedRecipients=${_selectedRecipients.value}',
                           );
                           if (!isEdit) {
@@ -757,15 +768,15 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                           final object = {
                             // server schema requires `id: String!`
                             'id': generatedId,
-                            'caregiverId': caregiverId ?? null,
+                            'caregiverId': caregiverId,
                             'careRecipientId': careRecipientList,
                             'relationship': rel,
                             'permissionLevel': permission,
                             'status': statusCtrl.text,
                             'name': name,
-                            'email': email,
+                            'email': emailCtrl.text,
                             // include phoneNumber so it is persisted to backend
-                            'phoneNumber': phoneNumber,
+                            'phoneNumber': phoneNumberCtrl.text,
                             'createdAt': DateTime.now().toIso8601String(),
                           };
 
@@ -777,7 +788,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
 
                             if (isEdit) {
                               // update existing
-                              final pk = {'id': initialData!['id']};
+                              final pk = {'id': initialData['id']};
                               mutRes = await client.mutate(
                                 MutationOptions(
                                   document: gql(_updateSecondaryMutation),
@@ -839,7 +850,17 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                                 'relationship': row != null
                                     ? (row['relationship'] as String? ?? rel)
                                     : rel,
-                                'contact': phoneNumber,
+
+
+                                'phoneNumber': row != null
+                                    ? (row['phoneNumber'] as String? ?? phoneNumberCtrl.text)
+                                    : phoneNumberCtrl.text,
+
+                                    'email': row != null
+                                    ? (row['email'] as String? ?? emailCtrl.text)
+                                    : emailCtrl.text,
+
+
                                 'permission': row != null
                                     ? (row['permissionLevel'] as String? ??
                                           permission)
@@ -857,7 +878,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                                     Map<String, String>.from(
                                       entry.map(
                                         (k, v) =>
-                                            MapEntry(k, v?.toString() ?? ''),
+                                            MapEntry(k, v.toString() ?? ''),
                                       ),
                                     );
                               } else {
@@ -865,7 +886,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                                   Map<String, String>.from(
                                     entry.map(
                                       (k, v) =>
-                                          MapEntry(k, v?.toString() ?? ''),
+                                          MapEntry(k, v.toString() ?? ''),
                                     ),
                                   ),
                                 );
@@ -897,7 +918,9 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
         );
       },
     );
+  });
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -977,7 +1000,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                         if (idx == 0) {
                           // Add New card
                           return InkWell(
-                            onTap: () => _showAddCaregiverSheet(),
+                            onTap: () => _showAddCaregiverSheet(initialData: null),
                             borderRadius: BorderRadius.circular(10.r),
                             child: Container(
                               decoration: BoxDecoration(
@@ -1212,10 +1235,11 @@ Widget callSecondaryCaregiverCard({
                         icon: Icon(Icons.edit, size: 18.sp),
                         onPressed: () => onEdit?.call(),
                       ),
-                      IconButton(
-                        icon: Icon(Icons.delete_outline, size: 18.sp),
-                        onPressed: () => onDelete?.call(),
-                      ),
+                      Icon(
+  Icons.delete_outline,
+  size: 18.sp,
+  color: Colors.red,
+)
                     ],
                   ),
                 ],
