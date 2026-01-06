@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:carelink_mobile/utils/fcm.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum SecureAuthStatus {
   success,
@@ -40,15 +41,24 @@ class SecureAuth {
 
   static const _keyEmail = 'user_email';
   static const _keyPassword = 'user_password';
+  static const _keyRole = 'user_role';
 
   /// Save credentials securely
   static Future<void> saveCredentials({
     required String email,
     required String password,
+    String? role,
   }) async {
     try {
       await _storage.write(key: _keyEmail, value: email);
       await _storage.write(key: _keyPassword, value: password);
+      if (role != null) {
+        await _storage.write(key: _keyRole, value: role);
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('role', role);
+        } catch (_) {}
+      }
     } catch (e, st) {
       debugPrint('SecureAuth.saveCredentials error: $e');
       debugPrint(st.toString());
@@ -61,7 +71,8 @@ class SecureAuth {
     try {
       final email = await _storage.read(key: _keyEmail);
       final password = await _storage.read(key: _keyPassword);
-      return {'email': email, 'password': password};
+      final role = await _storage.read(key: _keyRole);
+      return {'email': email, 'password': password, 'role': role};
     } catch (e, st) {
       debugPrint('SecureAuth.getCredentials error: $e');
       debugPrint(st.toString());
@@ -74,6 +85,11 @@ class SecureAuth {
     try {
       await _storage.delete(key: _keyEmail);
       await _storage.delete(key: _keyPassword);
+      await _storage.delete(key: _keyRole);
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('role');
+      } catch (_) {}
     } catch (e, st) {
       debugPrint('SecureAuth.clearCredentials error: $e');
       debugPrint(st.toString());
@@ -133,6 +149,8 @@ class SecureAuth {
       final email = creds['email'];
       final password = creds['password'];
 
+      debugPrint('SecureAuth: loaded credentials - emailPresent=${email != null}, passwordPresent=${password != null}, storedRole=${creds["role"]}');
+
       if (email == null || password == null) {
         return SecureAuthResult(
           SecureAuthStatus.noStoredCredentials,
@@ -152,6 +170,36 @@ class SecureAuth {
           final user = FirebaseAuth.instance.currentUser;
           debugPrint('SecureAuth: resolved user = $user');
           if (user != null) {
+            // try to persist role from custom token claims or guess from displayName
+            try {
+              final idToken = await user.getIdTokenResult();
+              final claims = idToken.claims;
+              if (claims != null && claims['role'] != null) {
+                final roleVal = claims['role'].toString();
+                debugPrint('SecureAuth: persisting role from token claims: $roleVal');
+                try {
+                  await _storage.write(key: _keyRole, value: roleVal);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('role', roleVal);
+                  debugPrint('SecureAuth: role persisted to secure storage and SharedPreferences');
+                } catch (e) {
+                  debugPrint('SecureAuth: failed to persist role: $e');
+                }
+              } else {
+                final displayName = user.displayName ?? '';
+                if (displayName.toLowerCase().contains('dr') || (user.email ?? '').toLowerCase().contains('doctor')) {
+                  debugPrint('SecureAuth: inferring role=doctor from displayName/email');
+                  try {
+                    await _storage.write(key: _keyRole, value: 'doctor');
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('role', 'doctor');
+                    debugPrint('SecureAuth: inferred role persisted');
+                  } catch (e) {
+                    debugPrint('SecureAuth: failed to persist inferred role: $e');
+                  }
+                }
+              }
+            } catch (_) {}
             final fcmToken = await FirebaseMessaging.instance.getToken();
             debugPrint('SecureAuth: FCM token = $fcmToken');
 

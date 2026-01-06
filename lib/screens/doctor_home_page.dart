@@ -243,7 +243,7 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
                       scrollDirection: Axis.horizontal,
                       children: [
                         _buildFeatureCard(
-                          'Telehealth',
+                          'Teleappointment',
                           'Video consults',
                           Icons.video_call_outlined,
                           Colors.purple,

@@ -1,5 +1,6 @@
 import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/secure_auth.dart';
+import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:flutter/material.dart';
 
 /// Controller that holds the logic previously inside the `LoginPage` state.
@@ -48,10 +49,20 @@ class LoginController {
 
       try {
         await SecureAuth.clearCredentials();
-        await SecureAuth.saveCredentials(
-          email: emailController.text.trim(),
-          password: passController.text,
-        );
+          // Attempt to fetch userType from backend and persist it with credentials
+          String? userType;
+          try {
+            userType = await fetchCurrentUserType();
+            debugPrint('LoginController: fetched userType=$userType');
+          } catch (e) {
+            debugPrint('LoginController: failed to fetch userType: $e');
+          }
+
+          await SecureAuth.saveCredentials(
+            email: emailController.text.trim(),
+            password: passController.text,
+            role: userType,
+          );
       } catch (e) {
         debugPrint('LoginController: failed to replace saved credentials: $e');
       }

@@ -102,6 +102,16 @@ Future<Map<String, dynamic>?> fetchUserByUid(
   return user;
 }
 
+/// Fetch the current user's `userType` field from backend.
+/// Returns the string value of `userType`, or null if unavailable.
+Future<String?> fetchCurrentUserType() async {
+  final user = await fetchCurrentUser();
+  if (user == null) return null;
+  final type = user['userType'];
+  if (type == null) return null;
+  return type is String ? type : type.toString();
+}
+
 
 
 Future<String? > fetchUserIdByUid(

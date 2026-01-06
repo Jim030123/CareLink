@@ -80,9 +80,6 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const RegisterDoctorPage(),
     ),
 
-//      GoRoute(path: '/doctor/pending',
-//  builder: (context, state) => const RegisterPending(),
-//       ),
 
     GoRoute(
       path: '/home/recipient',
