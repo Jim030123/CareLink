@@ -249,8 +249,7 @@ query Prescriptions($careRecipientId: ID!) {
                           children: [
                             CircleAvatar(
                               radius: 26.r,
-                              backgroundColor: Colors.orange.shade300,
-                              foregroundColor: Colors.white,
+
                               child: Text(
                                 _selectedRecipient == null
                                     ? '?'
@@ -283,7 +282,7 @@ query Prescriptions($careRecipientId: ID!) {
                                   Text(
                                     _selectedRecipient == null
                                         ? 'Tap to select'
-                                        : (_selectedRecipient![''] ?? ''),
+                                        : (_selectedRecipient!['id'] ?? ''),
                                     style: TextStyle(
                                       fontSize: 13.sp,
                                       color: Colors.black54,
@@ -328,9 +327,10 @@ query Prescriptions($careRecipientId: ID!) {
                           final dosageAmount = p['dosageAmount'] ?? '-';
                           final standardUnit = med?['standardUnit'] ?? '-';
                           final medMap = med;
-                          final form = ((medMap?['form'] ?? medMap?['type']) ?? '')
-                              .toString()
-                              .toLowerCase();
+                          final form =
+                              ((medMap?['form'] ?? medMap?['type']) ?? '')
+                                  .toString()
+                                  .toLowerCase();
                           String defaultAsset;
                           if (form.contains('capsule')) {
                             defaultAsset = 'assets/icons/capsule.png';
@@ -346,10 +346,13 @@ query Prescriptions($careRecipientId: ID!) {
                             defaultAsset = 'assets/icons/capsule.png';
                           }
 
-                          final medAsset = (medMap?['asset'] ?? medMap?['picture'] ?? '')
+                          final medAsset =
+                              (medMap?['asset'] ?? medMap?['picture'] ?? '')
                                   ?.toString() ??
                               '';
-                          final displayAsset = medAsset.isNotEmpty ? medAsset : defaultAsset;
+                          final displayAsset = medAsset.isNotEmpty
+                              ? medAsset
+                              : defaultAsset;
 
                           return Card(
                             margin: EdgeInsets.only(bottom: 8.h),
@@ -376,11 +379,12 @@ query Prescriptions($careRecipientId: ID!) {
                                             width: 20.w,
                                             height: 20.w,
                                             fit: BoxFit.contain,
-                                            errorBuilder: (_, __, ___) => Image.asset(
-                                              defaultAsset,
-                                              width: 20.w,
-                                              height: 20.w,
-                                            ),
+                                            errorBuilder: (_, __, ___) =>
+                                                Image.asset(
+                                                  defaultAsset,
+                                                  width: 20.w,
+                                                  height: 20.w,
+                                                ),
                                           );
                                         }
                                         return Image.asset(
@@ -879,6 +883,17 @@ query Prescriptions($careRecipientId: ID!) {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Center(
+                  child: Container(
+                    width: 36.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2.r),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 12.h),
                 Text(
                   'Medication Prescription',
                   style: TextStyle(
@@ -1060,6 +1075,18 @@ query Prescriptions($careRecipientId: ID!) {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+
+                Center(
+                child: Container(
+                  width: 36.w,
+                  height: 4.h,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2.r),
+                  ),
+                ),
+              ),
+              SizedBox(height: 12.h),
                 Text(
                   'Select Care Recipient',
                   style: TextStyle(
@@ -1071,8 +1098,6 @@ query Prescriptions($careRecipientId: ID!) {
                 ...careRecipient.map(
                   (s) => ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: Colors.orange.shade300,
-                      foregroundColor: Colors.white,
                       child: Text(
                         s['name']!
                             .split(' ')
@@ -1097,17 +1122,7 @@ query Prescriptions($careRecipientId: ID!) {
                   ),
                 ),
                 SizedBox(height: 8.h),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const ManageCareRecipient(),
-                      ),
-                    );
-                  },
-                  child: Text('Manage care recipients'),
-                ),
+
               ],
             ),
           ),

@@ -97,15 +97,15 @@ query CareRecipients {
               as List<dynamic>?) ??
           [];
       final Map<int, Set<int>> byDay = {};
-          for (var r in rows) {
+      for (var r in rows) {
         try {
           if (r['isActive'] != true) continue;
           final d = r['dayOfWeek'];
           final s = r['startHour'];
           final e = r['endHour'];
-              final day = DayConvert.toInt(d);
-              final sH = s is int ? s : int.tryParse(s?.toString() ?? '0');
-              final eH = e is int ? e : int.tryParse(e?.toString() ?? '0');
+          final day = DayConvert.toInt(d);
+          final sH = s is int ? s : int.tryParse(s?.toString() ?? '0');
+          final eH = e is int ? e : int.tryParse(e?.toString() ?? '0');
           if (day == null || sH == null || eH == null) continue;
           final start = sH.clamp(0, 23);
           final end = eH.clamp(0, 24);
@@ -189,6 +189,8 @@ query CareRecipients {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+
+                
                 Text(
                   'Select Care Recipient',
                   style: TextStyle(
@@ -224,17 +226,7 @@ query CareRecipients {
                   ),
                 ),
                 SizedBox(height: 8.h),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const ManageCareRecipient(),
-                      ),
-                    );
-                  },
-                  child: Text('Manage care recipients'),
-                ),
+
               ],
             ),
           ),
@@ -333,10 +325,11 @@ query CareRecipients {
                       SizedBox(width: 8.w),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: (hours.isNotEmpty && selectedSet.isNotEmpty)
+                          onPressed:
+                              (hours.isNotEmpty && selectedSet.isNotEmpty)
                               ? () => Navigator.of(
-                                    ctx,
-                                  ).pop(selectedSet.toList()..sort())
+                                  ctx,
+                                ).pop(selectedSet.toList()..sort())
                               : null,
                           child: Text('Confirm'),
                         ),
@@ -400,21 +393,27 @@ query CareRecipients {
                             width: double.infinity,
                             padding: EdgeInsets.all(12.w),
                             decoration: BoxDecoration(
-                              color: _selectedRecipient == null
-                                  ? Colors.white
-                                  : Color(0xFFFFF4EE),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+                              ),
                               border: Border.all(
                                 color: Colors.orange.shade300,
                                 width: 2.w,
                               ),
                               borderRadius: BorderRadius.circular(10.r),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: Row(
                               children: [
                                 CircleAvatar(
                                   radius: 26.r,
-                                  backgroundColor: Colors.orange.shade300,
-                                  foregroundColor: Colors.white,
+
                                   child: Text(
                                     _selectedRecipient == null
                                         ? '?'
@@ -482,12 +481,21 @@ query CareRecipients {
                             width: double.infinity,
                             padding: EdgeInsets.all(12.w),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(
-                                color: Colors.grey.shade300,
-                                width: 1.w,
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
                               ),
-                              borderRadius: BorderRadius.circular(8.r),
+                              border: Border.all(
+                                color: Colors.orange.shade300,
+                                width: 2.w,
+                              ),
+
+                              borderRadius: BorderRadius.circular(12.w),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.orange.withOpacity(0.25),
+                                  blurRadius: 14,
+                                ),
+                              ],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

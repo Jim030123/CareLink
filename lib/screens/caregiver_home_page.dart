@@ -115,13 +115,25 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
                       onTapDown: (_) => setState(() => _avatarPressed = true),
                       onTapCancel: () => setState(() => _avatarPressed = false),
                       onTapUp: (_) => setState(() => _avatarPressed = false),
-                      onTap: () => context.push('/profile'),
-                      child: CircleAvatar(
-                        radius: 20.r,
-                        backgroundImage: const NetworkImage(
-                          'https://i.pravatar.cc/150?img=3',
-                        ),
-                      ),
+                          onTap: () => context.push('/profile'),
+                          child: Padding(
+                            padding: EdgeInsets.all(4.r),
+                            child: CircleAvatar(
+                              radius: 20.r,
+                              child: Text(
+                                (_displayName ?? '')
+                                    .split(' ')
+                                    .map((s) => s.isNotEmpty ? s[0] : '')
+                                    .take(2)
+                                    .join(),
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+
                     ),
                   ),
                   SizedBox(width: 8.w),

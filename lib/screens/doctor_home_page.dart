@@ -147,8 +147,16 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
                             padding: EdgeInsets.all(4.r),
                             child: CircleAvatar(
                               radius: 20.r,
-                              backgroundImage: const NetworkImage(
-                                'https://i.pravatar.cc/150?img=3',
+                              child: Text(
+                                (_displayName ?? '')
+                                    .split(' ')
+                                    .map((s) => s.isNotEmpty ? s[0] : '')
+                                    .take(2)
+                                    .join(),
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
