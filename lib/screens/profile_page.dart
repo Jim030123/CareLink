@@ -1405,150 +1405,69 @@ mutation InsertAvailability(
                                                                     ),
                                                                   ),
 
-                                                                  // Time pickers in middle (disabled when day is off)
-                                                                  AbsorbPointer(
-                                                                    absorbing:
-                                                                        item['enabled'] !=
-                                                                        true,
-                                                                    child: Row(
+                                                                  // Show time pickers only when the day is enabled.
+                                                                  if (item['enabled'] == true)
+                                                                    Row(
                                                                       mainAxisSize:
                                                                           MainAxisSize
                                                                               .min,
                                                                       children: [
                                                                         TextButton(
-                                                                          style:
-                                                                              item['enabled'] ==
-                                                                                  true
-                                                                              ? null
-                                                                              : TextButton.styleFrom(
-                                                                                  foregroundColor: Colors.grey,
-                                                                                ),
                                                                           onPressed:
-                                                                              item['enabled'] ==
-                                                                                  true
-                                                                              ? () async {
-                                                                                  final picked = await showTimePicker(
-                                                                                    context: ctx,
-                                                                                    initialTime: startTod,
-                                                                                  );
-                                                                                  if (picked !=
-                                                                                      null) {
-                                                                                    if (!_isAllowed(
-                                                                                      picked,
-                                                                                    )) {
-                                                                                      setStateLocal(
-                                                                                        () => errors[i] = 'Time must be between 00:00 and 23:59',
-                                                                                      );
-                                                                                    } else {
-                                                                                      setStateLocal(
-                                                                                        () {
-                                                                                          item['start'] = _format(
-                                                                                            picked,
-                                                                                          );
-                                                                                          final currentEnd = _parseTime(
-                                                                                            item['end'] ??
-                                                                                                '00:00',
-                                                                                          );
-                                                                                          if (_toMinutes(
-                                                                                                _parseTime(
-                                                                                                  item['start'] ??
-                                                                                                      '00:00',
-                                                                                                ),
-                                                                                              ) <
-                                                                                              _toMinutes(
-                                                                                                currentEnd,
-                                                                                              )) {
-                                                                                            errors[i] = null;
-                                                                                          }
-                                                                                        },
-                                                                                      );
-                                                                                    }
+                                                                              () async {
+                                                                            final picked = await showTimePicker(
+                                                                              context: ctx,
+                                                                              initialTime: startTod,
+                                                                            );
+                                                                            if (picked != null) {
+                                                                              if (!_isAllowed(picked)) {
+                                                                                setStateLocal(() => errors[i] = 'Time must be between 00:00 and 23:59');
+                                                                              } else {
+                                                                                setStateLocal(() {
+                                                                                  item['start'] = _format(picked);
+                                                                                  final currentEnd = _parseTime(item['end'] ?? '00:00');
+                                                                                  if (_toMinutes(_parseTime(item['start'] ?? '00:00')) < _toMinutes(currentEnd)) {
+                                                                                    errors[i] = null;
                                                                                   }
-                                                                                }
-                                                                              : null,
+                                                                                });
+                                                                              }
+                                                                            }
+                                                                          },
                                                                           child: Text(
-                                                                            TimeOfDay(
-                                                                              hour: startTod.hour,
-                                                                              minute: startTod.minute,
-                                                                            ).format(
-                                                                              ctx,
-                                                                            ),
+                                                                            TimeOfDay(hour: startTod.hour, minute: startTod.minute).format(ctx),
                                                                           ),
                                                                         ),
-                                                                        Text(
-                                                                          ' - ',
-                                                                          style: TextStyle(
-                                                                            color:
-                                                                                item['enabled'] ==
-                                                                                    true
-                                                                                ? null
-                                                                                : Colors.grey,
-                                                                          ),
-                                                                        ),
+                                                                        Text(' - '),
                                                                         TextButton(
-                                                                          style:
-                                                                              item['enabled'] ==
-                                                                                  true
-                                                                              ? null
-                                                                              : TextButton.styleFrom(
-                                                                                  foregroundColor: Colors.grey,
-                                                                                ),
-                                                                          onPressed:
-                                                                              item['enabled'] ==
-                                                                                  true
-                                                                              ? () async {
-                                                                                  final picked = await showTimePicker(
-                                                                                    context: ctx,
-                                                                                    initialTime: endTod,
-                                                                                  );
-                                                                                  if (picked !=
-                                                                                      null) {
-                                                                                    if (!_isAllowed(
-                                                                                      picked,
-                                                                                    )) {
-                                                                                      setStateLocal(
-                                                                                        () => errors[i] = 'Time must be between 00:00 and 23:59',
-                                                                                      );
-                                                                                    } else {
-                                                                                      final currentStart = _parseTime(
-                                                                                        item['start'] ??
-                                                                                            '00:00',
-                                                                                      );
-                                                                                      if (_toMinutes(
-                                                                                            currentStart,
-                                                                                          ) >=
-                                                                                          _toMinutes(
-                                                                                            picked,
-                                                                                          )) {
-                                                                                        setStateLocal(
-                                                                                          () => errors[i] = '${item['day']}: end must be after start',
-                                                                                        );
-                                                                                      } else {
-                                                                                        setStateLocal(
-                                                                                          () {
-                                                                                            item['end'] = _format(
-                                                                                              picked,
-                                                                                            );
-                                                                                            errors[i] = null;
-                                                                                          },
-                                                                                        );
-                                                                                      }
-                                                                                    }
-                                                                                  }
+                                                                          onPressed: () async {
+                                                                            final picked = await showTimePicker(
+                                                                              context: ctx,
+                                                                              initialTime: endTod,
+                                                                            );
+                                                                            if (picked != null) {
+                                                                              if (!_isAllowed(picked)) {
+                                                                                setStateLocal(() => errors[i] = 'Time must be between 00:00 and 23:59');
+                                                                              } else {
+                                                                                final currentStart = _parseTime(item['start'] ?? '00:00');
+                                                                                if (_toMinutes(currentStart) >= _toMinutes(picked)) {
+                                                                                  setStateLocal(() => errors[i] = '${item['day']}: end must be after start');
+                                                                                } else {
+                                                                                  setStateLocal(() {
+                                                                                    item['end'] = _format(picked);
+                                                                                    errors[i] = null;
+                                                                                  });
                                                                                 }
-                                                                              : null,
+                                                                              }
+                                                                            }
+                                                                          },
                                                                           child: Text(
-                                                                            TimeOfDay(
-                                                                              hour: endTod.hour,
-                                                                              minute: endTod.minute,
-                                                                            ).format(
-                                                                              ctx,
-                                                                            ),
+                                                                            TimeOfDay(hour: endTod.hour, minute: endTod.minute).format(ctx),
                                                                           ),
                                                                         ),
                                                                       ],
-                                                                    ),
-                                                                  ),
+                                                                    )
+                                                                  else
+                                                                    SizedBox.shrink(),
 
                                                                   // Switch at the end
                                                                   SizedBox(

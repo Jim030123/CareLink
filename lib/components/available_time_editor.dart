@@ -67,61 +67,55 @@ class AvailableTimeEditor extends StatelessWidget {
                           child: Row(
                             children: [
                               Expanded(child: Text(item['day'] ?? 'Day', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w500))),
-                              AbsorbPointer(
-                                absorbing: item['enabled'] != true,
-                                child: Row(
+                              if (item['enabled'] == true)
+                                Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     TextButton(
-                                      style: item['enabled'] == true ? null : TextButton.styleFrom(foregroundColor: Colors.grey),
-                                      onPressed: item['enabled'] == true
-                                          ? () async {
-                                              final picked = await showTimePicker(context: context, initialTime: startTod);
-                                              if (picked != null) {
-                                                if (!_isAllowed(picked)) {
-                                                  setStateLocal(() => errors[i] = 'Time must be between 00:00 and 23:59');
-                                                } else {
-                                                  setStateLocal(() {
-                                                    item['start'] = _format(picked);
-                                                    final currentEnd = _parseTime(item['end'] ?? '00:00');
-                                                    if (_toMinutes(_parseTime(item['start'] ?? '00:00')) < _toMinutes(currentEnd)) {
-                                                      errors[i] = null;
-                                                    }
-                                                  });
-                                                }
+                                      onPressed: () async {
+                                        final picked = await showTimePicker(context: context, initialTime: startTod);
+                                        if (picked != null) {
+                                          if (!_isAllowed(picked)) {
+                                            setStateLocal(() => errors[i] = 'Time must be between 00:00 and 23:59');
+                                          } else {
+                                            setStateLocal(() {
+                                              item['start'] = _format(picked);
+                                              final currentEnd = _parseTime(item['end'] ?? '00:00');
+                                              if (_toMinutes(_parseTime(item['start'] ?? '00:00')) < _toMinutes(currentEnd)) {
+                                                errors[i] = null;
                                               }
-                                            }
-                                          : null,
+                                            });
+                                          }
+                                        }
+                                      },
                                       child: Text(TimeOfDay(hour: startTod.hour, minute: startTod.minute).format(context)),
                                     ),
-                                    Text(' - ', style: TextStyle(color: item['enabled'] == true ? null : Colors.grey)),
+                                    Text(' - '),
                                     TextButton(
-                                      style: item['enabled'] == true ? null : TextButton.styleFrom(foregroundColor: Colors.grey),
-                                      onPressed: item['enabled'] == true
-                                          ? () async {
-                                              final picked = await showTimePicker(context: context, initialTime: endTod);
-                                              if (picked != null) {
-                                                if (!_isAllowed(picked)) {
-                                                  setStateLocal(() => errors[i] = 'Time must be between 00:00 and 23:59');
-                                                } else {
-                                                  final currentStart = _parseTime(item['start'] ?? '00:00');
-                                                  if (_toMinutes(currentStart) >= _toMinutes(picked)) {
-                                                    setStateLocal(() => errors[i] = '${item['day']}: end must be after start');
-                                                  } else {
-                                                    setStateLocal(() {
-                                                      item['end'] = _format(picked);
-                                                      errors[i] = null;
-                                                    });
-                                                  }
-                                                }
-                                              }
+                                      onPressed: () async {
+                                        final picked = await showTimePicker(context: context, initialTime: endTod);
+                                        if (picked != null) {
+                                          if (!_isAllowed(picked)) {
+                                            setStateLocal(() => errors[i] = 'Time must be between 00:00 and 23:59');
+                                          } else {
+                                            final currentStart = _parseTime(item['start'] ?? '00:00');
+                                            if (_toMinutes(currentStart) >= _toMinutes(picked)) {
+                                              setStateLocal(() => errors[i] = '${item['day']}: end must be after start');
+                                            } else {
+                                              setStateLocal(() {
+                                                item['end'] = _format(picked);
+                                                errors[i] = null;
+                                              });
                                             }
-                                          : null,
+                                          }
+                                        }
+                                      },
                                       child: Text(TimeOfDay(hour: endTod.hour, minute: endTod.minute).format(context)),
                                     ),
                                   ],
-                                ),
-                              ),
+                                )
+                              else
+                                SizedBox.shrink(),
                               SizedBox(width: 8.w),
                               Switch(
                                 value: item['enabled'] == true,
