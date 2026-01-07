@@ -1136,6 +1136,12 @@ mutation InsertAvailability(
                                 leading: Icon(Icons.access_time),
                                 title: Text('Available Time'),
                                 onTap: () async {
+                                  // Create the future once so the FutureBuilder inside the
+                                  // modal doesn't re-run every time the sheet rebuilds
+                                  // (e.g. during list scrolling). This prevents repeated
+                                  // loads of available_times while the user scrolls.
+                                  final timesFuture = _readAvailableTimes();
+
                                   showModalBottomSheet(
                                     context: context,
                                     isScrollControlled: true,
@@ -1152,7 +1158,7 @@ mutation InsertAvailability(
                                           ).viewInsets.bottom,
                                         ),
                                         child: FutureBuilder<List<Map<String, dynamic>>>(
-                                          future: _readAvailableTimes(),
+                                          future: timesFuture,
                                           builder: (fctx, snap) {
                                             if (!snap.hasData) {
                                               return SizedBox(
@@ -1470,51 +1476,30 @@ mutation InsertAvailability(
                                                                     SizedBox.shrink(),
 
                                                                   // Switch at the end
-                                                                  SizedBox(
-                                                                    width: 8.w,
-                                                                  ),
-                                                                  Switch(
-                                                                    value:
-                                                                        item['enabled'] ==
-                                                                        true,
-                                                                    onChanged: (v) => setStateLocal(() {
-                                                                      item['enabled'] =
-                                                                          v;
-                                                                      errors[i] =
-                                                                          null;
-                                                                      if (v ==
-                                                                          true) {
-                                                                        final s =
-                                                                            (item['start'] ??
-                                                                                    '00:00')
-                                                                                .toString();
-                                                                        final e =
-                                                                            (item['end'] ??
-                                                                                    '00:00')
-                                                                                .toString();
-                                                                        final startMin = _toMinutes(
-                                                                          _parseTime(
-                                                                            s,
-                                                                          ),
-                                                                        );
-                                                                        final endMin = _toMinutes(
-                                                                          _parseTime(
-                                                                            e,
-                                                                          ),
-                                                                        );
-                                                                        if ((s ==
-                                                                                    '00:00' &&
-                                                                                e ==
-                                                                                    '00:00') ||
-                                                                            startMin >=
-                                                                                endMin) {
-                                                                          item['start'] =
-                                                                              '09:00';
-                                                                          item['end'] =
-                                                                              '17:00';
+                                                                  SizedBox(width: 8.w),
+                                                                  GestureDetector(
+                                                                    behavior: HitTestBehavior.translucent,
+                                                                    onTap: () => setStateLocal(() {
+                                                                      final v = !(item['enabled'] == true);
+                                                                      item['enabled'] = v;
+                                                                      errors[i] = null;
+                                                                      if (v == true) {
+                                                                        final s = (item['start'] ?? '00:00').toString();
+                                                                        final e = (item['end'] ?? '00:00').toString();
+                                                                        final startMin = _toMinutes(_parseTime(s));
+                                                                        final endMin = _toMinutes(_parseTime(e));
+                                                                        if ((s == '00:00' && e == '00:00') || startMin >= endMin) {
+                                                                          item['start'] = '09:00';
+                                                                          item['end'] = '17:00';
                                                                         }
                                                                       }
                                                                     }),
+                                                                    child: IgnorePointer(
+                                                                      child: Switch(
+                                                                        value: item['enabled'] == true,
+                                                                        onChanged: (_) {},
+                                                                      ),
+                                                                    ),
                                                                   ),
                                                                 ],
                                                               ),
