@@ -12,6 +12,7 @@ import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/secure_auth.dart';
+import 'package:carelink_mobile/utils/day_convert.dart';
 import 'package:carelink_mobile/components/available_time_editor.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -43,6 +44,8 @@ class _ProfilePageState extends State<ProfilePage> {
           user.displayName ??
           (user.email != null ? user.email!.split('@').first : _name);
     }
+    // Attempt to load backend profile (may contain canonical email/displayName)
+    _loadProfileFromBackend();
     _localNotifications = FlutterLocalNotificationsPlugin();
     _initLocalNotifications();
     _loadNotificationSettings();
@@ -50,6 +53,24 @@ class _ProfilePageState extends State<ProfilePage> {
     _loadUserRole().whenComplete(
       () => _restoreAvailabilitiesFromServerIfNeeded(),
     );
+  }
+
+  Future<void> _loadProfileFromBackend() async {
+    try {
+      final fbUser = FirebaseAuth.instance.currentUser;
+      if (fbUser == null) return;
+      final backendUser = await fetchUserByUid(fbUser.uid);
+      if (backendUser == null) return;
+      final beEmail = backendUser['email']?.toString();
+      final beName = backendUser['displayName']?.toString();
+      if (mounted) {
+        setState(() {
+          if (beEmail != null && beEmail.isNotEmpty) _email = beEmail;
+          if (beName != null && beName.isNotEmpty)
+            _name = beName;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _restoreAvailabilitiesFromServerIfNeeded() async {
@@ -107,46 +128,7 @@ query GetActiveAvailabilities($doctorId: String!) {
           [];
       // Normalize server rows: store numeric day strings '1'..'7' so
       // local merging/fallback logic can handle them reliably.
-      int? _dayToInt(dynamic d) {
-        if (d == null) return null;
-        if (d is int) return (d >= 1 && d <= 7) ? d : null;
-        final s = d.toString().trim();
-        final p = int.tryParse(s);
-        if (p != null && p >= 1 && p <= 7) return p;
-        final lower = s.toLowerCase();
-        switch (lower) {
-          case 'monday':
-          case 'mon':
-          case 'm':
-            return 1;
-          case 'tuesday':
-          case 'tue':
-          case 't':
-            return 2;
-          case 'wednesday':
-          case 'wed':
-          case 'w':
-            return 3;
-          case 'thursday':
-          case 'thu':
-          case 'th':
-            return 4;
-          case 'friday':
-          case 'fri':
-          case 'f':
-            return 5;
-          case 'saturday':
-          case 'sat':
-          case 'sa':
-            return 6;
-          case 'sunday':
-          case 'sun':
-          case 'su':
-            return 7;
-          default:
-            return null;
-        }
-      }
+      // Use DayConvert.toInt to normalize day values
 
       String _formatHour(dynamic h) {
         if (h == null) return '00:00';
@@ -156,7 +138,7 @@ query GetActiveAvailabilities($doctorId: String!) {
 
       final mapped = rows
           .map((r) {
-            final day = _dayToInt(r['dayOfWeek']);
+            final day = DayConvert.toInt(r['dayOfWeek']);
             if (day == null) {
               debugPrint(
                 'restoreAvailabilities: skipping row with null/invalid dayOfWeek: ${r}',
@@ -241,46 +223,7 @@ query GetActiveAvailabilities($doctorId: String!) {
       {'dayOfWeek': '7', 'enabled': true, 'start': '08:00', 'end': '17:00'},
     ];
 
-    int? _dayToNumber(dynamic d) {
-      if (d == null) return null;
-      if (d is int) return (d >= 1 && d <= 7) ? d : null;
-      final s = d.toString().trim();
-      final p = int.tryParse(s);
-      if (p != null && p >= 1 && p <= 7) return p;
-      final lower = s.toLowerCase();
-      switch (lower) {
-        case 'monday':
-        case 'mon':
-        case 'm':
-          return 1;
-        case 'tuesday':
-        case 'tue':
-        case 't':
-          return 2;
-        case 'wednesday':
-        case 'wed':
-        case 'w':
-          return 3;
-        case 'thursday':
-        case 'thu':
-        case 'th':
-          return 4;
-        case 'friday':
-        case 'fri':
-        case 'f':
-          return 5;
-        case 'saturday':
-        case 'sat':
-        case 'sa':
-          return 6;
-        case 'sunday':
-        case 'sun':
-        case 'su':
-          return 7;
-        default:
-          return null;
-      }
-    }
+    // Use DayConvert.toInt to normalize day values
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -294,7 +237,7 @@ query GetActiveAvailabilities($doctorId: String!) {
       // Build a map keyed by numeric day string '1'..'7'
       final Map<String, Map<String, dynamic>> dayMap = {};
       for (var e in parsedList) {
-        final dn = _dayToNumber(e['dayOfWeek']);
+        final dn = DayConvert.toInt(e['dayOfWeek']);
         if (dn == null) continue;
         final key = dn.toString();
         dayMap[key] = {
@@ -523,46 +466,7 @@ query GetActiveAvailabilities($doctorId: String!) {
     final uuid = const Uuid();
 
     /// ---------- helpers ----------
-    String _safeDay(dynamic v, int index) {
-      if (v == null) return (index + 1).toString();
-      final s = v.toString().trim().toLowerCase();
-
-      final p = int.tryParse(s);
-      if (p != null && p >= 1 && p <= 7) return p.toString();
-
-      switch (s) {
-        case 'monday':
-        case 'mon':
-        case 'm':
-          return '1';
-        case 'tuesday':
-        case 'tue':
-        case 't':
-          return '2';
-        case 'wednesday':
-        case 'wed':
-        case 'w':
-          return '3';
-        case 'thursday':
-        case 'thu':
-        case 'th':
-          return '4';
-        case 'friday':
-        case 'fri':
-        case 'f':
-          return '5';
-        case 'saturday':
-        case 'sat':
-        case 'sa':
-          return '6';
-        case 'sunday':
-        case 'sun':
-        case 'su':
-          return '7';
-        default:
-          return (index + 1).toString();
-      }
-    }
+    // Use DayConvert.safeString to produce a numeric day string with fallback
 
     int? _hourFloor(dynamic v) {
       if (v == null) return null;
@@ -584,7 +488,7 @@ query GetActiveAvailabilities($doctorId: String!) {
       rawObjects.add({
         'availabilityId': uuid.v4(),
         'doctorId': doctorId,
-        'dayOfWeek': _safeDay(t['dayOfWeek'], i),
+        'dayOfWeek': DayConvert.safeString(t['dayOfWeek'], i),
         'startHour': t['start'],
         'endHour': t['end'],
         'isActive': t['enabled'] == true,

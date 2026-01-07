@@ -1,7 +1,10 @@
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
+import 'package:carelink_mobile/utils/day_convert.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 
@@ -94,15 +97,15 @@ query CareRecipients {
               as List<dynamic>?) ??
           [];
       final Map<int, Set<int>> byDay = {};
-      for (var r in rows) {
+          for (var r in rows) {
         try {
           if (r['isActive'] != true) continue;
           final d = r['dayOfWeek'];
           final s = r['startHour'];
           final e = r['endHour'];
-          final day = d is int ? d : int.tryParse(d?.toString() ?? '0');
-          final sH = s is int ? s : int.tryParse(s?.toString() ?? '0');
-          final eH = e is int ? e : int.tryParse(e?.toString() ?? '0');
+              final day = DayConvert.toInt(d);
+              final sH = s is int ? s : int.tryParse(s?.toString() ?? '0');
+              final eH = e is int ? e : int.tryParse(e?.toString() ?? '0');
           if (day == null || sH == null || eH == null) continue;
           final start = sH.clamp(0, 23);
           final end = eH.clamp(0, 24);
@@ -121,6 +124,49 @@ query CareRecipients {
     } catch (e) {
       debugPrint('fetchDoctorAvailabilities exception: $e');
     }
+  }
+
+  // Compute available hour slots for a given weekday (1=Mon..7=Sun).
+  // Preference order: local SharedPreferences `available_times` ->
+  // server-fetched `_availabilitiesByDay` -> default 08..16 slots.
+  Future<List<int>> _hoursForWeekday(int weekday) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('available_times');
+      if (raw != null && raw.isNotEmpty) {
+        final parsed = jsonDecode(raw) as List<dynamic>;
+        for (var e in parsed) {
+          try {
+            final map = Map<String, dynamic>.from(e as Map);
+            final dn = DayConvert.toInt(map['dayOfWeek']);
+            if (dn != null && dn == weekday) {
+              final enabled = map['enabled'] == true;
+              if (!enabled) return <int>[];
+              final startStr = (map['start'] ?? '08:00').toString();
+              final endStr = (map['end'] ?? '17:00').toString();
+              final s = int.tryParse(startStr.split(':').first) ?? 8;
+              final en = int.tryParse(endStr.split(':').first) ?? 17;
+              final start = s.clamp(0, 23);
+              final end = en.clamp(0, 24);
+              final slots = <int>[];
+              for (var h = start; h < end; h++) slots.add(h);
+              return slots;
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
+    // Fall back to server-provided availabilities
+    if (_availabilitiesByDay.containsKey(weekday) &&
+        _availabilitiesByDay[weekday]!.isNotEmpty) {
+      return _availabilitiesByDay[weekday]!.toList()..sort();
+    }
+
+    // No default fallback: if neither local prefs nor server provide
+    // availability for this weekday, return an empty list to indicate
+    // the day has no available slots.
+    return <int>[];
   }
 
   void _showRecipientSelector(BuildContext context) async {
@@ -206,6 +252,9 @@ query CareRecipients {
     );
     if (date == null) return;
 
+    final weekday = date.weekday; // 1=Mon .. 7=Sun
+    final hours = await _hoursForWeekday(weekday);
+
     final selected = await showModalBottomSheet<List<int>>(
       context: context,
       isScrollControlled: true,
@@ -213,16 +262,7 @@ query CareRecipients {
         borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
       ),
       builder: (ctx) {
-        // Determine available hours for the selected date's weekday.
-        final weekday = date.weekday; // 1=Mon .. 7=Sun
-        List<int> hours;
-        if (_availabilitiesByDay.containsKey(weekday) &&
-            _availabilitiesByDay[weekday]!.isNotEmpty) {
-          hours = _availabilitiesByDay[weekday]!.toList()..sort();
-        } else {
-          // fallback default slots: 08:00 - 17:00 -> show 08..16 as slots
-          hours = List<int>.generate(9, (i) => 8 + i); // 8..16
-        }
+        // `hours` is captured from outer scope (computed above).
         final key =
             '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
         final selectedSet = <int>{...(_selectedSlots[key] ?? <int>[])};
@@ -247,26 +287,40 @@ query CareRecipients {
                     ),
                   ),
                   SizedBox(height: 8.h),
-                  Wrap(
-                    spacing: 8.w,
-                    runSpacing: 8.h,
-                    children: hours.map((h) {
-                      final label = '${h.toString().padLeft(2, '0')}:00';
-                      final isSelected = selectedSet.contains(h);
-                      return ChoiceChip(
-                        label: Text(label),
-                        selected: isSelected,
-                        onSelected: (v) {
-                          setStateSB(() {
-                            if (v)
-                              selectedSet.add(h);
-                            else
-                              selectedSet.remove(h);
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
+                  if (hours.isEmpty)
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.h),
+                      child: Center(
+                        child: Text(
+                          'No available slots for this date',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8.w,
+                      runSpacing: 8.h,
+                      children: hours.map((h) {
+                        final label = '${h.toString().padLeft(2, '0')}:00';
+                        final isSelected = selectedSet.contains(h);
+                        return ChoiceChip(
+                          label: Text(label),
+                          selected: isSelected,
+                          onSelected: (v) {
+                            setStateSB(() {
+                              if (v)
+                                selectedSet.add(h);
+                              else
+                                selectedSet.remove(h);
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
                   SizedBox(height: 12.h),
                   Row(
                     children: [
@@ -279,9 +333,11 @@ query CareRecipients {
                       SizedBox(width: 8.w),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () => Navigator.of(
-                            ctx,
-                          ).pop(selectedSet.toList()..sort()),
+                          onPressed: (hours.isNotEmpty && selectedSet.isNotEmpty)
+                              ? () => Navigator.of(
+                                    ctx,
+                                  ).pop(selectedSet.toList()..sort())
+                              : null,
                           child: Text('Confirm'),
                         ),
                       ),
