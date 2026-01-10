@@ -40,15 +40,6 @@ query CareRecipients {
 }
 ''';
 
-  static const String appointmentsByDateHoursQuery = r'''
-    query AppointmentsByDateHours($date: String!, $doctorId: ID) {
-      appointments_by_date_hours(date: $date, doctorId: $doctorId) {
-        hour
-        appointments { appointmentId appointmentStart appointmentEnd title status purpose }
-      }
-    }
-  ''';
-
   Future<List<Map<String, String>>> fetchCareRecipients() async {
     try {
       final client = createClient();
@@ -274,211 +265,232 @@ query CareRecipients {
     );
   }
 
- Future<void> _pickDateTime(BuildContext context) async {
-  final date = await showDatePicker(
-    context: context,
-    initialDate: _selectedDate ?? DateTime.now(),
-    firstDate: DateTime.now().subtract(const Duration(days: 365)),
-    lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-  );
-  if (date == null) return;
+  Future<void> _pickDateTime(BuildContext context) async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(Duration(days: 365)),
+      lastDate: DateTime.now().add(Duration(days: 365 * 5)),
+    );
+    if (date == null) return;
 
-  final weekday = date.weekday; // 1 = Mon ... 7 = Sun
-  var hours = await _hoursForWeekday(weekday);
+    final weekday = date.weekday; // 1=Mon .. 7=Sun
 
-  // -------------------------------
-  // STEP 1: fetch blocked hours
-  // -------------------------------
-  final Set<int> blockedHours = <int>{};
-
-  try {
+    // Resolve doctorId first so we can fetch that doctor's weekly availabilities
     String? doctorIdLocal = widget.doctorId;
-
     if (doctorIdLocal == null) {
       final uid = AuthService.instance.currentUser?.uid;
       if (uid != null) {
         final fetched = await fetchUserIdByUid(uid);
-        if (fetched != null && fetched.isNotEmpty) {
-          doctorIdLocal = fetched;
-        }
+        if (fetched != null && fetched.isNotEmpty) doctorIdLocal = fetched;
       }
     }
 
-    final dateKey =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-    final client = createClient();
-    final res = await client.query(
-      QueryOptions(
-        document: gql(appointmentsByDateHoursQuery),
-        variables: {
-          'date': dateKey,
-          'doctorId': doctorIdLocal,
-        },
-        fetchPolicy: FetchPolicy.networkOnly,
-      ),
-    );
-
-    if (!res.hasException) {
-      final buckets =
-          (res.data?['appointments_by_date_hours'] as List<dynamic>?) ?? [];
-
-      for (final b in buckets) {
-        final rawHour = b['hour'];
-        final int? h =
-            rawHour is int ? rawHour : int.tryParse(rawHour.toString());
-
-        if (h == null) continue;
-
-        final apps = (b['appointments'] as List<dynamic>?) ?? [];
-
-        final hasBlocking = apps.any((a) {
-          final st = (a['status'] ?? '').toString().toLowerCase();
-          return st == 'pending' || st == 'approved';
-        });
-
-        if (hasBlocking) {
-          blockedHours.add(h);
-        }
-      }
-    } else {
-      debugPrint('appointments_by_date_hours error: ${res.exception}');
+    // If we have a doctorId, fetch their weekly availabilities so
+    // `_hoursForWeekday` can use them as a source of truth.
+    if (doctorIdLocal != null && doctorIdLocal.isNotEmpty) {
+      await _fetchDoctorAvailabilities(doctorIdLocal);
     }
-  } catch (e) {
-    debugPrint('Failed to fetch blocked hours: $e');
+
+    // Now compute available hours (prefers local prefs -> server availabilities)
+    var hours = await _hoursForWeekday(weekday);
+
+    // Fetch appointments for this date to determine blocked hours (by doctor)
+    Set<int> blockedHours = <int>{};
+    try {
+
+      final clientForAppts = createClient();
+      const apptsQuery = r'''
+        query AppointmentsByDateHours($date: String!, $doctorId: ID) {
+  appointments_by_date_hours(date: $date, doctorId: $doctorId) {
+    hour
+    appointments {
+      appointmentId
+      appointmentStart
+      appointmentEnd
+      title
+      status
+      purpose
+    }
   }
+}
 
-  // -------------------------------
-  // STEP 2: show bottom sheet
-  // -------------------------------
-  final selected = await showModalBottomSheet<List<int>>(
-    context: context,
-    isScrollControlled: true,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
-    ),
-    builder: (ctx) {
-      final key =
-          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-      final selectedSet = <int>{...(_selectedSlots[key] ?? <int>[])};
+      ''';
+      final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      final apRes = await clientForAppts.query(QueryOptions(
+        document: gql(apptsQuery),
+        variables: {'date': dateKey, 'doctorId': doctorIdLocal},
+        fetchPolicy: FetchPolicy.networkOnly,
+      ));
+      if (!apRes.hasException) {
+        final buckets = (apRes.data?['appointments_by_date_hours'] as List<dynamic>?) ?? [];
+        debugPrint('[appointments_by_date_hours] buckets: ${buckets.length}');
+        for (final b in buckets) {
+          try {
+            final rawHour = b['hour'];
+            int? h;
+            if (rawHour is int) h = rawHour;
+            else if (rawHour is String) h = int.tryParse(rawHour);
+            final apps = (b['appointments'] as List<dynamic>?) ?? [];
+            debugPrint('[appointments_by_date_hours] hour=$rawHour parsed=$h apps=${apps.length}');
+            // Only consider appointments with status 'pending' or 'approved' as blocking
+            var hasBlocking = false;
+            for (final a in apps) {
+              try {
+                final st = (a['status'] ?? '').toString().toLowerCase();
+                if (st == 'pending' || st == 'approved') {
+                  hasBlocking = true;
+                  break;
+                }
+              } catch (_) {}
+            }
+            if (h != null && hasBlocking) blockedHours.add(h);
+          } catch (e) {
+            debugPrint('Error parsing bucket: $e');
+          }
+        }
+        debugPrint('[appointments_by_date_hours] blockedHours=$blockedHours');
+      } else {
+        debugPrint('appointments_by_date_hours error: ${apRes.exception}');
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch appointments_by_date_hours: $e');
+    }
 
-      return StatefulBuilder(
-        builder: (context, setStateSB) {
-          return Padding(
-            padding: EdgeInsets.only(
-              top: 12.h,
-              left: 12.w,
-              right: 12.w,
-              bottom: 24.h,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Select Time Slots',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 8.h),
+    // Filter out hours already occupied by appointments with status 'pending' or 'complete'
+    // try {
+    //   final crId = _selectedRecipient?['id'];
+    //   if (crId != null && crId.isNotEmpty) {
+    //     final occupied = await _occupiedHoursForDate(crId, date);
+    //     if (occupied.isNotEmpty) {
+    //       hours = hours.where((h) => !occupied.contains(h)).toList();
+    //     }
+    //   }
+    // } catch (e) {
+    //   debugPrint('Failed to filter occupied hours: $e');
+    // }
 
-                if (hours.isEmpty)
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16.h),
-                    child: Center(
-                      child: Text(
-                        'No available slots for this date',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          color: Colors.black54,
-                        ),
-                      ),
+    final selected = await showModalBottomSheet<List<int>>(
+      context: context,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
+      ),
+      builder: (ctx) {
+        // `hours` is captured from outer scope (computed above).
+        final key =
+            '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+        final selectedSet = <int>{...(_selectedSlots[key] ?? <int>[])};
+        return StatefulBuilder(
+          builder: (context, setStateSB) {
+            return Padding(
+              padding: EdgeInsets.only(
+                top: 12.h,
+                left: 12.w,
+                right: 12.w,
+                bottom: 24.h,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Select Time Slots',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w600,
                     ),
-                  )
-                else
-                  Wrap(
-                    spacing: 8.w,
-                    runSpacing: 8.h,
-                    children: hours.map((h) {
-                      final label = '${h.toString().padLeft(2, '0')}:00';
-                      final isSelected = selectedSet.contains(h);
-                      final isBlocked = blockedHours.contains(h);
-
-                      return ChoiceChip(
-                        label: Text(
-                          label,
+                  ),
+                  SizedBox(height: 8.h),
+                  if (hours.isEmpty)
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.h),
+                      child: Center(
+                        child: Text(
+                          'No available slots for this date',
                           style: TextStyle(
-                            color: isBlocked ? Colors.black38 : null,
+                            fontSize: 14.sp,
+                            color: Colors.black54,
                           ),
                         ),
-                        selected: isSelected,
-                        onSelected: isBlocked
-                            ? null
-                            : (v) {
-                                setStateSB(() {
-                                  if (v) {
-                                    selectedSet.add(h);
-                                  } else {
-                                    selectedSet.remove(h);
-                                  }
-                                });
-                              },
-                        backgroundColor:
-                            isBlocked ? Colors.grey.shade200 : null,
-                      );
-                    }).toList(),
-                  ),
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8.w,
+                      runSpacing: 8.h,
+                      children: hours.map((h) {
+                        final label = '${h.toString().padLeft(2, '0')}:00';
+                        final isSelected = selectedSet.contains(h);
+                        final isBlocked = blockedHours.contains(h);
+                        return ChoiceChip(
 
-                SizedBox(height: 12.h),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                    SizedBox(width: 8.w),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed:
-                            (hours.isNotEmpty && selectedSet.isNotEmpty)
-                                ? () => Navigator.of(ctx)
-                                    .pop(selectedSet.toList()..sort())
-                                : null,
-                        child: const Text('Confirm'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
+                          label: Text(
+                            label,
+                            style: TextStyle(
+                              color: isBlocked ? Colors.black38 : null,
+                            ),
+                          ),
+                          selected: isSelected,
+                         onSelected: isBlocked
+      ? null        // ❌ 被 block → 不能点
+      : (v) {       // ✅ 没被 block → 可以点
+          setStateSB(() {
+            if (v) {
+              selectedSet.add(h);
+            } else {
+              selectedSet.remove(h);
+            }
+          });
         },
-      );
-    },
-  );
+                          backgroundColor: isBlocked ? Colors.grey.shade200 : null,
+                        );
+                      }).toList(),
+                    ),
+                  SizedBox(height: 12.h),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text('Cancel'),
+                        ),
+                      ),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed:
+                              (hours.isNotEmpty && selectedSet.isNotEmpty)
+                              ? () => Navigator.of(
+                                  ctx,
+                                ).pop(selectedSet.toList()..sort())
+                              : null,
+                          child: Text('Confirm'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
 
-  if (selected == null || selected.isEmpty) return;
+    if (selected == null || selected.isEmpty) return;
+    final key =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    setState(() {
+      final existing = _selectedSlots[key] ?? <int>[];
+      final newSet = {...existing, ...selected};
+      _selectedSlots[key] = (newSet.toList()..sort());
+      _selectedDate = date;
+    });
+  }
 
-  // -------------------------------
-  // STEP 3: save selection
-  // -------------------------------
-  final key =
-      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-  setState(() {
-    final existing = _selectedSlots[key] ?? <int>[];
-    final newSet = {...existing, ...selected};
-    _selectedSlots[key] = newSet.toList()..sort();
-    _selectedDate = date;
-  });
-}
   // Fetch appointments for given careRecipient and date and return occupied hours
-
-  Future<void> _performSave() async {
+    Future<void> _performSave() async {
     debugPrint('[_performSave] start');
     debugPrint('[_performSave] _selectedRecipient=$_selectedRecipient');
     debugPrint('[_performSave] _selectedSlots=$_selectedSlots');
@@ -601,57 +613,6 @@ query CareRecipients {
     }
   }
 
-  Widget _buildAppointmentsListWidget() {
-    if (_selectedDate == null) return SizedBox.shrink();
-    final dateKey = '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}';
-    return Container(
-      padding: EdgeInsets.only(top: 12.h, bottom: 6.h),
-      child: Query(
-        options: QueryOptions(
-          document: gql(appointmentsByDateHoursQuery),
-          variables: {'date': dateKey, 'doctorId': widget.doctorId},
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-        builder: (QueryResult result, {fetchMore, refetch}) {
-          if (result.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (result.hasException) {
-            return Text(result.exception.toString());
-          }
-          final List data = result.data?['appointments_by_date_hours'] as List? ?? [];
-          if (data.isEmpty) return const Text('No appointments');
-          return ListView.builder(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            itemCount: data.length,
-            itemBuilder: (context, index) {
-              final hourGroup = data[index];
-              final int hour = hourGroup['hour'] is int
-                  ? hourGroup['hour']
-                  : int.tryParse(hourGroup['hour'].toString()) ?? 0;
-              final List appointments = (hourGroup['appointments'] as List?) ?? [];
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$hour:00',
-                    style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
-                  ),
-                  ...appointments.map((a) => ListTile(
-                        title: Text(a['title'] ?? ''),
-                        subtitle: Text('${a['appointmentStart']} → ${a['appointmentEnd']}'),
-                      )),
-                  const Divider(),
-                ],
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -674,7 +635,6 @@ query CareRecipients {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(height: 8.h),
                         // Care recipient selector
                         Text(
                           'Care Recipient',
@@ -799,8 +759,6 @@ query CareRecipients {
                             contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
                           ),
                         ),
-
-                        if (_selectedDate != null) _buildAppointmentsListWidget(),
 
                         SizedBox(height: 12.h),
 

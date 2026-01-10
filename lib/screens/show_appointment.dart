@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:carelink_mobile/utils/graphql_service.dart';
+import 'package:carelink_mobile/utils/user_service.dart';
+import 'package:carelink_mobile/utils/auth_service.dart';
+import 'package:intl/intl.dart' as intl;
 
 class Appointment {
   final DateTime date;
@@ -11,6 +17,9 @@ class Appointment {
   final String leftLabel;
   final String centerLabel;
   final String rightLabel;
+  final String doctorId;
+  final String careRecipientId;
+  final String caregiverId;
 
   Appointment({
     required this.date,
@@ -19,6 +28,9 @@ class Appointment {
     required this.leftLabel,
     required this.centerLabel,
     required this.rightLabel,
+    this.doctorId = '',
+    this.careRecipientId = '',
+    this.caregiverId = '',
   });
 }
 
@@ -33,6 +45,8 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   late List<Appointment> _appointments;
+  bool _isLoadingAppointments = false;
+  String? _storedRole;
   bool _showInlineSearch = false;
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
@@ -41,49 +55,431 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
   void initState() {
     super.initState();
     _selectedDay = DateTime.now();
-    // sample appointments; in real app this would come from backend
+    // debug: start with a few hardcoded appointments so the UI shows data
+    final today = DateTime.now();
     _appointments = [
-
-        Appointment(
-        date: DateTime.now().subtract(Duration(days: 2)),
+      Appointment(
+        date: DateTime(today.year, today.month, today.day),
         title: 'Medication Review',
         time: '09:30 AM',
         leftLabel: 'Dr Lim',
         centerLabel: 'Medication Review',
         rightLabel: 'John Doe',
+        doctorId: 'DOC-001',
+        careRecipientId: 'CR-071',
+        caregiverId: 'CG-001',
       ),
       Appointment(
-        date: DateTime.now().subtract(Duration(days: 10)),
-        title: 'Follow-up Appointment',
-        time: '11:02 PM',
+        date: DateTime(today.year, today.month, today.day),
+        title: 'Follow-up',
+        time: '11:00 AM',
         leftLabel: 'Dr Ng',
-        centerLabel: 'Follow-up Appointment',
-        rightLabel: 'Ng Ying Qi',
+        centerLabel: 'Follow-up',
+        rightLabel: 'Alice Tan',
+        doctorId: 'DOC-002',
+        careRecipientId: 'CR-072',
+        caregiverId: 'CG-002',
       ),
       Appointment(
-        date: DateTime.now().add(Duration(days: 2)),
-        title: 'Medication Review',
-        time: '09:30 AM',
-        leftLabel: 'Dr Lim',
-        centerLabel: 'Medication Review',
-        rightLabel: 'John Doe',
-      ),
-
-       Appointment(
-        date: DateTime.now().add(Duration(days: 2)),
-        title: 'Medication Review',
-        time: '09:30 AM',
-        leftLabel: 'Dr Lim',
-        centerLabel: 'Medication Review',
-        rightLabel: 'John Doe',
+        date: DateTime(today.year, today.month, today.day + 2),
+        title: 'Consultation',
+        time: '02:00 PM',
+        leftLabel: 'Dr Lee',
+        centerLabel: 'Consultation',
+        rightLabel: 'Bob Lim',
+        doctorId: 'DOC-003',
+        careRecipientId: 'CR-073',
+        caregiverId: 'CG-003',
       ),
     ];
+    _loadStoredRole();
   }
   @override
   void dispose() {
     _searchCtrl.dispose();
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadStoredRole() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final r = prefs.getString('role');
+      setState(() {
+        _storedRole = r;
+      });
+      // after loading role, fetch appointments for the currently selected day
+      // NOTE: when debugging with hardcoded appointments we don't want the
+      // backend fetch to immediately overwrite them. Comment out to keep
+      // the hardcoded data visible.
+      await _retrieveAppointments(date: _selectedDay);
+    } catch (_) {}
+  }
+
+  Future<void> _retrieveAppointments({DateTime? date}) async {
+    try {
+      setState(() {
+        _isLoadingAppointments = true;
+      });
+      final role = (_storedRole ?? '').toLowerCase();
+
+      // resolve backend id for current user (if signed in)
+      String? backendId;
+      final uid = AuthService.instance.currentUser?.uid;
+      if (uid != null) {
+        backendId = await fetchUserIdByUid(uid);
+      }
+
+      final client = createClient(idToken: await AuthService.instance.getIdToken());
+
+      QueryResult res;
+      List<dynamic> rows = [];
+
+      // If a specific date was requested, ask the server for appointments on that date
+      if (date != null) {
+        final dateStr = intl.DateFormat('yyyy-MM-dd').format(date);
+        const q = r'''
+          query AppointmentsByDate($date: String!, $doctorId: ID) {
+            appointments_by_date(date: $date, doctorId: $doctorId) {
+              appointmentId
+              appointmentStart
+              appointmentEnd
+              title
+              purpose
+              status
+              doctorId
+              careRecipientId
+              caregiverId
+              doctor { firstName lastName }
+              careRecipient { firstName lastName }
+              caregiver { firstName lastName }
+            }
+          }
+        ''';
+        final vars = backendId != null ? {'date': dateStr, 'doctorId': backendId} : {'date': dateStr};
+        res = await client.query(QueryOptions(document: gql(q), variables: vars, fetchPolicy: FetchPolicy.networkOnly));
+        debugPrint('[_retrieveAppointments] AppointmentsByDate vars=$vars hasException=${res.hasException}');
+        debugPrint('[_retrieveAppointments] AppointmentsByDate data=${res.data} exception=${res.exception}');
+        rows = (res.data?['appointments_by_date'] as List<dynamic>?) ?? [];
+        // skip role/all queries when a date-specific fetch was made
+        final List<Appointment> fetched = [];
+        for (final r in rows) {
+          try {
+            final s = r['appointmentStart'];
+            DateTime? dt;
+            // parse server date which may be milliseconds since epoch (as string)
+            DateTime? _parseServerDate(dynamic v) {
+              if (v == null) return null;
+              final str = v.toString();
+              // pure digits -> epoch seconds or milliseconds
+              if (RegExp(r'^\d+$').hasMatch(str)) {
+                try {
+                  var n = int.parse(str);
+                  // if 10 digits -> seconds, convert to ms
+                  if (str.length == 10) n = n * 1000;
+                  return DateTime.fromMillisecondsSinceEpoch(n).toLocal();
+                } catch (_) {
+                  return null;
+                }
+              }
+              try {
+                return DateTime.parse(str).toLocal();
+              } catch (_) {
+                return null;
+              }
+            }
+            dt = _parseServerDate(s);
+            // format time as "start - end" when end time available
+            final e = r['appointmentEnd'];
+            final dtEnd = _parseServerDate(e);
+            final timeStr = (dt != null && dtEnd != null)
+              ? '${intl.DateFormat('hh:mm a').format(dt)} - ${intl.DateFormat('hh:mm a').format(dtEnd)}'
+              : (dt != null ? intl.DateFormat('hh:mm a').format(dt) : '');
+            final title = r['title']?.toString() ?? '';
+
+            // IDs (fallback)
+            final doctorId = r['doctorId']?.toString() ?? '';
+            final careRecipientId = r['careRecipientId']?.toString() ?? '';
+            final caregiverId = r['caregiverId']?.toString() ?? '';
+
+            // Nested objects provided by backend (if resolver joined them)
+            final Map<String, dynamic>? doctorObj = (r['doctor'] is Map) ? Map<String, dynamic>.from(r['doctor']) : null;
+            final Map<String, dynamic>? crObj = (r['careRecipient'] is Map) ? Map<String, dynamic>.from(r['careRecipient']) : null;
+            final Map<String, dynamic>? cgObj = (r['caregiver'] is Map) ? Map<String, dynamic>.from(r['caregiver']) : null;
+
+            String _fullNameFromMap(Map<String, dynamic>? m) {
+              if (m == null) return '';
+              final f = (m['firstName'] ?? m['firstname'] ?? '').toString();
+              final l = (m['lastName'] ?? m['lastname'] ?? '').toString();
+              final combined = ('$f $l').trim();
+              return combined.isEmpty ? '' : combined;
+            }
+
+            final docName = _fullNameFromMap(doctorObj);
+            final crName = _fullNameFromMap(crObj);
+            final cgName = _fullNameFromMap(cgObj);
+
+            String left = '';
+            String right = '';
+
+            if (role == 'doctor') {
+              left = docName.isNotEmpty ? docName : (doctorId.isNotEmpty ? doctorId : '');
+              right = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
+            } else if (role.contains('recipient')) {
+              left = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
+              right = docName.isNotEmpty ? docName : (doctorId.isNotEmpty ? doctorId : '');
+            } else if (role.contains('caregiver')) {
+              left = cgName.isNotEmpty ? cgName : (caregiverId.isNotEmpty ? caregiverId : '');
+              right = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
+            } else {
+              // default: show doctor name if available, else id
+              left = docName.isNotEmpty ? docName : (doctorId.isNotEmpty ? doctorId : '');
+              right = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
+            }
+
+            // normalize date to local date-only so isSameDay() matches selected day
+            final dateOnly = dt != null ? DateTime(dt.year, dt.month, dt.day) : DateTime.now();
+            fetched.add(Appointment(
+              date: dateOnly,
+              title: title,
+              time: timeStr,
+              leftLabel: left,
+              centerLabel: title,
+              rightLabel: right,
+              doctorId: doctorId,
+              careRecipientId: careRecipientId,
+              caregiverId: caregiverId,
+            ));
+          } catch (_) {}
+        }
+
+        setState(() {
+          _appointments = fetched;
+          _isLoadingAppointments = false;
+        });
+        debugPrint('[_retrieveAppointments] date fetch -> loaded ${_appointments.length} appointments');
+        for (var i = 0; i < _appointments.length && i < 5; i++) {
+          final a = _appointments[i];
+          debugPrint('  appt[$i] date=${a.date.toIso8601String()} time="${a.time}" title="${a.title}" left="${a.leftLabel}" right="${a.rightLabel}"');
+        }
+
+        return;
+      }
+
+      if (role == 'doctor' && backendId != null) {
+        const q = r'''
+          query AppointmentsByDoctor($doctorId: ID!) {
+            appointments_by_doctor(doctorId: $doctorId) {
+              appointmentId
+              appointmentStart
+              appointmentEnd
+              title
+              purpose
+              status
+              doctorId
+              careRecipientId
+              caregiverId
+              doctor { firstName lastName }
+              careRecipient { firstName lastName }
+              caregiver { firstName lastName }
+            }
+          }
+        ''';
+        res = await client.query(QueryOptions(document: gql(q), variables: {'doctorId': backendId}, fetchPolicy: FetchPolicy.networkOnly));
+        debugPrint('[_retrieveAppointments] AppointmentsByDoctor vars={doctorId: $backendId} hasException=${res.hasException}');
+        debugPrint('[_retrieveAppointments] AppointmentsByDoctor data=${res.data} exception=${res.exception}');
+        rows = (res.data?['appointments_by_doctor'] as List<dynamic>?) ?? [];
+      } else if (role.contains('recipient') && backendId != null) {
+        const q = r'''
+          query AppointmentsByCareRecipient($careRecipientId: ID!) {
+            appointments_by_careRecipient(careRecipientId: $careRecipientId) {
+              appointmentId
+              appointmentStart
+              appointmentEnd
+              title
+              purpose
+              status
+              doctorId
+              careRecipientId
+              caregiverId
+              doctor { firstName lastName }
+              careRecipient { firstName lastName }
+              caregiver { firstName lastName }
+            }
+          }
+        ''';
+        res = await client.query(QueryOptions(document: gql(q), variables: {'careRecipientId': backendId}, fetchPolicy: FetchPolicy.networkOnly));
+        debugPrint('[_retrieveAppointments] AppointmentsByCareRecipient vars={careRecipientId: $backendId} hasException=${res.hasException}');
+        debugPrint('[_retrieveAppointments] AppointmentsByCareRecipient data=${res.data} exception=${res.exception}');
+        rows = (res.data?['appointments_by_careRecipient'] as List<dynamic>?) ?? [];
+      } else if (role.contains('caregiver') && backendId != null) {
+        const q = r'''
+          query AppointmentsByCaregiver($caregiverId: ID!) {
+            appointments_by_caregiver(caregiverId: $caregiverId) {
+              appointmentId
+              appointmentStart
+              appointmentEnd
+              title
+              purpose
+              status
+              doctorId
+              careRecipientId
+              caregiverId
+              doctor { firstName lastName }
+              careRecipient { firstName lastName }
+              caregiver { firstName lastName }
+            }
+          }
+        ''';
+        res = await client.query(QueryOptions(document: gql(q), variables: {'caregiverId': backendId}, fetchPolicy: FetchPolicy.networkOnly));
+        debugPrint('[_retrieveAppointments] AppointmentsByCaregiver vars={caregiverId: $backendId} hasException=${res.hasException}');
+        debugPrint('[_retrieveAppointments] AppointmentsByCaregiver data=${res.data} exception=${res.exception}');
+        rows = (res.data?['appointments_by_caregiver'] as List<dynamic>?) ?? [];
+      } else {
+        const q = r'''
+          query AllAppointments {
+            appointments {
+              appointmentId
+              appointmentStart
+              appointmentEnd
+              title
+              purpose
+              status
+              doctorId
+              careRecipientId
+              caregiverId
+              doctor { firstName lastName }
+              careRecipient { firstName lastName }
+              caregiver { firstName lastName }
+            }
+          }
+        ''';
+        res = await client.query(QueryOptions(document: gql(q), fetchPolicy: FetchPolicy.networkOnly));
+        debugPrint('[_retrieveAppointments] AllAppointments hasException=${res.hasException}');
+        debugPrint('[_retrieveAppointments] AllAppointments data=${res.data} exception=${res.exception}');
+        rows = (res.data?['appointments'] as List<dynamic>?) ?? [];
+      }
+
+      final List<Appointment> fetched = [];
+      for (final r in rows) {
+        try {
+          final s = r['appointmentStart'];
+          DateTime? dt;
+          DateTime? _parseServerDate(dynamic v) {
+            if (v == null) return null;
+            final str = v.toString();
+            if (RegExp(r'^\d+$').hasMatch(str)) {
+              try {
+                var n = int.parse(str);
+                if (str.length == 10) n = n * 1000;
+                return DateTime.fromMillisecondsSinceEpoch(n).toLocal();
+              } catch (_) {
+                return null;
+              }
+            }
+            try {
+              return DateTime.parse(str).toLocal();
+            } catch (_) {
+              return null;
+            }
+          }
+            dt = _parseServerDate(s);
+            // format time as "start - end" when end time available
+            final e = r['appointmentEnd'];
+            final dtEnd = _parseServerDate(e);
+            final timeStr = (dt != null && dtEnd != null)
+              ? '${intl.DateFormat('hh:mm a').format(dt)} - ${intl.DateFormat('hh:mm a').format(dtEnd)}'
+              : (dt != null ? intl.DateFormat('hh:mm a').format(dt) : '');
+          final title = r['title']?.toString() ?? '';
+
+          // IDs (fallback)
+          final doctorId = r['doctorId']?.toString() ?? '';
+          final careRecipientId = r['careRecipientId']?.toString() ?? '';
+          final caregiverId = r['caregiverId']?.toString() ?? '';
+
+          // Nested objects provided by backend (if resolver joined them)
+          final Map<String, dynamic>? doctorObj = (r['doctor'] is Map) ? Map<String, dynamic>.from(r['doctor']) : null;
+          final Map<String, dynamic>? crObj = (r['careRecipient'] is Map) ? Map<String, dynamic>.from(r['careRecipient']) : null;
+          final Map<String, dynamic>? cgObj = (r['caregiver'] is Map) ? Map<String, dynamic>.from(r['caregiver']) : null;
+
+          String _fullNameFromMap(Map<String, dynamic>? m) {
+            if (m == null) return '';
+            final f = (m['firstName'] ?? m['firstname'] ?? '').toString();
+            final l = (m['lastName'] ?? m['lastname'] ?? '').toString();
+            final combined = ('$f $l').trim();
+            return combined.isEmpty ? '' : combined;
+          }
+
+          final docName = _fullNameFromMap(doctorObj);
+          final crName = _fullNameFromMap(crObj);
+          final cgName = _fullNameFromMap(cgObj);
+
+          String left = '';
+          String right = '';
+
+          if (role == 'doctor') {
+            left = docName.isNotEmpty ? docName : (doctorId.isNotEmpty ? doctorId : '');
+            right = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
+          } else if (role.contains('recipient')) {
+            left = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
+            right = docName.isNotEmpty ? docName : (doctorId.isNotEmpty ? doctorId : '');
+          } else if (role.contains('caregiver')) {
+            left = cgName.isNotEmpty ? cgName : (caregiverId.isNotEmpty ? caregiverId : '');
+            right = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
+          } else {
+            // default: show doctor name if available, else id
+            left = docName.isNotEmpty ? docName : (doctorId.isNotEmpty ? doctorId : '');
+            right = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
+          }
+
+          // normalize date to local date-only so isSameDay() matches selected day
+          final dateOnly = dt != null ? DateTime(dt.year, dt.month, dt.day) : DateTime.now();
+          fetched.add(Appointment(
+            date: dateOnly,
+            title: title,
+            time: timeStr,
+            leftLabel: left,
+            centerLabel: title,
+            rightLabel: right,
+            doctorId: doctorId,
+            careRecipientId: careRecipientId,
+            caregiverId: caregiverId,
+          ));
+        } catch (_) {}
+      }
+
+      debugPrint('[_retrieveAppointments] general fetch -> mapped ${fetched.length} rows');
+      for (var i = 0; i < fetched.length && i < 5; i++) {
+        final a = fetched[i];
+        debugPrint('  mapped[$i] date=${a.date.toIso8601String()} time="${a.time}" title="${a.title}" left="${a.leftLabel}" right="${a.rightLabel}"');
+      }
+      setState(() {
+        _appointments = fetched;
+        _isLoadingAppointments = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingAppointments = false;
+      });
+      debugPrint('Failed to retrieve appointments: $e');
+    }
+  }
+
+  Map<String, String> _labelsForAppointment(Appointment a) {
+    final role = (_storedRole ?? '').toLowerCase();
+    String left = a.leftLabel;
+    String center = a.centerLabel;
+    String right = a.rightLabel;
+
+    if (role == 'doctor') {
+      left = a.leftLabel.isNotEmpty ? a.leftLabel : a.doctorId;
+    } else if (role.contains('recipient')) {
+      left = a.leftLabel.isNotEmpty ? a.leftLabel : a.careRecipientId;
+    } else if (role.contains('caregiver')) {
+      left = a.leftLabel.isNotEmpty ? a.leftLabel : a.caregiverId;
+    }
+
+    return {'left': left, 'center': center, 'right': right};
   }
   @override
   Widget build(BuildContext context) {
@@ -208,7 +604,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                           },
                         ),
                         selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                        onDaySelected: (selectedDay, focusedDay) {
+                        onDaySelected: (selectedDay, focusedDay) async {
                           // while inline search is active, prevent selecting a day
                           if (_showInlineSearch || _searchQuery.isNotEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -221,6 +617,9 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                             _selectedDay = selectedDay;
                             _focusedDay = focusedDay;
                           });
+
+                          // fetch appointments for selected date
+                          await _retrieveAppointments(date: selectedDay);
 
                           final formatted = DateFormat('EEE, dd MMM yyyy').format(selectedDay);
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -275,16 +674,17 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                                 final day = a.date.day.toString().padLeft(2, '0');
                                 final monthYear = '${a.date.year.toString()}.${a.date.month.toString().padLeft(2, '0')}';
                                 final weekday = DateFormat('EEE').format(a.date);
-                                return _buildAppointmentCard(
-                                  day: day,
-                                  monthYear: monthYear,
-                                  weekday: weekday,
-                                  title: a.title,
-                                  time: a.time,
-                                  leftLabel: a.leftLabel,
-                                  centerLabel: a.centerLabel,
-                                  rightLabel: a.rightLabel,
-                                );
+                                        final labels = _labelsForAppointment(a);
+                                        return _buildAppointmentCard(
+                                          day: day,
+                                          monthYear: monthYear,
+                                          weekday: weekday,
+                                          title: a.title,
+                                          time: a.time,
+                                          leftLabel: labels['left']!,
+                                          centerLabel: labels['center']!,
+                                          rightLabel: labels['right']!,
+                                        );
                               }),
                             ],
                             if (past.isNotEmpty) ...[
@@ -296,15 +696,16 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                                 final day = a.date.day.toString().padLeft(2, '0');
                                 final monthYear = '${a.date.year.toString()}.${a.date.month.toString().padLeft(2, '0')}';
                                 final weekday = DateFormat('EEE').format(a.date);
+                                final labels = _labelsForAppointment(a);
                                 return _buildAppointmentCard(
                                   day: day,
                                   monthYear: monthYear,
                                   weekday: weekday,
                                   title: a.title,
                                   time: a.time,
-                                  leftLabel: a.leftLabel,
-                                  centerLabel: a.centerLabel,
-                                  rightLabel: a.rightLabel,
+                                  leftLabel: labels['left']!,
+                                  centerLabel: labels['center']!,
+                                  rightLabel: labels['right']!,
                                 );
                               }),
                             ],
@@ -315,6 +716,13 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                       // No inline query: show only selected day's appointments
                       final selected = _selectedDay ?? _focusedDay;
                       final todays = _appointments.where((a) => isSameDay(a.date, selected)).toList();
+                      if (_isLoadingAppointments) {
+                        return Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16.h),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+
                       if (todays.isEmpty) {
                         return Padding(
                           padding: EdgeInsets.symmetric(vertical: 8.h),
@@ -328,19 +736,20 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                       }
 
                       return Column(
-                        children: todays.map((a) {
+                          children: todays.map((a) {
                           final day = a.date.day.toString().padLeft(2, '0');
                           final monthYear = '${a.date.year.toString()}.${a.date.month.toString().padLeft(2, '0')}';
                           final weekday = DateFormat('EEE').format(a.date);
+                          final labels = _labelsForAppointment(a);
                           return _buildAppointmentCard(
                             day: day,
                             monthYear: monthYear,
                             weekday: weekday,
                             title: a.title,
                             time: a.time,
-                            leftLabel: a.leftLabel,
-                            centerLabel: a.centerLabel,
-                            rightLabel: a.rightLabel,
+                            leftLabel: labels['left']!,
+                            centerLabel: labels['center']!,
+                            rightLabel: labels['right']!,
                           );
                         }).toList(),
                       );
