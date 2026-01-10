@@ -129,18 +129,28 @@ final GoRouter appRouter = GoRouter(
 
     GoRoute(
       path: '/caregiveremergencycall',
-      builder: (context, state) => CGEmergencyCall(
-        careRecipientID: 'CG-003',
-        signalingUrl: dotenv.env['RTC_URL']!,
-      ),
+      builder: (context, state) {
+        final extra = state.extra;
+        if (extra is Map) {
+          final careRecipientID = extra['careRecipientID'] as String? ?? 'CG-003';
+          final signalingUrl = extra['signalingUrl'] as String? ?? dotenv.env['RTC_URL']!;
+          return CGEmergencyCall(careRecipientID: careRecipientID, signalingUrl: signalingUrl);
+        }
+        return CGEmergencyCall(careRecipientID: 'CG-003', signalingUrl: dotenv.env['RTC_URL']!);
+      },
     ),
 
     GoRoute(
       path: '/carerecipientemergencycall',
-      builder: (context, state) => CREmergencyCall(
-        caregiverId: 'CG-003',
-        signalingUrl: dotenv.env['RTC_URL']!,
-      ),
+      builder: (context, state) {
+        final extra = state.extra;
+        if (extra is Map) {
+          final caregiverId = extra['caregiverId'] as String? ?? 'CG-003';
+          final signalingUrl = extra['signalingUrl'] as String? ?? dotenv.env['RTC_URL']!;
+          return CREmergencyCall(caregiverId: caregiverId, signalingUrl: signalingUrl);
+        }
+        return CREmergencyCall(caregiverId: 'CG-003', signalingUrl: dotenv.env['RTC_URL']!);
+      },
     ),
 
 
@@ -166,8 +176,6 @@ final GoRouter appRouter = GoRouter(
      GoRoute(path: '/authScanner',
       builder: (context, state) => const QRScannerScreen(),
     ),
-
-
 
 
 

@@ -1,16 +1,18 @@
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
+import 'package:carelink_mobile/utils/user_service.dart';
+import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/day_convert.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 class AddAppointmentPage extends StatefulWidget {
   final String? doctorId;
-
   const AddAppointmentPage({super.key, this.doctorId});
 
   @override
@@ -20,6 +22,8 @@ class AddAppointmentPage extends StatefulWidget {
 class _AddAppointmentPageState extends State<AddAppointmentPage> {
   Map<String, String>? _selectedRecipient;
   DateTime? _selectedDate;
+  final TextEditingController _titleCtrl = TextEditingController();
+  final TextEditingController _purposeCtrl = TextEditingController();
   // Selected slots keyed by date string 'yyyy-MM-dd' -> list of hours
   final Map<String, List<int>> _selectedSlots = {};
   // availability slots fetched from server: weekday (1=Mon..7=Sun) -> set of available hours
@@ -35,6 +39,15 @@ query CareRecipients {
   }
 }
 ''';
+
+  static const String appointmentsByDateHoursQuery = r'''
+    query AppointmentsByDateHours($date: String!, $doctorId: ID) {
+      appointments_by_date_hours(date: $date, doctorId: $doctorId) {
+        hour
+        appointments { appointmentId appointmentStart appointmentEnd title status purpose }
+      }
+    }
+  ''';
 
   Future<List<Map<String, String>>> fetchCareRecipients() async {
     try {
@@ -66,6 +79,13 @@ query CareRecipients {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.doctorId != null) _fetchDoctorAvailabilities(widget.doctorId!);
     });
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _purposeCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchDoctorAvailabilities(String doctorId) async {
@@ -169,6 +189,28 @@ query CareRecipients {
     return <int>[];
   }
 
+  // Merge a sorted list of integer hours into continuous ranges.
+  // Returns list of maps with 'start' and 'end' (end is exclusive).
+  List<Map<String, int>> _mergeContinuousHours(List<int> hours) {
+    if (hours.isEmpty) return [];
+    final sorted = List<int>.from(hours)..sort();
+    final ranges = <Map<String, int>>[];
+    int rangeStart = sorted.first;
+    int prev = sorted.first;
+    for (var i = 1; i < sorted.length; i++) {
+      final h = sorted[i];
+      if (h == prev + 1) {
+        prev = h;
+        continue;
+      }
+      ranges.add({'start': rangeStart, 'end': prev + 1});
+      rangeStart = h;
+      prev = h;
+    }
+    ranges.add({'start': rangeStart, 'end': prev + 1});
+    return ranges;
+  }
+
   void _showRecipientSelector(BuildContext context) async {
     final careRecipient = await fetchCareRecipients();
     showModalBottomSheet(
@@ -189,8 +231,6 @@ query CareRecipients {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-
-                
                 Text(
                   'Select Care Recipient',
                   style: TextStyle(
@@ -226,7 +266,6 @@ query CareRecipients {
                   ),
                 ),
                 SizedBox(height: 8.h),
-
               ],
             ),
           ),
@@ -235,124 +274,382 @@ query CareRecipients {
     );
   }
 
-  Future<void> _pickDateTime(BuildContext context) async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
-      firstDate: DateTime.now().subtract(Duration(days: 365)),
-      lastDate: DateTime.now().add(Duration(days: 365 * 5)),
-    );
-    if (date == null) return;
+ Future<void> _pickDateTime(BuildContext context) async {
+  final date = await showDatePicker(
+    context: context,
+    initialDate: _selectedDate ?? DateTime.now(),
+    firstDate: DateTime.now().subtract(const Duration(days: 365)),
+    lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+  );
+  if (date == null) return;
 
-    final weekday = date.weekday; // 1=Mon .. 7=Sun
-    final hours = await _hoursForWeekday(weekday);
+  final weekday = date.weekday; // 1 = Mon ... 7 = Sun
+  var hours = await _hoursForWeekday(weekday);
 
-    final selected = await showModalBottomSheet<List<int>>(
-      context: context,
-      isScrollControlled: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
+  // -------------------------------
+  // STEP 1: fetch blocked hours
+  // -------------------------------
+  final Set<int> blockedHours = <int>{};
+
+  try {
+    String? doctorIdLocal = widget.doctorId;
+
+    if (doctorIdLocal == null) {
+      final uid = AuthService.instance.currentUser?.uid;
+      if (uid != null) {
+        final fetched = await fetchUserIdByUid(uid);
+        if (fetched != null && fetched.isNotEmpty) {
+          doctorIdLocal = fetched;
+        }
+      }
+    }
+
+    final dateKey =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+    final client = createClient();
+    final res = await client.query(
+      QueryOptions(
+        document: gql(appointmentsByDateHoursQuery),
+        variables: {
+          'date': dateKey,
+          'doctorId': doctorIdLocal,
+        },
+        fetchPolicy: FetchPolicy.networkOnly,
       ),
-      builder: (ctx) {
-        // `hours` is captured from outer scope (computed above).
-        final key =
-            '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-        final selectedSet = <int>{...(_selectedSlots[key] ?? <int>[])};
-        return StatefulBuilder(
-          builder: (context, setStateSB) {
-            return Padding(
-              padding: EdgeInsets.only(
-                top: 12.h,
-                left: 12.w,
-                right: 12.w,
-                bottom: 24.h,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Select Time Slots',
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w600,
-                    ),
+    );
+
+    if (!res.hasException) {
+      final buckets =
+          (res.data?['appointments_by_date_hours'] as List<dynamic>?) ?? [];
+
+      for (final b in buckets) {
+        final rawHour = b['hour'];
+        final int? h =
+            rawHour is int ? rawHour : int.tryParse(rawHour.toString());
+
+        if (h == null) continue;
+
+        final apps = (b['appointments'] as List<dynamic>?) ?? [];
+
+        final hasBlocking = apps.any((a) {
+          final st = (a['status'] ?? '').toString().toLowerCase();
+          return st == 'pending' || st == 'approved';
+        });
+
+        if (hasBlocking) {
+          blockedHours.add(h);
+        }
+      }
+    } else {
+      debugPrint('appointments_by_date_hours error: ${res.exception}');
+    }
+  } catch (e) {
+    debugPrint('Failed to fetch blocked hours: $e');
+  }
+
+  // -------------------------------
+  // STEP 2: show bottom sheet
+  // -------------------------------
+  final selected = await showModalBottomSheet<List<int>>(
+    context: context,
+    isScrollControlled: true,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
+    ),
+    builder: (ctx) {
+      final key =
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      final selectedSet = <int>{...(_selectedSlots[key] ?? <int>[])};
+
+      return StatefulBuilder(
+        builder: (context, setStateSB) {
+          return Padding(
+            padding: EdgeInsets.only(
+              top: 12.h,
+              left: 12.w,
+              right: 12.w,
+              bottom: 24.h,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Select Time Slots',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
                   ),
-                  SizedBox(height: 8.h),
-                  if (hours.isEmpty)
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.h),
-                      child: Center(
-                        child: Text(
-                          'No available slots for this date',
+                ),
+                SizedBox(height: 8.h),
+
+                if (hours.isEmpty)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16.h),
+                    child: Center(
+                      child: Text(
+                        'No available slots for this date',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: 8.w,
+                    runSpacing: 8.h,
+                    children: hours.map((h) {
+                      final label = '${h.toString().padLeft(2, '0')}:00';
+                      final isSelected = selectedSet.contains(h);
+                      final isBlocked = blockedHours.contains(h);
+
+                      return ChoiceChip(
+                        label: Text(
+                          label,
                           style: TextStyle(
-                            fontSize: 14.sp,
-                            color: Colors.black54,
+                            color: isBlocked ? Colors.black38 : null,
                           ),
                         ),
-                      ),
-                    )
-                  else
-                    Wrap(
-                      spacing: 8.w,
-                      runSpacing: 8.h,
-                      children: hours.map((h) {
-                        final label = '${h.toString().padLeft(2, '0')}:00';
-                        final isSelected = selectedSet.contains(h);
-                        return ChoiceChip(
-                          label: Text(label),
-                          selected: isSelected,
-                          onSelected: (v) {
-                            setStateSB(() {
-                              if (v)
-                                selectedSet.add(h);
-                              else
-                                selectedSet.remove(h);
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                  SizedBox(height: 12.h),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
-                          child: Text('Cancel'),
-                        ),
-                      ),
-                      SizedBox(width: 8.w),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed:
-                              (hours.isNotEmpty && selectedSet.isNotEmpty)
-                              ? () => Navigator.of(
-                                  ctx,
-                                ).pop(selectedSet.toList()..sort())
-                              : null,
-                          child: Text('Confirm'),
-                        ),
-                      ),
-                    ],
+                        selected: isSelected,
+                        onSelected: isBlocked
+                            ? null
+                            : (v) {
+                                setStateSB(() {
+                                  if (v) {
+                                    selectedSet.add(h);
+                                  } else {
+                                    selectedSet.remove(h);
+                                  }
+                                });
+                              },
+                        backgroundColor:
+                            isBlocked ? Colors.grey.shade200 : null,
+                      );
+                    }).toList(),
                   ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
 
-    if (selected == null || selected.isEmpty) return;
-    final key =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    setState(() {
-      final existing = _selectedSlots[key] ?? <int>[];
-      final newSet = {...existing, ...selected};
-      _selectedSlots[key] = (newSet.toList()..sort());
-      _selectedDate = date;
+                SizedBox(height: 12.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed:
+                            (hours.isNotEmpty && selectedSet.isNotEmpty)
+                                ? () => Navigator.of(ctx)
+                                    .pop(selectedSet.toList()..sort())
+                                : null,
+                        child: const Text('Confirm'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+
+  if (selected == null || selected.isEmpty) return;
+
+  // -------------------------------
+  // STEP 3: save selection
+  // -------------------------------
+  final key =
+      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+  setState(() {
+    final existing = _selectedSlots[key] ?? <int>[];
+    final newSet = {...existing, ...selected};
+    _selectedSlots[key] = newSet.toList()..sort();
+    _selectedDate = date;
+  });
+}
+  // Fetch appointments for given careRecipient and date and return occupied hours
+
+  Future<void> _performSave() async {
+    debugPrint('[_performSave] start');
+    debugPrint('[_performSave] _selectedRecipient=$_selectedRecipient');
+    debugPrint('[_performSave] _selectedSlots=$_selectedSlots');
+
+    if (_selectedRecipient == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please select a care recipient')),
+      );
+      return;
+    }
+    if (_selectedSlots.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please select at least one date and time slot')),
+      );
+      return;
+    }
+
+    final objects = <Map<String, dynamic>>[];
+    // Determine doctorId: prefer widget.doctorId, else use current account's roleId (backend id)
+    String? doctorId = widget.doctorId;
+    if (doctorId == null) {
+      try {
+        final uid = AuthService.instance.currentUser?.uid;
+        if (uid != null) {
+          final fetched = await fetchUserIdByUid(uid);
+          if (fetched != null && fetched.isNotEmpty) doctorId = fetched;
+        }
+      } catch (_) {}
+    }
+    debugPrint('[_performSave] resolved doctorId=$doctorId');
+
+    // Determine caregiverId from selected care recipient (if available)
+    String? caregiverId;
+    try {
+      final clientForQuery = createClient();
+      final crId = _selectedRecipient?['id'];
+      if (crId != null && crId.isNotEmpty) {
+        const crQuery = r'''
+          query GetCareRecipient($id: String!) {
+            care_recipient_by_pk(id: $id) { caregiverId }
+          }
+        ''';
+        final qres = await clientForQuery.query(QueryOptions(document: gql(crQuery), variables: {'id': crId}, fetchPolicy: FetchPolicy.networkOnly));
+        if (!qres.hasException) {
+          caregiverId = qres.data?['care_recipient_by_pk']?['caregiverId'] as String?;
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch caregiverId for careRecipient: $e');
+    }
+    debugPrint('[_performSave] resolved caregiverId=$caregiverId');
+
+    _selectedSlots.forEach((dateLabel, hours) {
+      final ranges = _mergeContinuousHours(hours);
+      for (final r in ranges) {
+        final startHour = r['start']!;
+        final endHour = r['end']!; // exclusive
+        try {
+          final parts = dateLabel.split('-');
+          final y = int.parse(parts[0]);
+          final m = int.parse(parts[1]);
+          final d = int.parse(parts[2]);
+          final start = DateTime(y, m, d, startHour, 0).toUtc().toIso8601String();
+          final end = DateTime(y, m, d, endHour, 0).toUtc().toIso8601String();
+          final obj = {
+            'appointmentId': Uuid().v4(),
+            'careRecipientId': _selectedRecipient!['id'],
+            'caregiverId': caregiverId,
+            'doctorId': doctorId,
+            'appointmentStart': start,
+            'appointmentEnd': end,
+            'title': _titleCtrl.text.trim(),
+            'purpose': _purposeCtrl.text.trim(),
+            'status': 'pending',
+          };
+          debugPrint('[_performSave] adding appointment object: $obj');
+          objects.add(obj);
+        } catch (_) {}
+      }
     });
+
+    if (objects.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No valid appointment objects to save')));
+      return;
+    }
+
+    const mutation = r'''
+      mutation InsertAppointments($objects: [appointment_insert_input!]!) {
+        insert_appointment(objects: $objects) { appointmentId }
+      }
+    ''';
+
+    final client = createClient();
+    try {
+      final res = await client.mutate(
+        MutationOptions(
+          document: gql(mutation),
+          variables: {'objects': objects},
+        ),
+      );
+      if (res.hasException) {
+        debugPrint('Insert appointments failed: ${res.exception}');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save appointment')));
+        return;
+      }
+
+      debugPrint('[_performSave] insert result: ${res.data}');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Appointment saved')));
+      Navigator.of(context).pop({
+        'careRecipient': _selectedRecipient,
+        'slots': _selectedSlots,
+        'selectedDates': _selectedSlots.keys.toList(),
+        'title': _titleCtrl.text.trim(),
+        'purpose': _purposeCtrl.text.trim(),
+        'inserted': res.data,
+      });
+    } catch (e, st) {
+      debugPrint('Error inserting appointments: $e\n$st');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save appointment')));
+    }
+  }
+
+  Widget _buildAppointmentsListWidget() {
+    if (_selectedDate == null) return SizedBox.shrink();
+    final dateKey = '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}';
+    return Container(
+      padding: EdgeInsets.only(top: 12.h, bottom: 6.h),
+      child: Query(
+        options: QueryOptions(
+          document: gql(appointmentsByDateHoursQuery),
+          variables: {'date': dateKey, 'doctorId': widget.doctorId},
+          fetchPolicy: FetchPolicy.networkOnly,
+        ),
+        builder: (QueryResult result, {fetchMore, refetch}) {
+          if (result.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (result.hasException) {
+            return Text(result.exception.toString());
+          }
+          final List data = result.data?['appointments_by_date_hours'] as List? ?? [];
+          if (data.isEmpty) return const Text('No appointments');
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            itemCount: data.length,
+            itemBuilder: (context, index) {
+              final hourGroup = data[index];
+              final int hour = hourGroup['hour'] is int
+                  ? hourGroup['hour']
+                  : int.tryParse(hourGroup['hour'].toString()) ?? 0;
+              final List appointments = (hourGroup['appointments'] as List?) ?? [];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$hour:00',
+                    style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
+                  ),
+                  ...appointments.map((a) => ListTile(
+                        title: Text(a['title'] ?? ''),
+                        subtitle: Text('${a['appointmentStart']} → ${a['appointmentEnd']}'),
+                      )),
+                  const Divider(),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -465,6 +762,48 @@ query CareRecipients {
 
                         SizedBox(height: 16.h),
 
+                        // Title input
+                        Text(
+                          'Title',
+                          style: TextStyle(
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        TextField(
+                          controller: _titleCtrl,
+                          decoration: InputDecoration(
+                            hintText: 'Enter appointment title',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.r)),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+                          ),
+                        ),
+                        SizedBox(height: 12.h),
+
+                        // Purpose / notes input
+                        Text(
+                          'Purpose',
+                          style: TextStyle(
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        TextField(
+                          controller: _purposeCtrl,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: 'Describe the purpose or notes',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.r)),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+                          ),
+                        ),
+
+                        if (_selectedDate != null) _buildAppointmentsListWidget(),
+
+                        SizedBox(height: 12.h),
+
                         Text(
                           'Date & Time',
                           style: TextStyle(
@@ -473,141 +812,183 @@ query CareRecipients {
                           ),
                         ),
                         SizedBox(height: 8.h),
+
                         GestureDetector(
                           onTap: _selectedRecipient == null
                               ? null
                               : () => _pickDateTime(context),
                           child: Container(
-                            width: double.infinity,
                             padding: EdgeInsets.all(12.w),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
-                              ),
+                              color: Colors.white70,
+                              borderRadius: BorderRadius.circular(12.w),
                               border: Border.all(
                                 color: Colors.orange.shade300,
                                 width: 2.w,
                               ),
-
-                              borderRadius: BorderRadius.circular(12.w),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.orange.withOpacity(0.25),
-                                  blurRadius: 14,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.access_time, color: Colors.black54),
+                                SizedBox(width: 12.w),
+                                Expanded(
+                                  child: Text(
+                                    _selectedSlots.isEmpty
+                                        ? (_selectedRecipient == null
+                                              ? 'Select care recipient first'
+                                              : 'Tap to select date & time')
+                                        : 'Selected slots',
+                                    style: TextStyle(
+                                      fontSize: 15.sp,
+                                      color: _selectedSlots.isEmpty
+                                          ? Colors.black54
+                                          : Colors.black87,
+                                    ),
+                                  ),
                                 ),
+                                if (_selectedSlots.isNotEmpty)
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.clear,
+                                      color: Colors.redAccent,
+                                    ),
+                                    onPressed: () => setState(() {
+                                      _selectedSlots.clear();
+                                    }),
+                                  ),
                               ],
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.access_time,
-                                      color: Colors.black54,
-                                    ),
-                                    SizedBox(width: 12.w),
-                                    Expanded(
-                                      child: Text(
-                                        _selectedSlots.isEmpty
-                                            ? (_selectedRecipient == null
-                                                  ? 'Select care recipient first'
-                                                  : 'Tap to select date & time')
-                                            : 'Selected slots',
-                                        style: TextStyle(
-                                          fontSize: 15.sp,
-                                          color: _selectedSlots.isEmpty
-                                              ? Colors.black54
-                                              : Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                    if (_selectedSlots.isNotEmpty)
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.clear,
-                                          color: Colors.redAccent,
-                                        ),
-                                        onPressed: () => setState(() {
-                                          _selectedSlots.clear();
-                                        }),
-                                      ),
-                                  ],
-                                ),
-                                if (_selectedSlots.isNotEmpty) ...[
-                                  SizedBox(height: 8.h),
-                                  Column(
-                                    children: _selectedSlots.entries.map((
-                                      entry,
-                                    ) {
-                                      final dateLabel = entry.key; // yyyy-MM-dd
-                                      final hours = entry.value;
-                                      return Padding(
-                                        padding: EdgeInsets.only(bottom: 8.h),
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
+                          ),
+                        ),
+
+                        SizedBox(height: 12.h),
+                        Container(
+                          constraints: BoxConstraints(minHeight: 200.h),
+                          width: double.infinity,
+                          padding: EdgeInsets.all(12.w),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+                            ),
+                            border: Border.all(
+                              color: Colors.orange.shade300,
+                              width: 2.w,
+                            ),
+
+                            borderRadius: BorderRadius.circular(12.w),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.orange.withOpacity(0.25),
+                                blurRadius: 14,
+                              ),
+                            ],
+                          ),
+
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (_selectedSlots.isNotEmpty) ...[
+                                SizedBox(height: 8.h),
+                                Column(
+                                  children: _selectedSlots.entries.map((entry) {
+                                    final dateLabel = entry.key; // yyyy-MM-dd
+                                    final hours = entry.value;
+                                    return Padding(
+                                      padding: EdgeInsets.only(bottom: 8.h),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // Date column (separated from time)
+                                          SizedBox(
+                                            width: 110.w,
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Chip(
+                                                  backgroundColor:
+                                                      Colors.orange.shade50,
+                                                  label: Text(
                                                     dateLabel,
                                                     style: TextStyle(
                                                       fontWeight:
                                                           FontWeight.w600,
                                                     ),
                                                   ),
-                                                  SizedBox(height: 6.h),
-                                                  Wrap(
-                                                    spacing: 8.w,
-                                                    runSpacing: 8.h,
-                                                    children: hours.map((h) {
-                                                      final label =
-                                                          '${h.toString().padLeft(2, '0')}:00';
-                                                      return Chip(
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          SizedBox(width: 8.w),
+                                          // Time ranges column
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: _mergeContinuousHours(hours).map((
+                                                r,
+                                              ) {
+                                                final start = r['start']!;
+                                                final end =
+                                                    r['end']!; // exclusive
+                                                final label =
+                                                    '${start.toString().padLeft(2, '0')}:00 - ${end.toString().padLeft(2, '0')}:00';
+                                                return Padding(
+                                                  padding: EdgeInsets.only(
+                                                    bottom: 6.h,
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Chip(
                                                         label: Text(label),
                                                         onDeleted: () => setState(
                                                           () {
                                                             final list =
                                                                 _selectedSlots[entry
                                                                     .key];
-                                                            list?.remove(h);
-                                                            if (list == null ||
-                                                                list.isEmpty)
-                                                              _selectedSlots
-                                                                  .remove(
-                                                                    entry.key,
-                                                                  );
+                                                            if (list != null) {
+                                                              list.removeWhere(
+                                                                (hour) =>
+                                                                    hour >=
+                                                                        start &&
+                                                                    hour < end,
+                                                              );
+                                                              if (list.isEmpty)
+                                                                _selectedSlots
+                                                                    .remove(
+                                                                      entry.key,
+                                                                    );
+                                                            }
                                                           },
                                                         ),
-                                                      );
-                                                    }).toList(),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
+                                                );
+                                              }).toList(),
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.delete_outline,
+                                              color: Colors.redAccent,
+                                            ),
+                                            onPressed: () => setState(
+                                              () => _selectedSlots.remove(
+                                                entry.key,
                                               ),
                                             ),
-                                            IconButton(
-                                              icon: Icon(
-                                                Icons.delete_outline,
-                                                color: Colors.redAccent,
-                                              ),
-                                              onPressed: () => setState(
-                                                () => _selectedSlots.remove(
-                                                  entry.key,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ],
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
                               ],
-                            ),
+                            ],
                           ),
                         ),
 
@@ -637,35 +1018,7 @@ query CareRecipients {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            if (_selectedRecipient == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Please select a care recipient',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-                            if (_selectedSlots.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Please select at least one date and time slot',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Appointment saved')),
-                            );
-                            Navigator.of(context).pop({
-                              'careRecipient': _selectedRecipient,
-                              'slots': _selectedSlots,
-                            });
-                          },
+                          onPressed: _performSave,
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [

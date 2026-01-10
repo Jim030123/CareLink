@@ -23,8 +23,9 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  String _name = 'Sabrina Aryan';
-  String _email = 'SabrinaAry208@gmailcom';
+  String _name = '';
+  String _email = '';
+  bool _initialized = false;
   // Notification settings state
   bool _pushNotifications = true;
   bool _emailNotifications = true;
@@ -40,19 +41,29 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _email = user.email ?? _email;
-      _name =
-          user.displayName ??
-          (user.email != null ? user.email!.split('@').first : _name);
+      _name = user.displayName ?? _name;
     }
-    // Attempt to load backend profile (may contain canonical email/displayName)
-    _loadProfileFromBackend();
+    // Perform asynchronous initialization and only show the page when done.
     _localNotifications = FlutterLocalNotificationsPlugin();
-    _initLocalNotifications();
-    _loadNotificationSettings();
-    // load role, then attempt to restore availabilities from server for this user
-    _loadUserRole().whenComplete(
-      () => _restoreAvailabilitiesFromServerIfNeeded(),
-    );
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await _loadProfileFromBackend();
+    } catch (_) {}
+    try {
+      await _initLocalNotifications();
+    } catch (_) {}
+    try {
+      await _loadNotificationSettings();
+    } catch (_) {}
+    try {
+      await _loadUserRole();
+      await _restoreAvailabilitiesFromServerIfNeeded();
+    } catch (_) {}
+
+    if (mounted) setState(() => _initialized = true);
   }
 
   Future<void> _loadProfileFromBackend() async {
@@ -614,6 +625,13 @@ mutation InsertAvailability(
   }
 
   Widget build(BuildContext context) {
+    if (!_initialized) {
+      return Scaffold(
+        appBar: PageAppBar(title: 'Profile', showBack: true, showSearch: false),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: PageAppBar(title: 'Profile', showBack: true, showSearch: false),
       body: LayoutBuilder(

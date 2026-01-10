@@ -100,7 +100,7 @@ class AvailableTimeEditor extends StatelessWidget {
                                           } else {
                                             final currentStart = _parseTime(item['start'] ?? '00:00');
                                             if (_toMinutes(currentStart) >= _toMinutes(picked)) {
-                                              setStateLocal(() => errors[i] = '${item['day']}: end must be after start');
+                                              setStateLocal(() => errors[i] = '${item['day']}: end must be after star');
                                             } else {
                                               setStateLocal(() {
                                                 item['end'] = _format(picked);
