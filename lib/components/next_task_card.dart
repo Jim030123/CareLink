@@ -147,11 +147,14 @@ class NextTaskCard extends StatelessWidget {
                     children: [
                       TextButton(
                         onPressed: onCancel,
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                        ),
                         child: Text(
                           'Cancel',
                           style: TextStyle(
                             fontSize: 12.sp,
-                            color: Colors.redAccent,
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -162,7 +165,7 @@ class NextTaskCard extends StatelessWidget {
                           'Pending...',
                           style: TextStyle(
                             fontSize: 12.sp,
-                            color: Colors.orange.shade300,
+                            color: Colors.black,
                           ),
                         ),
                       ),
@@ -193,7 +196,7 @@ class NextTaskCard extends StatelessWidget {
                           'Mark as Done',
                           style: TextStyle(
                             fontSize: 12.sp,
-                            color: Colors.orange,
+                            color: Colors.black,
                           ),
                         ),
                       )),

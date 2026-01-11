@@ -54,6 +54,8 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
   late DateTime _now;
   Timer? _timer;
   Timer? _clockTimer;
+  Timer? _tasksTimer;
+  bool _isLoadingTasks = false;
   // Help button state
   bool _helpActive = false;
   static const int _helpDurationSeconds = 3;
@@ -90,17 +92,30 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
 
   // Load upcoming tasks from GraphQL, map into _TaskItem list
   Future<void> _loadTasks() async {
+    if (_isLoadingTasks) return;
+    _isLoadingTasks = true;
     try {
       final client = GraphQLProvider.of(context).value;
+
+      // Try to resolve server-side user id from current Firebase uid.
+      String? backendUserId;
+      try {
+        if (_clientId != null && _clientId!.isNotEmpty) {
+          backendUserId = await fetchUserIdByUid(_clientId!);
+        }
+      } catch (e) {
+        debugPrint('loadTasks: fetchUserIdByUid failed: $e');
+      }
+
+      final variables = {
+        'userId': backendUserId ?? _clientId ?? 'CR-071',
+        'status': 'scheduled',
+      };
+
       final result = await client.query(
         QueryOptions(
           document: gql(_upcomingTasksQuery),
-          variables: {
-            // 'userId': _clientId ?? 'CR-071',
-            'userId': 'CR-071',
-
-            'status': 'scheduled',
-          },
+          variables: variables,
           fetchPolicy: FetchPolicy.networkOnly,
         ),
       );
@@ -217,6 +232,8 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
       }
     } catch (e) {
       debugPrint('loadTasks failed: $e');
+    } finally {
+      _isLoadingTasks = false;
     }
   }
 
@@ -361,13 +378,21 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
     });
 
     // Load current user and then load upcoming tasks from GraphQL
-    _loadCurrentUser().then((_) => _loadTasks());
+    _loadCurrentUser().then((_) async {
+      await _loadTasks();
+      _tasksTimer?.cancel();
+      _tasksTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+        if (!mounted) return;
+        _loadTasks();
+      });
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     _clockTimer?.cancel();
+    _tasksTimer?.cancel();
     _helpTicker?.cancel();
     // cancel any pending task timers
     for (final t in _pendingTimers.values) {
@@ -867,7 +892,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                       subtitle: '',
                       icon: Icons.event,
                       color: Colors.indigo,
-                      onTap: () => context.push('/appointment'),
+                      onTap: () => context.push('/showappointment'),
                     ),
                   ),
                 ],
