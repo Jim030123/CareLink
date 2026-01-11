@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:flutter/services.dart';
 import 'package:carelink_mobile/utils/watch_login.dart';
 
 class QRScannerScreen extends StatefulWidget {
@@ -27,7 +26,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('已发送登录请求到手表'))
 
-          
+
         );
 
         // Close scanner after short delay

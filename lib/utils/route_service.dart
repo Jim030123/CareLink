@@ -2,15 +2,14 @@ import 'package:carelink_mobile/screens/appointment.dart';
 import 'package:carelink_mobile/screens/authentication/register_caregiver.dart';
 import 'package:carelink_mobile/screens/care_recipient_home_page.dart';
 import 'package:carelink_mobile/screens/caregiver_home_page.dart';
+import 'package:carelink_mobile/screens/confirmation_appointment.dart';
 import 'package:carelink_mobile/screens/cr_emergency_call.dart';
 import 'package:carelink_mobile/screens/doctor_home_page.dart';
 import 'package:carelink_mobile/screens/medication_handbook.dart';
 import 'package:carelink_mobile/screens/medication_prescription.dart';
 import 'package:carelink_mobile/screens/qr_scanner.dart';
 import 'package:carelink_mobile/screens/select_medication_prescription.dart';
-import 'package:carelink_mobile/screens/test.dart';
 import 'package:carelink_mobile/screens/test1.dart';
-import 'package:carelink_mobile/utils/bluetooth_service.dart';
 import 'package:carelink_mobile/utils/home_resolver.dart';
 import 'package:carelink_mobile/screens/authentication/login_page.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
@@ -175,6 +174,10 @@ final GoRouter appRouter = GoRouter(
 
      GoRoute(path: '/authScanner',
       builder: (context, state) => const QRScannerScreen(),
+    ),
+
+    GoRoute(path: '/confirmAppointment',
+      builder: (context, state) => const ConfirmationAppointment(),
     ),
 
 

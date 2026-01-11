@@ -7,7 +7,6 @@ import 'package:carelink_mobile/utils/search_utils.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:carelink_mobile/components/medication_info_chip.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/services.dart';
 import 'package:carelink_mobile/components/text_field.dart';
 import 'package:flutter/foundation.dart';
 

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ffi';
 
 import 'package:carelink_mobile/components/ai_chat_box.dart';
 import 'package:carelink_mobile/components/home_calendar.dart';
@@ -10,7 +9,6 @@ import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:carelink_mobile/components/app_footer.dart';
 
@@ -71,8 +69,8 @@ class _DoctorHomePageState extends State<DoctorHomePage> {
         onTap: () => context.push('/prescription'),
       ),
       HomeService(
-        title: 'Appointment',
-        subtitle: 'Manage appointments',
+        title: 'Add Appointment',
+        subtitle: 'Assign to care recipient',
         icon: Icons.event,
         color: Colors.yellow,
         onTap: () => context.push('/addAppointment'),

@@ -1,5 +1,4 @@
 import 'package:carelink_mobile/components/numbering.dart';
-import 'package:carelink_mobile/components/status.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:carelink_mobile/controllers/medication_controller.dart';
 import 'package:carelink_mobile/utils/search_utils.dart';
@@ -11,10 +10,8 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:carelink_mobile/components/medication_type.dart';
-import 'package:carelink_mobile/screens/medication_schedule.dart';
 
 typedef MedicineChanged = void Function(MedicationType type);
 

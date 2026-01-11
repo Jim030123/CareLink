@@ -54,7 +54,7 @@ Future<void> onScanSuccess(String code) async {
     print('已向手表 $watchId 发送登录请求');
 
     // optionally listen for responses/errors for a short period
-    channel.stream.timeout(const Duration(seconds: 2), onTimeout: (sink) => null).listen(
+    channel.stream.timeout(const Duration(seconds: 2), onTimeout: (sink) {}).listen(
       (message) {
         print('WS message: $message');
       },

@@ -71,6 +71,14 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
         color: Colors.teal,
         onTap: () => context.push('/caregiveremergencycall'),
       ),
+
+      HomeService(
+        title: 'Appointment Confirmation',
+        subtitle: '',
+        icon: Icons.event,
+        color: Colors.teal,
+        onTap: () => context.push('/confirmAppointment'),
+      ),
     ];
 
     _now = DateTime.now();

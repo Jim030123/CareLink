@@ -2,16 +2,12 @@ import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:carelink_mobile/components/medication_type.dart';
-import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
-import 'package:carelink_mobile/screens/medication_handbook.dart';
-import 'package:carelink_mobile/screens/select_medication_prescription.dart';
 import 'package:go_router/go_router.dart';
 
 class MedicationPrescription extends StatefulWidget {

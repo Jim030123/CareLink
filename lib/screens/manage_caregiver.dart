@@ -1,8 +1,6 @@
-import 'package:carelink_mobile/components/bottom_sheet.dart';
 import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:carelink_mobile/components/text_field.dart';
-import 'package:carelink_mobile/models/secondary_caregiver_sheet.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';

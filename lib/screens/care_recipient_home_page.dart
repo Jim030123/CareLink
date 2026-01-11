@@ -4,7 +4,6 @@ import 'package:carelink_mobile/utils/greeting_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -12,8 +11,6 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:carelink_mobile/components/home_service.dart';
 import 'package:carelink_mobile/components/next_task_card.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:carelink_mobile/utils/secure_auth.dart';
 import 'package:lottie/lottie.dart';
 // removed unused import: care_recipient emergency screen not referenced here
 

@@ -17,6 +17,7 @@ class Appointment {
   final String leftLabel;
   final String centerLabel;
   final String rightLabel;
+  final String status;
   final String doctorId;
   final String careRecipientId;
   final String caregiverId;
@@ -28,6 +29,7 @@ class Appointment {
     required this.leftLabel,
     required this.centerLabel,
     required this.rightLabel,
+    this.status = '',
     this.doctorId = '',
     this.careRecipientId = '',
     this.caregiverId = '',
@@ -116,7 +118,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
     } catch (_) {}
   }
 
-  Future<void> _retrieveAppointments({DateTime? date}) async {
+  Future<void> _retrieveAppointments({DateTime? date, bool all = false}) async {
     try {
       setState(() {
         _isLoadingAppointments = true;
@@ -135,79 +137,155 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
       QueryResult res;
       List<dynamic> rows = [];
 
-      // If a specific date was requested, ask the server for appointments on that date
+      // If a specific date was requested, prefer role-specific endpoints
       if (date != null) {
         final dateStr = intl.DateFormat('yyyy-MM-dd').format(date);
-        const q = r'''
-          query AppointmentsByDate($date: String!, $doctorId: ID) {
-            appointments_by_date(date: $date, doctorId: $doctorId) {
-              appointmentId
-              appointmentStart
-              appointmentEnd
-              title
-              purpose
-              status
-              doctorId
-              careRecipientId
-              caregiverId
-              doctor { firstName lastName }
-              careRecipient { firstName lastName }
-              caregiver { firstName lastName }
+        QueryResult localRes;
+        List<dynamic> dateRows = [];
+
+        if (backendId != null && role == 'doctor') {
+          // server supports filtering appointments_by_date by doctorId
+          const q = r'''
+            query AppointmentsByDate($date: String!, $doctorId: ID) {
+              appointments_by_date(date: $date, doctorId: $doctorId) {
+                appointmentId
+                appointmentStart
+                appointmentEnd
+                title
+                purpose
+                status
+                doctorId
+                careRecipientId
+                caregiverId
+                doctor { firstName lastName }
+                careRecipient { firstName lastName }
+                caregiver { firstName lastName }
+              }
+            }
+          ''';
+          localRes = await client.query(QueryOptions(document: gql(q), variables: {'date': dateStr, 'doctorId': backendId}, fetchPolicy: FetchPolicy.networkOnly));
+          debugPrint('[_retrieveAppointments] AppointmentsByDate (doctor) vars={date: $dateStr, doctorId: $backendId} hasException=${localRes.hasException}');
+          debugPrint('[_retrieveAppointments] AppointmentsByDate (doctor) data=${localRes.data} exception=${localRes.exception}');
+          dateRows = (localRes.data?['appointments_by_date'] as List<dynamic>?) ?? [];
+        } else if (backendId != null && role.contains('recipient')) {
+          // server provides appointments_by_careRecipient(careRecipientId)
+          const q = r'''
+              query AppointmentsByCareRecipient($careRecipientId: ID!, $date: String) {
+                appointments_by_careRecipient(careRecipientId: $careRecipientId, date: $date) {
+                appointmentId
+                appointmentStart
+                appointmentEnd
+                title
+                purpose
+                status
+                doctorId
+                careRecipientId
+                caregiverId
+                doctor { firstName lastName }
+                careRecipient { firstName lastName }
+                caregiver { firstName lastName }
+              }
+            }
+          ''';
+          localRes = await client.query(QueryOptions(document: gql(q), variables: {'careRecipientId': backendId, 'date': dateStr}, fetchPolicy: FetchPolicy.networkOnly));
+          debugPrint('[_retrieveAppointments] AppointmentsByCareRecipient vars={careRecipientId: $backendId, date: $dateStr} hasException=${localRes.hasException}');
+          debugPrint('[_retrieveAppointments] AppointmentsByCareRecipient data=${localRes.data} exception=${localRes.exception}');
+          dateRows = (localRes.data?['appointments_by_careRecipient'] as List<dynamic>?) ?? [];
+        } else if (backendId != null && role.contains('caregiver')) {
+          // server provides appointments_by_caregiver(caregiverId)
+          const q = r'''
+              query AppointmentsByCaregiver($caregiverId: ID!, $date: String) {
+                appointments_by_caregiver(caregiverId: $caregiverId, date: $date) {
+                appointmentId
+                appointmentStart
+                appointmentEnd
+                title
+                purpose
+                status
+                doctorId
+                careRecipientId
+                caregiverId
+                doctor { firstName lastName }
+                careRecipient { firstName lastName }
+                caregiver { firstName lastName }
+              }
+            }
+          ''';
+          localRes = await client.query(QueryOptions(document: gql(q), variables: {'caregiverId': backendId, 'date': dateStr}, fetchPolicy: FetchPolicy.networkOnly));
+          debugPrint('[_retrieveAppointments] AppointmentsByCaregiver vars={caregiverId: $backendId, date: $dateStr} hasException=${localRes.hasException}');
+          debugPrint('[_retrieveAppointments] AppointmentsByCaregiver data=${localRes.data} exception=${localRes.exception}');
+          dateRows = (localRes.data?['appointments_by_caregiver'] as List<dynamic>?) ?? [];
+        } else {
+          // fallback: fetch all appointments for that date
+          const q = r'''
+            query AppointmentsByDate($date: String!) {
+              appointments_by_date(date: $date) {
+                appointmentId
+                appointmentStart
+                appointmentEnd
+                title
+                purpose
+                status
+                doctorId
+                careRecipientId
+                caregiverId
+                doctor { firstName lastName }
+                careRecipient { firstName lastName }
+                caregiver { firstName lastName }
+              }
+            }
+          ''';
+          localRes = await client.query(QueryOptions(document: gql(q), variables: {'date': dateStr}, fetchPolicy: FetchPolicy.networkOnly));
+          debugPrint('[_retrieveAppointments] AppointmentsByDate (fallback) vars={date: $dateStr} hasException=${localRes.hasException}');
+          debugPrint('[_retrieveAppointments] AppointmentsByDate (fallback) data=${localRes.data} exception=${localRes.exception}');
+          dateRows = (localRes.data?['appointments_by_date'] as List<dynamic>?) ?? [];
+        }
+
+        // Map rows but only include those matching the requested date (for role-specific queries)
+        final List<Appointment> fetched = [];
+        DateTime? parseServerDate(dynamic v) {
+          if (v == null) return null;
+          final str = v.toString();
+          if (RegExp(r'^\d+$').hasMatch(str)) {
+            try {
+              var n = int.parse(str);
+              if (str.length == 10) n = n * 1000;
+              return DateTime.fromMillisecondsSinceEpoch(n).toLocal();
+            } catch (_) {
+              return null;
             }
           }
-        ''';
-        final vars = backendId != null ? {'date': dateStr, 'doctorId': backendId} : {'date': dateStr};
-        res = await client.query(QueryOptions(document: gql(q), variables: vars, fetchPolicy: FetchPolicy.networkOnly));
-        debugPrint('[_retrieveAppointments] AppointmentsByDate vars=$vars hasException=${res.hasException}');
-        debugPrint('[_retrieveAppointments] AppointmentsByDate data=${res.data} exception=${res.exception}');
-        rows = (res.data?['appointments_by_date'] as List<dynamic>?) ?? [];
-        // skip role/all queries when a date-specific fetch was made
-        final List<Appointment> fetched = [];
-        for (final r in rows) {
+          try {
+            return DateTime.parse(str).toLocal();
+          } catch (_) {
+            return null;
+          }
+        }
+
+        for (final r in dateRows) {
           try {
             final s = r['appointmentStart'];
-            DateTime? dt;
-            // parse server date which may be milliseconds since epoch (as string)
-            DateTime? _parseServerDate(dynamic v) {
-              if (v == null) return null;
-              final str = v.toString();
-              // pure digits -> epoch seconds or milliseconds
-              if (RegExp(r'^\d+$').hasMatch(str)) {
-                try {
-                  var n = int.parse(str);
-                  // if 10 digits -> seconds, convert to ms
-                  if (str.length == 10) n = n * 1000;
-                  return DateTime.fromMillisecondsSinceEpoch(n).toLocal();
-                } catch (_) {
-                  return null;
-                }
-              }
-              try {
-                return DateTime.parse(str).toLocal();
-              } catch (_) {
-                return null;
-              }
-            }
-            dt = _parseServerDate(s);
-            // format time as "start - end" when end time available
-            final e = r['appointmentEnd'];
-            final dtEnd = _parseServerDate(e);
-            final timeStr = (dt != null && dtEnd != null)
-              ? '${intl.DateFormat('hh:mm a').format(dt)} - ${intl.DateFormat('hh:mm a').format(dtEnd)}'
-              : (dt != null ? intl.DateFormat('hh:mm a').format(dt) : '');
-            final title = r['title']?.toString() ?? '';
+            final dt = parseServerDate(s);
+            if (dt == null) continue;
+            final dateOnly = DateTime(dt.year, dt.month, dt.day);
+            if (!isSameDay(dateOnly, date)) continue;
 
-            // IDs (fallback)
+            final e = r['appointmentEnd'];
+            final dtEnd = parseServerDate(e);
+            final timeStr = (dtEnd != null)
+              ? '${intl.DateFormat('hh:mm a').format(dt)} - ${intl.DateFormat('hh:mm a').format(dtEnd)}'
+              : (intl.DateFormat('hh:mm a').format(dt));
+
+            final title = r['title']?.toString() ?? '';
             final doctorId = r['doctorId']?.toString() ?? '';
             final careRecipientId = r['careRecipientId']?.toString() ?? '';
             final caregiverId = r['caregiverId']?.toString() ?? '';
 
-            // Nested objects provided by backend (if resolver joined them)
             final Map<String, dynamic>? doctorObj = (r['doctor'] is Map) ? Map<String, dynamic>.from(r['doctor']) : null;
             final Map<String, dynamic>? crObj = (r['careRecipient'] is Map) ? Map<String, dynamic>.from(r['careRecipient']) : null;
             final Map<String, dynamic>? cgObj = (r['caregiver'] is Map) ? Map<String, dynamic>.from(r['caregiver']) : null;
 
-            String _fullNameFromMap(Map<String, dynamic>? m) {
+            String fullNameFromMap(Map<String, dynamic>? m) {
               if (m == null) return '';
               final f = (m['firstName'] ?? m['firstname'] ?? '').toString();
               final l = (m['lastName'] ?? m['lastname'] ?? '').toString();
@@ -215,9 +293,9 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
               return combined.isEmpty ? '' : combined;
             }
 
-            final docName = _fullNameFromMap(doctorObj);
-            final crName = _fullNameFromMap(crObj);
-            final cgName = _fullNameFromMap(cgObj);
+            final docName = fullNameFromMap(doctorObj);
+            final crName = fullNameFromMap(crObj);
+            final cgName = fullNameFromMap(cgObj);
 
             String left = '';
             String right = '';
@@ -232,13 +310,10 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
               left = cgName.isNotEmpty ? cgName : (caregiverId.isNotEmpty ? caregiverId : '');
               right = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
             } else {
-              // default: show doctor name if available, else id
               left = docName.isNotEmpty ? docName : (doctorId.isNotEmpty ? doctorId : '');
               right = crName.isNotEmpty ? crName : (careRecipientId.isNotEmpty ? careRecipientId : '');
             }
 
-            // normalize date to local date-only so isSameDay() matches selected day
-            final dateOnly = dt != null ? DateTime(dt.year, dt.month, dt.day) : DateTime.now();
             fetched.add(Appointment(
               date: dateOnly,
               title: title,
@@ -246,6 +321,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
               leftLabel: left,
               centerLabel: title,
               rightLabel: right,
+              status: r['status']?.toString() ?? '',
               doctorId: doctorId,
               careRecipientId: careRecipientId,
               caregiverId: caregiverId,
@@ -266,7 +342,30 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
         return;
       }
 
-      if (role == 'doctor' && backendId != null) {
+      if (all) {
+        const q = r'''
+          query AllAppointments {
+            appointments {
+              appointmentId
+              appointmentStart
+              appointmentEnd
+              title
+              purpose
+              status
+              doctorId
+              careRecipientId
+              caregiverId
+              doctor { firstName lastName }
+              careRecipient { firstName lastName }
+              caregiver { firstName lastName }
+            }
+          }
+        ''';
+        res = await client.query(QueryOptions(document: gql(q), fetchPolicy: FetchPolicy.networkOnly));
+        debugPrint('[_retrieveAppointments] AllAppointments (forced) hasException=${res.hasException}');
+        debugPrint('[_retrieveAppointments] AllAppointments (forced) data=${res.data} exception=${res.exception}');
+        rows = (res.data?['appointments'] as List<dynamic>?) ?? [];
+      } else if (role == 'doctor' && backendId != null) {
         const q = r'''
           query AppointmentsByDoctor($doctorId: ID!) {
             appointments_by_doctor(doctorId: $doctorId) {
@@ -365,7 +464,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
         try {
           final s = r['appointmentStart'];
           DateTime? dt;
-          DateTime? _parseServerDate(dynamic v) {
+          DateTime? parseServerDate(dynamic v) {
             if (v == null) return null;
             final str = v.toString();
             if (RegExp(r'^\d+$').hasMatch(str)) {
@@ -383,10 +482,10 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
               return null;
             }
           }
-            dt = _parseServerDate(s);
+            dt = parseServerDate(s);
             // format time as "start - end" when end time available
             final e = r['appointmentEnd'];
-            final dtEnd = _parseServerDate(e);
+            final dtEnd = parseServerDate(e);
             final timeStr = (dt != null && dtEnd != null)
               ? '${intl.DateFormat('hh:mm a').format(dt)} - ${intl.DateFormat('hh:mm a').format(dtEnd)}'
               : (dt != null ? intl.DateFormat('hh:mm a').format(dt) : '');
@@ -402,7 +501,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
           final Map<String, dynamic>? crObj = (r['careRecipient'] is Map) ? Map<String, dynamic>.from(r['careRecipient']) : null;
           final Map<String, dynamic>? cgObj = (r['caregiver'] is Map) ? Map<String, dynamic>.from(r['caregiver']) : null;
 
-          String _fullNameFromMap(Map<String, dynamic>? m) {
+          String fullNameFromMap(Map<String, dynamic>? m) {
             if (m == null) return '';
             final f = (m['firstName'] ?? m['firstname'] ?? '').toString();
             final l = (m['lastName'] ?? m['lastname'] ?? '').toString();
@@ -410,9 +509,9 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
             return combined.isEmpty ? '' : combined;
           }
 
-          final docName = _fullNameFromMap(doctorObj);
-          final crName = _fullNameFromMap(crObj);
-          final cgName = _fullNameFromMap(cgObj);
+          final docName = fullNameFromMap(doctorObj);
+          final crName = fullNameFromMap(crObj);
+          final cgName = fullNameFromMap(cgObj);
 
           String left = '';
           String right = '';
@@ -441,6 +540,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
             leftLabel: left,
             centerLabel: title,
             rightLabel: right,
+            status: r['status']?.toString() ?? '',
             doctorId: doctorId,
             careRecipientId: careRecipientId,
             caregiverId: caregiverId,
@@ -533,16 +633,22 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                       ),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12.r),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 5,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+                              ),
+                              border: Border.all(
+                                color: Colors.orange.shade300,
+                                width: 2.w,
+                              ),
+                              borderRadius: BorderRadius.circular(10.r),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
                       padding: EdgeInsets.all(12.w),
                       child: TableCalendar(
                         calendarFormat: CalendarFormat.month,
@@ -572,7 +678,8 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                           todayDecoration: BoxDecoration(),
                           todayTextStyle: TextStyle(color: Colors.black87),
                           selectedDecoration: BoxDecoration(
-                            color: Colors.orange.shade100,
+                            color: Colors.white,
+                            border: Border.all(color: Colors.orange.shade300, width: 1.w),
                             shape: BoxShape.circle,
                           ),
                           selectedTextStyle: TextStyle(color: Colors.black),
@@ -582,11 +689,13 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                             if (_searchQuery.isEmpty) return const SizedBox.shrink();
                             final q = _searchQuery.toLowerCase();
                             final hasMatch = _appointments.any((a) =>
-                                isSameDay(a.date, date) &&
-                                (a.title.toLowerCase().contains(q) ||
-                                    a.leftLabel.toLowerCase().contains(q) ||
-                                    a.centerLabel.toLowerCase().contains(q) ||
-                                    a.rightLabel.toLowerCase().contains(q)));
+                              // only mark days that have confirmed appointments matching the query
+                              isSameDay(a.date, date) &&
+                              (a.status.toLowerCase() == 'confirmed') &&
+                              (a.title.toLowerCase().contains(q) ||
+                                a.leftLabel.toLowerCase().contains(q) ||
+                                a.centerLabel.toLowerCase().contains(q) ||
+                                a.rightLabel.toLowerCase().contains(q)));
                             if (!hasMatch) return const SizedBox.shrink();
 
                             return Align(
@@ -640,6 +749,8 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
                       if (_searchQuery.isNotEmpty) {
                         final q = _searchQuery.toLowerCase();
                         final matches = _appointments.where((a) {
+                          // search should only show confirmed appointments
+                          if (a.status.toLowerCase() != 'confirmed') return false;
                           return a.title.toLowerCase().contains(q) ||
                               a.leftLabel.toLowerCase().contains(q) ||
                               a.centerLabel.toLowerCase().contains(q) ||
@@ -765,7 +876,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
   }
 
 
-  void _toggleInlineSearch() {
+  Future<void> _toggleInlineSearch() async {
     setState(() {
       _showInlineSearch = !_showInlineSearch;
       if (_showInlineSearch) {
@@ -780,6 +891,12 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
     if (_showInlineSearch) {
       // focus after frame so keyboard opens
       WidgetsBinding.instance.addPostFrameCallback((_) => _searchFocus.requestFocus());
+      // when entering search mode, fetch role-filtered appointments
+      // so search only shows results the current role can see
+      await _retrieveAppointments();
+    } else {
+      // leaving search mode: restore appointments for the selected day
+      await _retrieveAppointments(date: _selectedDay);
     }
   }
 

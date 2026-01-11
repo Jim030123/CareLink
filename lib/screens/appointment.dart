@@ -1,3 +1,4 @@
+import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
 import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
@@ -121,7 +122,9 @@ query CareRecipients {
           final start = sH.clamp(0, 23);
           final end = eH.clamp(0, 24);
           final slots = <int>{};
-          for (var h = start; h < end; h++) slots.add(h);
+          for (var h = start; h < end; h++) {
+            slots.add(h);
+          }
           byDay.putIfAbsent(day, () => <int>{});
           byDay[day]!.addAll(slots);
         } catch (_) {}
@@ -160,7 +163,9 @@ query CareRecipients {
               final start = s.clamp(0, 23);
               final end = en.clamp(0, 24);
               final slots = <int>[];
-              for (var h = start; h < end; h++) slots.add(h);
+              for (var h = start; h < end; h++) {
+                slots.add(h);
+              }
               return slots;
             }
           } catch (_) {}
@@ -329,8 +334,9 @@ query CareRecipients {
           try {
             final rawHour = b['hour'];
             int? h;
-            if (rawHour is int) h = rawHour;
-            else if (rawHour is String) h = int.tryParse(rawHour);
+            if (rawHour is int) {
+              h = rawHour;
+            } else if (rawHour is String) h = int.tryParse(rawHour);
             final apps = (b['appointments'] as List<dynamic>?) ?? [];
             debugPrint('[appointments_by_date_hours] hour=$rawHour parsed=$h apps=${apps.length}');
             // Only consider appointments with status 'pending' or 'approved' as blocking
@@ -543,6 +549,31 @@ query CareRecipients {
     }
     debugPrint('[_performSave] resolved caregiverId=$caregiverId');
 
+    // Fetch a generated appointment number to reuse across all timeslots
+    String? appointmentNumber;
+   try {
+
+
+  final messenger = ScaffoldMessenger.of(context);
+
+  appointmentNumber = await fetchGeneratedCode(
+     GraphQLProvider.of(context).value,
+    messenger: messenger,
+    id: 10,
+  );
+
+  if (appointmentNumber == null) {
+    debugPrint('[_performSave] failed to generate appointment number');
+    return;
+  }
+
+  debugPrint('[_performSave] fetched appointmentNumber=$appointmentNumber');
+} catch (e, st) {
+  debugPrint('[_performSave] exception fetching generated code: $e');
+  debugPrint(st.toString());
+}
+
+
     _selectedSlots.forEach((dateLabel, hours) {
       final ranges = _mergeContinuousHours(hours);
       for (final r in ranges) {
@@ -560,6 +591,7 @@ query CareRecipients {
             'careRecipientId': _selectedRecipient!['id'],
             'caregiverId': caregiverId,
             'doctorId': doctorId,
+            'appointmentNumber': appointmentNumber,
             'appointmentStart': start,
             'appointmentEnd': end,
             'title': _titleCtrl.text.trim(),
@@ -914,11 +946,12 @@ query CareRecipients {
                                                                         start &&
                                                                     hour < end,
                                                               );
-                                                              if (list.isEmpty)
+                                                              if (list.isEmpty) {
                                                                 _selectedSlots
                                                                     .remove(
                                                                       entry.key,
                                                                     );
+                                                              }
                                                             }
                                                           },
                                                         ),

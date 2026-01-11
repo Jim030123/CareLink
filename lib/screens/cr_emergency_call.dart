@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:carelink_mobile/components/page_appbar.dart';
-import 'package:carelink_mobile/screens/cg_emergency_call.dart';
 import 'package:carelink_mobile/utils/signal_service.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';

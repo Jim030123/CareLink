@@ -140,10 +140,10 @@ query GetActiveAvailabilities($doctorId: String!) {
       // local merging/fallback logic can handle them reliably.
       // Use DayConvert.toInt to normalize day values
 
-      String _formatHour(dynamic h) {
+      String formatHour(dynamic h) {
         if (h == null) return '00:00';
         final hi = int.tryParse(h.toString()) ?? 0;
-        return hi.toString().padLeft(2, '0') + ':00';
+        return '${hi.toString().padLeft(2, '0')}:00';
       }
 
       final mapped = rows
@@ -151,15 +151,15 @@ query GetActiveAvailabilities($doctorId: String!) {
             final day = DayConvert.toInt(r['dayOfWeek']);
             if (day == null) {
               debugPrint(
-                'restoreAvailabilities: skipping row with null/invalid dayOfWeek: ${r}',
+                'restoreAvailabilities: skipping row with null/invalid dayOfWeek: $r',
               );
               return null;
             }
             return {
               'dayOfWeek': day.toString(),
               'enabled': r['isActive'] == true,
-              'start': _formatHour(r['startHour']),
-              'end': _formatHour(r['endHour']),
+              'start': formatHour(r['startHour']),
+              'end': formatHour(r['endHour']),
             };
           })
           .where((e) => e != null)
@@ -261,15 +261,16 @@ query GetActiveAvailabilities($doctorId: String!) {
       final result = <Map<String, dynamic>>[];
       for (var i = 1; i <= 7; i++) {
         final k = i.toString();
-        if (dayMap.containsKey(k))
+        if (dayMap.containsKey(k)) {
           result.add(dayMap[k]!);
-        else
+        } else {
           result.add({
             'dayOfWeek': k,
             'enabled': false,
             'start': '08:00',
             'end': '17:00',
           });
+        }
       }
       return result;
     } catch (_) {
@@ -413,9 +414,7 @@ query GetActiveAvailabilities($doctorId: String!) {
   }
 
   String _format(TimeOfDay t) =>
-      t.hour.toString().padLeft(2, '0') +
-      ':' +
-      t.minute.toString().padLeft(2, '0');
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   TimeOfDay _parseTime(String v) {
     final parts = v.split(':');
@@ -478,7 +477,7 @@ query GetActiveAvailabilities($doctorId: String!) {
     /// ---------- helpers ----------
     // Use DayConvert.safeString to produce a numeric day string with fallback
 
-    int? _hourFloor(dynamic v) {
+    int? hourFloor(dynamic v) {
       if (v == null) return null;
       final s = v.toString().trim();
       if (s.contains(':')) {
@@ -486,7 +485,7 @@ query GetActiveAvailabilities($doctorId: String!) {
         return h.clamp(0, 23);
       }
       final p = int.tryParse(s);
-      return p == null ? null : p.clamp(0, 23);
+      return p?.clamp(0, 23);
     }
 
     /// ---------- build raw objects (SAFE) ----------
@@ -509,8 +508,8 @@ query GetActiveAvailabilities($doctorId: String!) {
     /// ---------- normalize ----------
     final normalized = rawObjects.map((o) {
       final dayInt = int.tryParse(o['dayOfWeek'].toString());
-      final sHour = _hourFloor(o['startHour']);
-      final eHour = _hourFloor(o['endHour']);
+      final sHour = hourFloor(o['startHour']);
+      final eHour = hourFloor(o['endHour']);
 
       return {
         'availabilityId': o['availabilityId'],
@@ -624,6 +623,7 @@ mutation InsertAvailability(
     }
   }
 
+  @override
   Widget build(BuildContext context) {
     if (!_initialized) {
       return Scaffold(
@@ -1211,7 +1211,7 @@ mutation InsertAvailability(
                                                           String,
                                                           Map<String, String>
                                                         >
-                                                        _defaults = {
+                                                        defaults = {
                                                           '1': {
                                                             'start': '08:00',
                                                             'end': '17:00',
@@ -1308,7 +1308,7 @@ mutation InsertAvailability(
                                                                   : 'Day');
 
                                                         final def =
-                                                            _defaults[dayNum !=
+                                                            defaults[dayNum !=
                                                                         null &&
                                                                     dayNum >=
                                                                         1 &&
@@ -1650,15 +1650,17 @@ mutation InsertAvailability(
                                                                       ) ||
                                                                       !_isAllowed(
                                                                         end,
-                                                                      ))
+                                                                      )) {
                                                                     return null;
+                                                                  }
                                                                   if (_toMinutes(
                                                                         start,
                                                                       ) >=
                                                                       _toMinutes(
                                                                         end,
-                                                                      ))
+                                                                      )) {
                                                                     return null;
+                                                                  }
                                                                 }
                                                               }
                                                               // all good -> return the save handler
@@ -1716,8 +1718,9 @@ mutation InsertAvailability(
                                                                 setStateLocal(
                                                                   () {},
                                                                 );
-                                                                if (hasError)
+                                                                if (hasError) {
                                                                   return;
+                                                                }
                                                                 await _saveAvailableTimes(
                                                                   times,
                                                                 );
@@ -1879,6 +1882,7 @@ mutation InsertAvailability(
                               },
                             );
                         }
+                        return null;
                       },
                       separatorBuilder: (ctx, idx) => Divider(
                         height: 1.h,
