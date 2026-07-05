@@ -16,14 +16,14 @@ class RemoteMonitor extends StatefulWidget {
 class _RemoteMonitorState extends State<RemoteMonitor> {
   VideoPlayerController? _controller;
   final TextEditingController _urlController = TextEditingController(
-    text: 'http://10.150.123.100:8888/cam1/index.m3u8',
+    text: 'http://10.174.189.100:8888/cam1/index.m3u8',
   );
   bool _ready = false;
   final List<String> _sources = ['Source 1', 'Source 2', 'Source 3'];
   final List<String> _sourceUrls = [
-    'http://10.150.123.100:8888/cam1/index.m3u8',
-    'http://10.150.123.100:8888/cam2/index.m3u8',
-    'http://10.150.123.100:8888/cam3/index.m3u8',
+    'http://10.174.189.100:8888/cam1/index.m3u8',
+    'http://10.174.189.100:8888/cam2/index.m3u8',
+    'http://10.174.189.100:8888/cam3/index.m3u8',
   ];
   int _selectedSourceIndex = 0;
   Timer? _noContentTimer;
@@ -149,108 +149,110 @@ class _RemoteMonitorState extends State<RemoteMonitor> {
           setState(() {});
         },
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _urlController,
-                    decoration: const InputDecoration(
-                      labelText: 'Stream URL',
-                      hintText: 'http://<host>:<port>/path/index.m3u8',
-                    ),
-                    keyboardType: TextInputType.url,
-                    onSubmitted: (_) => _loadUrl(_urlController.text),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () => _loadUrl(_urlController.text),
-                  child: const Text('Load'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Column(
-              children: [
-                Text(
-                  'Remote ${_sources[_selectedSourceIndex]}',
-                  style: TextStyle(
-                    fontSize: 25.sp,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(
-                        offset: Offset(2.0, 2.0),
-                        blurRadius: 10.0,
-                        color: Colors.black54,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _urlController,
+                      decoration: const InputDecoration(
+                        labelText: 'Stream URL',
+                        hintText: 'http://<host>:<port>/path/index.m3u8',
                       ),
-                    ],
+                      keyboardType: TextInputType.url,
+                      onSubmitted: (_) => _loadUrl(_urlController.text),
+                    ),
                   ),
-                ),
-                SizedBox(height: 16.h),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => _loadUrl(_urlController.text),
+                    child: const Text('Load'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Column(
+                children: [
+                  Text(
+                    'Remote ${_sources[_selectedSourceIndex]}',
+                    style: TextStyle(
+                      fontSize: 25.sp,
+                      fontWeight: FontWeight.bold,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(2.0, 2.0),
+                          blurRadius: 10.0,
+                          color: Colors.black54,
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16.h),
 
-                Container(
-                  height: 220.h,
-                  decoration: BoxDecoration(
-                    gradient:  LinearGradient(
-                      colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
-                    ),
-                    border: Border.all(
-                      color: Colors.orange.withOpacity(0.25),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange.withOpacity(0.25),
-                        blurRadius: 14,
+                  Container(
+                    height: 220.h,
+                    decoration: BoxDecoration(
+                      gradient:  LinearGradient(
+                        colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
                       ),
-                    ],
+                      border: Border.all(
+                        color: Colors.orange.withOpacity(0.25),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.25),
+                          blurRadius: 14,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: _timeout
+                        ? Text('Timeout connection', style: TextStyle(fontSize: 16.sp, color: Colors.red))
+                        : (_ready && _controller != null
+                          ? (_noContent
+                            ? Text('No remote source available', style: TextStyle(fontSize: 16.sp, color: Colors.grey))
+                            : AspectRatio(
+                              aspectRatio: _controller!.value.aspectRatio,
+                              child: VideoPlayer(_controller!),
+                              ))
+                          : Lottie.asset(
+                              'assets/animations/video_loading.json',
+                              width: 80.w,
+                              height: 80.h,
+                              fit: BoxFit.contain,
+                              repeat: true
+                            )),
+                    ),
                   ),
-                  child: Center(
-                    child: _timeout
-                      ? Text('Timeout connection', style: TextStyle(fontSize: 16.sp, color: Colors.red))
-                      : (_ready && _controller != null
-                        ? (_noContent
-                          ? Text('No remote source available', style: TextStyle(fontSize: 16.sp, color: Colors.grey))
-                          : AspectRatio(
-                            aspectRatio: _controller!.value.aspectRatio,
-                            child: VideoPlayer(_controller!),
-                            ))
-                        : Lottie.asset(
-                            'assets/animations/video_loading.json',
-                            width: 80.w,
-                            height: 80.h,
-                            fit: BoxFit.contain,
-                            repeat: true
-                          )),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16.h),
-            // selectable single-choice chips for sources
-            Wrap(
-              spacing: 8.w,
-              children: List<Widget>.generate(_sources.length, (i) {
-                return ChoiceChip(
-                  label: Text(_sources[i], style: TextStyle(fontSize: 14.sp)),
-                  selected: _selectedSourceIndex == i,
-                  onSelected: (selected) {
-                    if (!selected) return;
-                    setState(() {
-                      _selectedSourceIndex = i;
-                      // update URL field and load the selected stream
-                      _urlController.text = _sourceUrls[i];
-                    });
-                    _loadUrl(_sourceUrls[i]);
-                  },
-                );
-              }),
-            ),
-          ],
+                ],
+              ),
+              SizedBox(height: 16.h),
+              // selectable single-choice chips for sources
+              Wrap(
+                spacing: 8.w,
+                children: List<Widget>.generate(_sources.length, (i) {
+                  return ChoiceChip(
+                    label: Text(_sources[i], style: TextStyle(fontSize: 14.sp)),
+                    selected: _selectedSourceIndex == i,
+                    onSelected: (selected) {
+                      if (!selected) return;
+                      setState(() {
+                        _selectedSourceIndex = i;
+                        // update URL field and load the selected stream
+                        _urlController.text = _sourceUrls[i];
+                      });
+                      _loadUrl(_sourceUrls[i]);
+                    },
+                  );
+                }),
+              ),
+            ],
+          ),
         ),
       ),
     );

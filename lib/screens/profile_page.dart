@@ -25,6 +25,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   String _name = '';
   String _email = '';
+  String _phoneNumber = '';
   bool _initialized = false;
   // Notification settings state
   bool _pushNotifications = true;
@@ -38,11 +39,8 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _email = user.email ?? _email;
-      _name = user.displayName ?? _name;
-    }
+
+
     // Perform asynchronous initialization and only show the page when done.
     _localNotifications = FlutterLocalNotificationsPlugin();
     _initialize();
@@ -68,19 +66,38 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadProfileFromBackend() async {
     try {
-      final fbUser = FirebaseAuth.instance.currentUser;
-      if (fbUser == null) return;
-      final backendUser = await fetchUserByUid(fbUser.uid);
-      if (backendUser == null) return;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      debugPrint('loadProfileFromBackend: starting for uid=$uid');
+
+      final backendUser = await fetchCurrentUser();
+      if (backendUser == null) {
+        debugPrint('loadProfileFromBackend: no backend user for uid=$uid');
+        return;
+      }
+
       final beEmail = backendUser['email']?.toString();
       final beName = backendUser['displayName']?.toString();
+      String? bePhone;
+      for (final k in ['phoneNumber', 'phone', 'phone_number', 'mobile', 'telephone']) {
+        final v = backendUser[k];
+        if (v != null && v.toString().trim().isNotEmpty) {
+          bePhone = v.toString();
+          break;
+        }
+      }
+
+      debugPrint('loadProfileFromBackend: backendUser keys=${backendUser.keys.toList()}, resolvedPhone=$bePhone');
+
       if (mounted) {
         setState(() {
           if (beEmail != null && beEmail.isNotEmpty) _email = beEmail;
           if (beName != null && beName.isNotEmpty) _name = beName;
+          if (bePhone != null && bePhone.isNotEmpty) _phoneNumber = bePhone;
         });
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('loadProfileFromBackend exception: $e\n$st');
+    }
   }
 
   Future<void> _restoreAvailabilitiesFromServerIfNeeded() async {
@@ -699,6 +716,14 @@ mutation InsertAvailability(
                                   color: Colors.black54,
                                 ),
                               ),
+                              SizedBox(height: 6.h),
+                              Text(
+                                _phoneNumber.isNotEmpty ? _phoneNumber : 'No phone',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  color: Colors.black45,
+                                ),
+                              ),
                               SizedBox(height: 8.h),
                               ElevatedButton(
                                 onPressed: () {
@@ -708,6 +733,10 @@ mutation InsertAvailability(
                                   final emailController = TextEditingController(
                                     text: _email,
                                   );
+                                  final phoneController =TextEditingController(
+                                    text: _phoneNumber,
+                                  );
+
                                   showModalBottomSheet(
                                     context: context,
                                     isScrollControlled: true,
@@ -763,14 +792,13 @@ mutation InsertAvailability(
                                               ),
                                               SizedBox(height: 8.h),
                                               TextField(
-                                                controller: emailController,
+                                                controller: phoneController,
                                                 decoration: InputDecoration(
-                                                  labelText: 'Email',
+                                                  labelText: 'Phone',
                                                 ),
-                                                keyboardType:
-                                                    TextInputType.emailAddress,
                                               ),
-                                              SizedBox(height: 16.h),
+                                              SizedBox(height: 8.h),
+
                                               Row(
                                                 mainAxisAlignment:
                                                     MainAxisAlignment.end,
@@ -793,6 +821,9 @@ mutation InsertAvailability(
                                                             .text
                                                             .trim();
                                                         _email = emailController
+                                                            .text
+                                                            .trim();
+                                                        _phoneNumber = phoneController
                                                             .text
                                                             .trim();
                                                       });
@@ -818,6 +849,8 @@ mutation InsertAvailability(
                                                   ),
                                                 ],
                                               ),
+
+                                              // reset password module here — placed below Save/Cancel
                                               SizedBox(height: 8.h),
                                             ],
                                           ),
@@ -962,20 +995,85 @@ mutation InsertAvailability(
                                           );
                                         },
                                       ),
+
                                       ListTile(
-                                        leading: Icon(Icons.link),
-                                        title: Text('Manage Linked Accounts'),
-                                        onTap: () {
+                                        leading: Icon(Icons.lock_reset),
+                                        title: Text('Reset Password'),
+                                        onTap: () async {
+                                          // close the feature sheet first
                                           Navigator.of(context).pop();
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Manage Linked Accounts',
+
+                                          final confirmed = await showDialog<bool>(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              title: const Text(
+                                                'Confirm Reset Password',
                                               ),
+                                              content: Text(
+                                                'Send password reset email to ${_email.isNotEmpty
+                                                        ? _email
+                                                        : 'your account email'}?',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.of(
+                                                    ctx,
+                                                  ).pop(false),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () => Navigator.of(
+                                                    ctx,
+                                                  ).pop(true),
+                                                  child: const Text('Confirm'),
+                                                ),
+                                              ],
                                             ),
                                           );
+
+                                          if (confirmed != true) return;
+
+                                          final email = _email.trim();
+                                          if (email.isEmpty) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'No email available to send reset',
+                                                ),
+                                              ),
+                                            );
+                                            return;
+                                          }
+
+                                          try {
+                                            await AuthService.instance
+                                                .sendPasswordResetEmail(email);
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Password reset email sent to $email',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Failed to send reset email: ${e.toString()}',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          }
                                         },
                                       ),
                                     ],
@@ -991,45 +1089,47 @@ mutation InsertAvailability(
                                 _showFeatureSheet(
                                   context,
                                   'Notifications',
-                                  StatefulBuilder(
-                                    builder: (c, setStateLocal) {
-                                      bool push = _pushNotifications;
-                                      bool email = _emailNotifications;
-                                      return Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          SwitchListTile(
-                                            title: Text('Push Notifications'),
-                                            value: push,
-                                            onChanged: (v) async {
-                                              setStateLocal(() => push = v);
-                                              await _setPushNotifications(v);
-                                            },
-                                          ),
-                                          SwitchListTile(
-                                            title: Text('Email Notifications'),
-                                            value: email,
-                                            onChanged: (v) async {
-                                              setStateLocal(() => email = v);
-                                              await _setEmailNotifications(v);
-                                            },
-                                          ),
-                                          SizedBox(height: 8.h),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.end,
-                                            children: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.of(context).pop(),
-                                                child: Text('Close'),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
+                                  (() {
+                                    bool push = _pushNotifications;
+                                    bool email = _emailNotifications;
+                                    return StatefulBuilder(
+                                      builder: (c, setStateLocal) {
+                                        return Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            SwitchListTile(
+                                              title: Text('Push Notifications'),
+                                              value: push,
+                                              onChanged: (v) async {
+                                                setStateLocal(() => push = v);
+                                                await _setPushNotifications(v);
+                                              },
+                                            ),
+                                            SwitchListTile(
+                                              title: Text('Email Notifications'),
+                                              value: email,
+                                              onChanged: (v) async {
+                                                setStateLocal(() => email = v);
+                                                await _setEmailNotifications(v);
+                                              },
+                                            ),
+                                            SizedBox(height: 8.h),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.of(context).pop(),
+                                                  child: Text('Close'),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    );
+                                  })(),
                                 );
                               },
                             );
@@ -1041,43 +1141,45 @@ mutation InsertAvailability(
                                 _showFeatureSheet(
                                   context,
                                   'Privacy',
-                                  StatefulBuilder(
-                                    builder: (c, setState) {
-                                      bool showProfile = false;
-                                      bool analytics = true;
-                                      return Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          SwitchListTile(
-                                            title: Text(
-                                              'Show profile to others',
-                                            ),
-                                            value: showProfile,
-                                            onChanged: (v) =>
-                                                setState(() => showProfile = v),
-                                          ),
-                                          SwitchListTile(
-                                            title: Text('Allow analytics'),
-                                            value: analytics,
-                                            onChanged: (v) =>
-                                                setState(() => analytics = v),
-                                          ),
-                                          SizedBox(height: 8.h),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.end,
-                                            children: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.of(c).pop(),
-                                                child: Text('Close'),
+                                  (() {
+                                    bool showProfile = false;
+                                    bool analytics = true;
+                                    return StatefulBuilder(
+                                      builder: (c, setStateLocal) {
+                                        return Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            SwitchListTile(
+                                              title: Text(
+                                                'Show profile to others',
                                               ),
-                                            ],
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
+                                              value: showProfile,
+                                              onChanged: (v) =>
+                                                  setStateLocal(() => showProfile = v),
+                                            ),
+                                            SwitchListTile(
+                                              title: Text('Allow analytics'),
+                                              value: analytics,
+                                              onChanged: (v) =>
+                                                  setStateLocal(() => analytics = v),
+                                            ),
+                                            SizedBox(height: 8.h),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.of(c).pop(),
+                                                  child: Text('Close'),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    );
+                                  })(),
                                 );
                               },
                             );

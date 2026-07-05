@@ -146,8 +146,8 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
         if (backendId != null && role == 'doctor') {
           // server supports filtering appointments_by_date by doctorId
           const q = r'''
-            query AppointmentsByDate($date: String!, $doctorId: ID) {
-              appointments_by_date(date: $date, doctorId: $doctorId) {
+            query AppointmentsByDoctor( $doctorId: ID,$date: String!) {
+              appointments_by_doctor( doctorId: $doctorId, date: $date) {
                 appointmentId
                 appointmentStart
                 appointmentEnd
@@ -166,7 +166,7 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
           localRes = await client.query(QueryOptions(document: gql(q), variables: {'date': dateStr, 'doctorId': backendId}, fetchPolicy: FetchPolicy.networkOnly));
           debugPrint('[_retrieveAppointments] AppointmentsByDate (doctor) vars={date: $dateStr, doctorId: $backendId} hasException=${localRes.hasException}');
           debugPrint('[_retrieveAppointments] AppointmentsByDate (doctor) data=${localRes.data} exception=${localRes.exception}');
-          dateRows = (localRes.data?['appointments_by_date'] as List<dynamic>?) ?? [];
+          dateRows = (localRes.data?['appointments_by_doctor'] as List<dynamic>?) ?? [];
         } else if (backendId != null && role.contains('recipient')) {
           // server provides appointments_by_careRecipient(careRecipientId)
           const q = r'''
@@ -729,11 +729,6 @@ class _ShowAppointmentPageState extends State<ShowAppointmentPage> {
 
                           // fetch appointments for selected date
                           await _retrieveAppointments(date: selectedDay);
-
-                          final formatted = DateFormat('EEE, dd MMM yyyy').format(selectedDay);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Selected date: $formatted')),
-                          );
                         },
                         onPageChanged: (focusedDay) {
                           // update focused day when user navigates calendar pages

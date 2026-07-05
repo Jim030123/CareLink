@@ -1,6 +1,5 @@
 import 'package:carelink_mobile/components/numbering.dart';
 import 'package:carelink_mobile/components/page_appbar.dart';
-import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
 import 'package:carelink_mobile/utils/graphql_service.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
 import 'package:carelink_mobile/utils/auth_service.dart';
@@ -119,7 +118,7 @@ query CareRecipients {
           final sH = s is int ? s : int.tryParse(s?.toString() ?? '0');
           final eH = e is int ? e : int.tryParse(e?.toString() ?? '0');
           if (day == null || sH == null || eH == null) continue;
-          final start = sH.clamp(0, 23);
+          final start = sH.clamp(0, 23);  
           final end = eH.clamp(0, 24);
           final slots = <int>{};
           for (var h = start; h < end; h++) {

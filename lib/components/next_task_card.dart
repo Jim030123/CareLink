@@ -8,6 +8,7 @@ class NextTaskCard extends StatelessWidget {
   final String? subtitle;
   final IconData icon;
   final String? dosage;
+  final String? frequencyNote;
   final String rightInfo;
   final VoidCallback? onMarkDone;
   final VoidCallback? onCancel;
@@ -21,6 +22,7 @@ class NextTaskCard extends StatelessWidget {
     required this.upcomingTitle,
     required this.title,
     this.subtitle,
+    this.frequencyNote,
     this.dosage,
     required this.icon,
     required this.rightInfo,
@@ -105,14 +107,13 @@ class NextTaskCard extends StatelessWidget {
                       style: TextStyle(fontSize: 15.sp, color: Colors.black87, fontWeight: FontWeight.bold),
                     ),
 
-                    SizedBox(height: 12.h),
-
-
-                    Text(
-                      'Note: \n$dosage',
-
-                      style: TextStyle(fontSize: 14.sp, color: Colors.black87),
-                    ),
+                    if (frequencyNote?.isNotEmpty ?? false) ...[
+                      SizedBox(height: 12.h),
+                      Text(
+                        'Note: \n$frequencyNote',
+                        style: TextStyle(fontSize: 14.sp, color: Colors.black87),
+                      ),
+                    ],
 
 
 

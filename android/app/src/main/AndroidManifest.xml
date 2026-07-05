@@ -38,7 +38,7 @@
     <!-- Declare camera as not required so devices without a camera can still install the app -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
-        android:label="carelink_mobile"
+        android:label="CareLink"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"

@@ -12,7 +12,7 @@ import 'package:carelink_mobile/screens/select_medication_prescription.dart';
 import 'package:carelink_mobile/screens/test1.dart';
 import 'package:carelink_mobile/utils/home_resolver.dart';
 import 'package:carelink_mobile/screens/authentication/login_page.dart';
-import 'package:carelink_mobile/screens/manage_care_reciepient.dart.dart';
+import 'package:carelink_mobile/screens/manage_care_reciepient.dart';
 import 'package:carelink_mobile/screens/manage_caregiver.dart';
 import 'package:carelink_mobile/screens/authentication/register_care_recipient_page.dart';
 import 'package:carelink_mobile/screens/authentication/register_complete.dart';
@@ -110,7 +110,7 @@ final GoRouter appRouter = GoRouter(
     ),
 
     GoRoute(
-      path: '/remotemonito',
+      path: '/remotemonitor',
       builder: (context, state) => const RemoteMonitor(
 
       ),

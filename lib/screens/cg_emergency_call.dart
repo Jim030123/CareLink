@@ -160,10 +160,13 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
       }
     };
 
-    if (!await _requestMicPermission()) return;
+    // Disable video if the incoming caller is Watch-003
+    final bool videoEnabled = (incomingFrom != 'Watch-003');
 
-    localStream =
-        await navigator.mediaDevices.getUserMedia({'audio': true, 'video': true});
+    if (!await _requestPermissions(camera: videoEnabled)) return;
+
+    localStream = await navigator.mediaDevices
+      .getUserMedia({'audio': true, 'video': videoEnabled});
     _localRenderer.srcObject = localStream;
 
     for (var t in localStream!.getTracks()) {
@@ -208,9 +211,14 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
     });
   }
 
-  Future<bool> _requestMicPermission() async {
-    final s = await Permission.microphone.request();
-    return s.isGranted;
+  Future<bool> _requestPermissions({bool camera = false}) async {
+    final mic = await Permission.microphone.request();
+    if (!mic.isGranted) return false;
+    if (camera) {
+      final cam = await Permission.camera.request();
+      if (!cam.isGranted) return false;
+    }
+    return true;
   }
 
   void hangup() {
@@ -397,7 +405,7 @@ class _CGEmergencyCallState extends State<CGEmergencyCall> {
           children: [
             ElevatedButton(
               onPressed: acceptCall,
-              child: const Text('Accept'),
+              child: Text(incomingFrom == 'Watch-003' ? 'Accept (Audio Only)' : 'Accept'),
             ),
             const SizedBox(width: 12),
             ElevatedButton(

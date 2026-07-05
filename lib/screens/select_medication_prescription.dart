@@ -19,6 +19,240 @@ class SelectMedicationPrescription extends StatefulWidget {
       _SelectMedicationPrescriptionState();
 }
 
+class MedicationModal extends StatefulWidget {
+  final Map<String, dynamic> item;
+  final int globalIndex;
+
+  const MedicationModal({
+    required this.item,
+    required this.globalIndex,
+    super.key,
+  });
+
+  @override
+  State<MedicationModal> createState() => _MedicationModalState();
+}
+
+class _MedicationModalState extends State<MedicationModal> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _dosageCtrl;
+  late final TextEditingController _frequencyNoteCtrl;
+  late final TextEditingController _startCtrl;
+  late final TextEditingController _endCtrl;
+  final List<TimeOfDay> _takeTime = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _dosageCtrl = TextEditingController();
+    _frequencyNoteCtrl = TextEditingController();
+    _startCtrl = TextEditingController();
+    _endCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _dosageCtrl.dispose();
+    _frequencyNoteCtrl.dispose();
+    _startCtrl.dispose();
+    _endCtrl.dispose();
+    super.dispose();
+  }
+
+  String _formatTimeOfDay(TimeOfDay t) => t.format(context);
+
+  Future<void> _pickDate(TextEditingController ctrl, bool isStart) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (picked != null) {
+      ctrl.text = picked.toIso8601String().split('T').first;
+      setState(() {});
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final now = TimeOfDay.now();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: now,
+    );
+    if (picked != null) {
+      final exists = _takeTime.any((t) => t.format(context) == picked.format(context));
+      if (!exists) setState(() => _takeTime.add(picked));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final it = widget.item;
+    final name = it['name'] as String? ?? '';
+    final asset = (it['asset'] as String?) ?? '';
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        child: Container(
+          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40.w,
+                height: 4.h,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              SizedBox(height: 12.h),
+
+              // Header card
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12.r),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFF4EE), Color(0xFFFFE0CC)],
+                        ),
+                        border: Border.all(color: Colors.orange.withOpacity(0.25), width: 2),
+                        boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.25), blurRadius: 14)],
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(14.w),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(8.w),
+                                    decoration: const BoxDecoration(shape: BoxShape.circle),
+                                    child: Builder(builder: (_) {
+                                      if (asset.startsWith('http')) {
+                                        return Image.network(asset, width: 32.w, height: 32.w, fit: BoxFit.contain,
+                                            errorBuilder: (_, __, ___) => Image.asset('assets/icons/capsule.png', width: 32.w, height: 32.w));
+                                      }
+                                      return Image.asset(asset.isNotEmpty ? asset : 'assets/icons/capsule.png', width: 32.w, height: 32.w, fit: BoxFit.contain);
+                                    }),
+                                  ),
+                                  SizedBox(height: 6.h),
+                                  Text(name, textAlign: TextAlign.center, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700)),
+                                  SizedBox(height: 2.h),
+                                  Text('Brand: ${it['brand'] ?? '-'}', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.sp, color: Colors.black54)),
+                                  SizedBox(height: 2.h),
+                                  Text('SKU: ${it['sku'] ?? '-'}', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.sp, color: Colors.black54)),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: 12.h),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: 12.h),
+
+              // Form
+              Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FormTextField(
+                      controller: _dosageCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      label: 'Dosage Amount (${it['standardUnit'] ?? '-'})',
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Please enter dosage';
+                        if (!RegExp(r'^\d+(\.\d+)?$').hasMatch(v.trim())) return 'Dosage must be a numeric value';
+                        return null;
+                      },
+                    ),
+                    SizedBox(height: 8.h),
+
+                    Row(
+                      children: [
+                        Expanded(child: Text('Times', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600))),
+                        ElevatedButton.icon(onPressed: _pickTime, icon: const Icon(Icons.add), label: const Text('Add Time')),
+                      ],
+                    ),
+                    SizedBox(height: 8.h),
+                    if (_takeTime.isEmpty) Padding(padding: EdgeInsets.symmetric(vertical: 8.h), child: const Text('No times selected', style: TextStyle(color: Colors.black54))),
+                    Wrap(spacing: 8.w, children: _takeTime.asMap().entries.map((e) {
+                      final idx = e.key; final t = e.value;
+                      return InputChip(label: Text(_formatTimeOfDay(t)), onDeleted: () => setState(() => _takeTime.removeAt(idx)));
+                    }).toList()),
+
+                    SizedBox(height: 12.h),
+                    FormTextField(controller: _startCtrl, label: 'Start Date', readOnly: true, onTap: () => _pickDate(_startCtrl, true)),
+                    SizedBox(height: 8.h),
+                    FormTextField(controller: _endCtrl, label: 'End Date', readOnly: true, onTap: () => _pickDate(_endCtrl, false)),
+                    SizedBox(height: 8.h),
+                    FormTextField(controller: _frequencyNoteCtrl, label: 'Frequency Note'),
+                    SizedBox(height: 12.h),
+
+                    Row(children: [
+                      Expanded(child: OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel'))),
+                      SizedBox(width: 8.w),
+                      Expanded(child: ElevatedButton(onPressed: _onSave, child: const Text('Save'))),
+                    ]),
+                  ],
+                ),
+              ),
+              SizedBox(height: 12.h),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onSave() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_takeTime.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add at least one time')));
+      return;
+    }
+
+    if (_startCtrl.text.isNotEmpty && _endCtrl.text.isNotEmpty) {
+      final sd = DateTime.tryParse(_startCtrl.text);
+      final ed = DateTime.tryParse(_endCtrl.text);
+      if (sd != null && ed != null && sd.isAfter(ed)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Start date must be before end date')));
+        return;
+      }
+    }
+
+    final result = {
+      'medication': widget.item,
+      'medicationId': widget.item['id']?.toString(),
+      'dosageAmount': _dosageCtrl.text.trim(),
+      'unit': widget.item['standardUnit'],
+      'takeTime': _takeTime.map((t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}').toList(),
+      'startDate': _startCtrl.text.trim(),
+      'endDate': _endCtrl.text.trim(),
+      'frequencyNote': _frequencyNoteCtrl.text.trim(),
+      'localIndex': widget.globalIndex,
+    };
+
+    Navigator.of(context).pop(result);
+  }
+}
+
 class _SelectMedicationPrescriptionState
     extends State<SelectMedicationPrescription> {
   late MedicationType _selected;
@@ -104,7 +338,6 @@ class _SelectMedicationPrescriptionState
       final borderColor = Colors.orange.shade100;
       final gradientColors = const [Color(0xFFFFF4EE), Color(0xFFFFE0CC)];
 
-
       return Padding(
         padding: EdgeInsets.only(bottom: 12.h),
         child: Material(
@@ -123,550 +356,10 @@ class _SelectMedicationPrescriptionState
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                 ),
-                builder: (ctx) {
-                  final name = it['name'] as String? ?? '';
-                  final asset = (it['asset'] as String?) ?? '';
-
-                  final formKey = GlobalKey<FormState>();
-                  final dosageCtrl = TextEditingController();
-                  final frequencyNoteCtrl = TextEditingController();
-                  final startCtrl = TextEditingController();
-                  final endCtrl = TextEditingController();
-
-                  DateTime? startDate;
-                  DateTime? endDate;
-                  final List<TimeOfDay> takeTime = [];
-
-                  // StatefulBuilder to manage transient modal UI state (times, picked dates)
-                  return StatefulBuilder(
-                    builder: (ctx, setModalState) {
-                      Future<void> pickDate(
-                        BuildContext ctx2,
-                        TextEditingController ctrl,
-                        bool isStart,
-                      ) async {
-                        final now = DateTime.now();
-                        final picked = await showDatePicker(
-                          context: ctx2,
-                          initialDate: now,
-                          firstDate: DateTime(now.year - 5),
-                          lastDate: DateTime(now.year + 5),
-                        );
-                        if (picked != null) {
-                          ctrl.text = picked.toIso8601String().split('T').first;
-                          setModalState(() {
-                            if (isStart) {
-                              startDate = picked;
-                            } else {
-                              endDate = picked;
-                            }
-                          });
-                        }
-                      }
-
-                      Future<void> pickTime(BuildContext ctx2) async {
-                        final now = TimeOfDay.now();
-                        final picked = await showTimePicker(
-                          context: ctx2,
-                          initialTime: now,
-                        );
-                        if (picked != null) {
-                          // avoid duplicates
-                          final exists = takeTime.any(
-                            (t) => t.format(ctx2) == picked.format(ctx2),
-                          );
-                          if (!exists) {
-                            setModalState(() => takeTime.add(picked));
-                          }
-                        }
-                      }
-
-                      String formatTimeOfDay(TimeOfDay t) => t.format(ctx);
-
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-                        ),
-                        child: SingleChildScrollView(
-                          child: Container(
-                            padding: EdgeInsets.fromLTRB(
-                              16.w,
-                              16.h,
-                              16.w,
-                              24.h,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 40.w,
-                                  height: 4.h,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[300],
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                                SizedBox(height: 12.h),
-
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            12.r,
-                                          ),
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFFFFF4EE),
-                                              Color(0xFFFFE0CC),
-                                            ],
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.orange.withOpacity(
-                                              0.25,
-                                            ),
-                                            width: 2,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.orange.withOpacity(
-                                                0.25,
-                                              ),
-                                              blurRadius: 14,
-                                            ),
-                                          ],
-                                        ),
-                                        child: Padding(
-                                          padding: EdgeInsets.all(14.w),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Center(
-                                                child: Column(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.center,
-                                                  children: [
-                                                    Container(
-                                                      padding: EdgeInsets.all(
-                                                        8.w,
-                                                      ),
-                                                      decoration:
-                                                          const BoxDecoration(
-                                                            shape:
-                                                                BoxShape.circle,
-                                                          ),
-                                                      child: Builder(
-                                                        builder: (_) {
-                                                          if (asset.startsWith(
-                                                            'http',
-                                                          )) {
-                                                            return Image.network(
-                                                              asset,
-                                                              width: 32.w,
-                                                              height: 32.w,
-                                                              fit: BoxFit
-                                                                  .contain,
-                                                              errorBuilder:
-                                                                  (
-                                                                    _,
-                                                                    __,
-                                                                    ___,
-                                                                  ) => Image.asset(
-                                                                    'assets/icons/capsule.png',
-                                                                    width: 32.w,
-                                                                    height:
-                                                                        32.w,
-                                                                  ),
-                                                            );
-                                                          }
-                                                          return Image.asset(
-                                                            asset.isNotEmpty
-                                                                ? asset
-                                                                : 'assets/icons/capsule.png',
-                                                            width: 32.w,
-                                                            height: 32.w,
-                                                            fit: BoxFit.contain,
-                                                          );
-                                                        },
-                                                      ),
-                                                    ),
-                                                    SizedBox(height: 6.h),
-                                                    Text(
-                                                      name,
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      style: TextStyle(
-                                                        fontSize: 18.sp,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                    SizedBox(height: 2.h),
-                                                    Text(
-                                                      'Brand: ${it['brand'] ?? '-'}',
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      style: TextStyle(
-                                                        fontSize: 12.sp,
-                                                        color: Colors.black54,
-                                                      ),
-                                                    ),
-                                                    SizedBox(height: 2.h),
-                                                    Text(
-                                                      'SKU: ${it['sku'] ?? '-'}',
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      style: TextStyle(
-                                                        fontSize: 12.sp,
-                                                        color: Colors.black54,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-
-                                              SizedBox(height: 12.h),
-                                              Center(
-                                                child: Wrap(
-                                                  spacing: 10.w,
-                                                  runSpacing: 10.h,
-                                                  children: [
-                                                    _infoChip(
-                                                      icon: Icons.medication,
-                                                      label: 'Strength',
-                                                      value:
-                                                          '${it['strength'] ?? '-'} / ${it['standardUnit'] ?? '-'}',
-                                                      color: Colors.purple,
-                                                    ),
-                                                    _infoChip(
-                                                      icon: Icons.inventory_2,
-                                                      label: 'Package Size',
-                                                      value:
-                                                          '${it['packageQuantity'] ?? '-'} ${it['standardUnit'] ?? '-'} / ${it['packageUnit'] ?? '-'}',
-                                                      color: Colors.teal,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-
-                                              SizedBox(height: 14.h),
-                                              Divider(
-                                                height: 1.h,
-                                                thickness: 2.h,
-                                                color: Colors.grey[300],
-                                              ),
-                                              SizedBox(height: 14.h),
-
-                                              if ((it['description'] as String?)
-                                                      ?.isNotEmpty ??
-                                                  false) ...[
-                                                SizedBox(height: 14.h),
-                                                Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons.info_outline,
-                                                      size: 16.sp,
-                                                      color: Colors.black54,
-                                                    ),
-                                                    SizedBox(width: 6.w),
-                                                    Text(
-                                                      'Description',
-                                                      style: TextStyle(
-                                                        fontSize: 14.sp,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                SizedBox(height: 6.h),
-                                                Text(
-                                                  it['description'],
-                                                  style: TextStyle(
-                                                    fontSize: 13.sp,
-                                                    color: Colors.black87,
-                                                  ),
-                                                ),
-                                              ],
-
-                                              Align(
-                                                alignment:
-                                                    Alignment.centerRight,
-                                                child: TextButton.icon(
-                                                  icon: const Icon(
-                                                    Icons.open_in_new,
-                                                    size: 16,
-                                                  ),
-                                                  label: const Text(
-                                                    'More Detail',
-                                                  ),
-                                                  onPressed: () async {
-                                                    final url =
-                                                        'https://www.drugs.com/${it['name'].toString().toLowerCase()}.html';
-                                                    try {
-                                                      await launchUrl(
-                                                        Uri.parse(url),
-                                                        mode: LaunchMode
-                                                            .externalApplication,
-                                                      );
-                                                    } catch (e) {
-                                                      debugPrint(
-                                                        'Could not launch $url',
-                                                      );
-                                                    }
-                                                  },
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-
-                                SizedBox(height: 12.h),
-
-                                // Prescription form with validators and multi-time picker
-                              Form(
-  key: formKey,
-  child: Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      /// =========================
-      /// Dosage
-      /// =========================
-      FormTextField(
-        controller: dosageCtrl,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        label: 'Dosage Amount (${it['standardUnit'] ?? '-'})',
-        validator: (v) {
-          if (v == null || v.trim().isEmpty) {
-            return 'Please enter dosage';
-          }
-          final cleaned = v.trim();
-          if (!RegExp(r'^\d+(\.\d+)?$').hasMatch(cleaned)) {
-            return 'Dosage must be a numeric value';
-          }
-          return null;
-        },
-      ),
-
-      SizedBox(height: 8.h),
-
-      /// =========================
-      /// Times
-      /// =========================
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Times',
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async => await pickTime(ctx),
-            icon: const Icon(Icons.add),
-            label: const Text('Add Time'),
-          ),
-        ],
-      ),
-
-      SizedBox(height: 8.h),
-
-      if (takeTime.isEmpty)
-        Padding(
-          padding: EdgeInsets.symmetric(vertical: 8.h),
-          child: const Text(
-            'No times selected',
-            style: TextStyle(color: Colors.black54),
-          ),
-        ),
-
-      Wrap(
-        spacing: 8.w,
-        children: takeTime.asMap().entries.map((e) {
-          final idx = e.key;
-          final t = e.value;
-          return InputChip(
-            label: Text(formatTimeOfDay(t)),
-            onDeleted: () {
-              setModalState(() {
-                takeTime.removeAt(idx);
-              });
-            },
-          );
-        }).toList(),
-      ),
-
-      SizedBox(height: 12.h),
-
-      /// =========================
-      /// Start Date
-      /// =========================
-      FormTextField(
-        controller: startCtrl,
-        label: 'Start Date',
-        readOnly: true,
-        onTap: () async => await pickDate(ctx, startCtrl, true),
-      ),
-
-      SizedBox(height: 8.h),
-
-      /// =========================
-      /// End Date
-      /// =========================
-      FormTextField(
-        controller: endCtrl,
-        label: 'End Date',
-        readOnly: true,
-        onTap: () async => await pickDate(ctx, endCtrl, false),
-      ),
-
-      SizedBox(height: 8.h),
-
-      /// =========================
-      /// Note
-      /// =========================
-      FormTextField(
-        controller: frequencyNoteCtrl,
-        label: 'Frequency Note',
-      ),
-
-      SizedBox(height: 12.h),
-
-      /// =========================
-      /// Debug mock data
-      /// =========================
-      if (kDebugMode) ...[
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.bug_report),
-                label: const Text('Fill mock data (debug)'),
-                onPressed: () {
-                  final now = DateTime.now();
-                  setModalState(() {
-                    dosageCtrl.text = '1';
-                    frequencyNoteCtrl.text = 'Debug: take after meals';
-                    startCtrl.text =
-                        now.toIso8601String().split('T').first;
-                    endCtrl.text = now
-                        .add(const Duration(days: 7))
-                        .toIso8601String()
-                        .split('T')
-                        .first;
-                    takeTime
-                      ..clear()
-                      ..addAll(const [
-                        TimeOfDay(hour: 8, minute: 0),
-                        TimeOfDay(hour: 20, minute: 0),
-                      ]);
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 8.h),
-      ],
-
-      /// =========================
-      /// Actions
-      /// =========================
-      Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-          ),
-          SizedBox(width: 8.w),
-          Expanded(
-            child: ElevatedButton(
-              child: const Text('Save'),
-              onPressed: () {
-                /// Form validation
-                if (!(formKey.currentState?.validate() ?? false)) return;
-
-                if (takeTime.isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please add at least one time'),
-                    ),
-                  );
-                  return;
-                }
-
-                /// Date validation
-                if (startCtrl.text.isNotEmpty &&
-                    endCtrl.text.isNotEmpty) {
-                  final sd = DateTime.tryParse(startCtrl.text);
-                  final ed = DateTime.tryParse(endCtrl.text);
-                  if (sd != null && ed != null && sd.isAfter(ed)) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(
-                        content:
-                            Text('Start date must be before end date'),
-                      ),
-                    );
-                    return;
-                  }
-                }
-
-
-
-
-                /// Final result
-                final result = {
-                  'medication': it,
-                  'medicationId': it['id']?.toString(),
-                  'dosageAmount': dosageCtrl.text.trim(),
-                  'unit': it['standardUnit'],
-                  'takeTime': takeTime
-                      .map(
-                        (t) =>
-                            '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
-                      )
-                      .toList(),
-                  'startDate': startCtrl.text.trim(),
-                  'endDate': endCtrl.text.trim(),
-                  'frequencyNote': frequencyNoteCtrl.text.trim(),
-                  'localIndex': globalIndex,
-
-
-                };
-
-                debugPrint('SelectMedicationPrescription: saved result -> $result');
-                Navigator.of(ctx).pop(result);
-              },
-            ),
-          ),
-        ],
-      ),
-    ],
-  ),
-),
-                               SizedBox(height: 12.h),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
+                builder: (ctx) => MedicationModal(
+                  item: it,
+                  globalIndex: globalIndex,
+                ),
               );
 
               if (created != null) {

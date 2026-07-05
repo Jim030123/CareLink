@@ -4,7 +4,6 @@ import 'package:carelink_mobile/components/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:async';
-import 'package:carelink_mobile/components/health_card.dart';
 import 'package:go_router/go_router.dart';
 import 'package:carelink_mobile/utils/greeting_service.dart';
 import 'package:carelink_mobile/utils/user_service.dart';
@@ -177,63 +176,63 @@ class _CaregiverHomePageState extends State<CaregiverHomePage> {
 
               SizedBox(height: 16.h),
 
-              Text(
-                'Health Tracking',
-                style: TextStyle(
-                  fontSize: 25.sp,
-                  fontWeight: FontWeight.bold,
-                  shadows: [
-                    Shadow(
-                      offset: Offset(2.0, 2.0),
-                      blurRadius: 10.0,
-                      color: Colors.black54,
-                    ),
-                  ],
-                ),
-              ),
+              // Text(
+              //   'Health Tracking',
+              //   style: TextStyle(
+              //     fontSize: 25.sp,
+              //     fontWeight: FontWeight.bold,
+              //     shadows: [
+              //       Shadow(
+              //         offset: Offset(2.0, 2.0),
+              //         blurRadius: 10.0,
+              //         color: Colors.black54,
+              //       ),
+              //     ],
+              //   ),
+              // ),
 
-              SizedBox(height: 16.h),
-              Row(
-                children: const [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        HealthCard(
-                          title: 'Heart Rate',
-                          value: '149',
-                          icon: Icons.favorite_outline_outlined,
-                        ),
-                        SizedBox(height: 8),
-                        HealthCard(
-                          title: 'Energy Score',
-                          value: '81',
-                          icon: Icons.sports_martial_arts_outlined,
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        HealthCard(
-                          title: 'Blood Oxygen',
-                          value: '93',
-                          icon: Icons.bloodtype_outlined,
-                        ),
-                        SizedBox(height: 8),
-                        HealthCard(
-                          title: 'Sleep Score',
-                          value: '73',
-                          icon: Icons.bedtime_outlined,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              // SizedBox(height: 16.h),
+              // Row(
+              //   children: const [
+              //     Expanded(
+              //       child: Column(
+              //         children: [
+              //           HealthCard(
+              //             title: 'Heart Rate',
+              //             value: '149',
+              //             icon: Icons.favorite_outline_outlined,
+              //           ),
+              //           SizedBox(height: 8),
+              //           HealthCard(
+              //             title: 'Energy Score',
+              //             value: '81',
+              //             icon: Icons.sports_martial_arts_outlined,
+              //           ),
+              //         ],
+              //       ),
+              //     ),
+              //     SizedBox(width: 12),
+              //     Expanded(
+              //       child: Column(
+              //         children: [
+              //           HealthCard(
+              //             title: 'Blood Oxygen',
+              //             value: '93',
+              //             icon: Icons.bloodtype_outlined,
+              //           ),
+              //           SizedBox(height: 8),
+              //           HealthCard(
+              //             title: 'Sleep Score',
+              //             value: '73',
+              //             icon: Icons.bedtime_outlined,
+              //           ),
+              //         ],
+              //       ),
+              //     ),
+              //   ],
+              // ),
 
-              SizedBox(height: 16.h),
+              // SizedBox(height: 16.h),
 
               /// ===== SERVICES =====
               Text(

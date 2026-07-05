@@ -42,6 +42,7 @@ class _ManageCaregiverState extends State<ManageCaregiver> {
   late final TextEditingController sheetPermCtrl;
   late final TextEditingController sheetCareRecipientCtrl;
   late final TextEditingController sheetStatusCtrl;
+  late final GlobalKey<FormState> _sheetFormKey;
 
   static const String _getCaregiverByIdQuery = r"""
 query GetSecondaryByCaregiver($caregiverId: String) {
@@ -138,6 +139,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
     sheetPermCtrl = TextEditingController();
     sheetCareRecipientCtrl = TextEditingController();
     sheetStatusCtrl = TextEditingController();
+    _sheetFormKey = GlobalKey<FormState>();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCaregivers('CG-003');
@@ -367,7 +369,9 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                 right: 16.w,
                 top: 16.h,
               ),
-              child: Column(
+                child: Form(
+                  key: _sheetFormKey,
+                  child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
@@ -403,7 +407,11 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                     controller: phoneNumberCtrl,
                     label: 'Phone Number',
                     keyboardType: TextInputType.phone,
-                    validator: (v) => null,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null;
+                      final reg = RegExp(r'^\+?[0-9\s\-]{6,}$');
+                      return reg.hasMatch(v.trim()) ? null : 'Invalid phone number';
+                    },
                   ),
                   SizedBox(height: 8.h),
 
@@ -411,7 +419,11 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                     controller: emailCtrl,
                     label: 'Email',
                     keyboardType: TextInputType.emailAddress,
-                    validator: (v) => null,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null;
+                      final reg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                      return reg.hasMatch(v.trim()) ? null : 'Invalid email';
+                    },
                   ),
                   SizedBox(height: 8.h),
 
@@ -581,43 +593,28 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                   SizedBox(height: 12.h),
 
                   // Button inside bottom sheet to fill mock values into the form
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        // ensure recipient items exist for chips
-                        // update parent-held items, then update sheet UI
-                        setState(() {
-                          items = [
-                            {'id': 'CR-001', 'name': 'Alice Tan'},
-                            {'id': 'CR-002', 'name': 'Bob Lim'},
-                            {'id': 'CR-003', 'name': 'Cheng Wei'},
-                            {'id': 'CR-004', 'name': 'Cheng Wei'},
+                  // Align(
+                  //   alignment: Alignment.centerRight,
+                  //   child: OutlinedButton.icon(
+                  //     onPressed: () {
+                  //       // ensure recipient items exist for chips
+                  //       // update parent-held items, then update sheet UI
 
-                            {'id': 'CR-005', 'name': 'Cheng Wei'},
-
-                            {'id': 'CR-006', 'name': 'Cheng Wei'},
-
-                            {'id': 'CR-007', 'name': 'Cheng Wei'},
-
-                          ];
-                        });
-
-                        sheetSetState(() {
-                          nameCtrl.text = 'Mock Name';
-                          relCtrl.text = 'Friend';
-                          permCtrl.text = 'Full';
-                          phoneNumberCtrl.text = '+60123456789';
-                          emailCtrl.text = 'mock@example.com';
-                          careRecipientCtrl.text = 'CR-001,CR-003';
-                          statusCtrl.text = 'Alice Tan, Cheng Wei';
-                          _selectedRecipients.value = {'CR-001', 'CR-003'};
-                        });
-                      },
-                      icon: Icon(Icons.auto_fix_high, size: 14.sp),
-                      label: Text('Fill Mock Data'),
-                    ),
-                  ),
+                  //       sheetSetState(() {
+                  //         nameCtrl.text = 'Mock Name';
+                  //         relCtrl.text = 'Friend';
+                  //         permCtrl.text = 'Full';
+                  //         phoneNumberCtrl.text = '+60123456789';
+                  //         emailCtrl.text = 'mock@example.com';
+                  //         careRecipientCtrl.text = 'CR-001,CR-003';
+                  //         statusCtrl.text = 'Alice Tan, Cheng Wei';
+                  //         _selectedRecipients.value = {'CR-001', 'CR-003'};
+                  //       });
+                  //     },
+                  //     icon: Icon(Icons.auto_fix_high, size: 14.sp),
+                  //     label: Text('Fill Mock Data'),
+                  //   ),
+                  // ),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -699,6 +696,20 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
 
                       ElevatedButton(
                         onPressed: () async {
+                              // validate form first
+                              if (!(_sheetFormKey.currentState?.validate() ?? false)) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(content: Text('Please correct the errors in the form')),
+                                );
+                                return;
+                              }
+
+                              if (_selectedRecipients.value.isEmpty) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(content: Text('Please assign at least one care recipient')),
+                                );
+                                return;
+                              }
                           final name = nameCtrl.text.trim();
                           final rel = relCtrl.text.trim();
                           final phoneNumber = phoneNumberCtrl.text.trim();
@@ -752,13 +763,18 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                             'rel=$rel, phoneNumber=$phoneNumber, permission=$permission, '
                             'selectedRecipients=${_selectedRecipients.value}',
                           );
-                          if (!isEdit) {
+                          // generate id only when inserting
+                          final bool isEditLocal =
+                              initialData != null &&
+                              (initialData['id']?.isNotEmpty == true);
+                          if (!isEditLocal) {
                             roleId = await fetchGeneratedCode(
                               client,
                               messenger: messenger,
                               id: 9,
                             );
                           }
+
                           final generatedId =
                               roleId?.toString() ??
                               (initialData?['id'] ??
@@ -770,7 +786,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                             'careRecipientId': careRecipientList,
                             'relationship': rel,
                             'permissionLevel': permission,
-                            'status': statusCtrl.text,
+                            'status': 'active',
                             'name': name,
                             'email': emailCtrl.text,
                             // include phoneNumber so it is persisted to backend
@@ -913,7 +929,7 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
               ),
             ),
           ),
-        );
+        ));
       },
     );
   });
@@ -996,7 +1012,6 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                       ),
                       itemBuilder: (context, idx) {
                         if (idx == 0) {
-                          // Add New card
                           return InkWell(
                             onTap: () => _showAddCaregiverSheet(initialData: null),
                             borderRadius: BorderRadius.circular(10.r),
@@ -1004,20 +1019,16 @@ mutation DeleteSecondary($pk_columns: SecondaryCaregiverPkColumnsInput!) {
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
+                                    Colors.green.shade50,
                                     Colors.green.shade100,
-                                    Colors.green.shade300,
                                   ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+
                                 ),
                                 borderRadius: BorderRadius.circular(10.r),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black26,
-                                    blurRadius: 8,
-                                    offset: Offset(0, 4),
-                                  ),
-                                ],
+                                border: Border.all(
+                                  color: Colors.green.withOpacity(0.5),
+                                  width: 2,
+                                ),
                               ),
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1233,11 +1244,10 @@ Widget callSecondaryCaregiverCard({
                         icon: Icon(Icons.edit, size: 18.sp),
                         onPressed: () => onEdit?.call(),
                       ),
-                      Icon(
-  Icons.delete_outline,
-  size: 18.sp,
-  color: Colors.red,
-)
+                      IconButton(
+                        icon: Icon(Icons.delete_outline, size: 18.sp, color: Colors.red),
+                        onPressed: () => onDelete?.call(),
+                      ),
                     ],
                   ),
                 ],

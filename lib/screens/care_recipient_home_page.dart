@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:carelink_mobile/utils/greeting_service.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ class _TaskItem {
   final String upcomingTitle;
   final String? subtitle;
   final String? dosage;
+  final String? frequencyNote;
   final IconData icon;
   final String rightInfo;
   bool completed = false;
@@ -33,6 +35,7 @@ class _TaskItem {
     required this.title,
     String? upcomingTitle,
     this.subtitle,
+    this.frequencyNote,
     this.dosage,
     required this.icon,
     required this.rightInfo,
@@ -85,7 +88,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
     scheduledAt
     status
     medication { id name description strength }
-    medicationPrescription { id medicationId dosageAmount startDate endDate status }
+    medicationPrescription { id medicationId dosageAmount startDate endDate status frequencyNote}
   }
 }
   ''';
@@ -109,7 +112,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
 
       final variables = {
         'userId': backendUserId ?? _clientId ?? 'CR-071',
-        'status': 'scheduled',
+        'status': 'sent',
       };
 
       final result = await client.query(
@@ -141,20 +144,67 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
         final String medName = med?['name']?.toString() ?? '';
         final String medDesc = med?['description']?.toString() ?? '';
         final String medStrength = med?['strength']?.toString() ?? '';
+
         // medicationPrescription may be an object or a list — handle both
-        final Map<String, dynamic>? medPre;
+        Map<String, dynamic>? medPre;
         if (medPreRaw is Map) {
           medPre = Map<String, dynamic>.from(medPreRaw);
         } else if (medPreRaw is List && medPreRaw.isNotEmpty) {
           medPre = Map<String, dynamic>.from(medPreRaw.first as Map);
+        } else if (medPreRaw is String && medPreRaw.isNotEmpty) {
+          try {
+            medPre = Map<String, dynamic>.from(json.decode(medPreRaw) as Map);
+          } catch (_) {
+            medPre = null;
+          }
         } else {
           medPre = null;
         }
         // Safely build dosage string from prescription and medication unit.
         final String dosageVal = medPre?['dosageAmount']?.toString() ?? '';
+
         final String unitVal = medPre?['standardUnit']?.toString() ?? med?['standardUnit']?.toString() ?? 'Capsule';
         final String medPreDosageAmount =
           dosageVal.isNotEmpty ? '$dosageVal $unitVal' : '1 $unitVal';
+        // Build a short frequency/note string from prescription dates or status
+        String medFrequencyNote = medPre?['FrequencyNote']?.toString() ?? '';
+
+        if (medPre != null) {
+          // Prefer an explicit frequencyNote field if server provides it
+          final String fromField = medPre['frequencyNote']?.toString() ?? '';
+          if (fromField.isNotEmpty) {
+            medFrequencyNote = fromField;
+          } else {
+            final String start = medPre['startDate']?.toString() ?? '';
+            final String end = medPre['endDate']?.toString() ?? '';
+            final String preStatus = medPre['status']?.toString() ?? '';
+            if (start.isNotEmpty || end.isNotEmpty) {
+              if (start.isNotEmpty && end.isNotEmpty) {
+                medFrequencyNote = 'Active: ${start.split('T').first} → ${end.split('T').first}';
+              } else if (start.isNotEmpty) {
+                medFrequencyNote = 'Starts: ${start.split('T').first}';
+              } else {
+                medFrequencyNote = 'Ends: ${end.split('T').first}';
+              }
+            } else if (preStatus.isNotEmpty) {
+              medFrequencyNote = 'Status: $preStatus';
+            }
+          }
+        }
+        // If still empty, try to extract from reminder payload if present
+        if (medFrequencyNote.isEmpty && map['payload'] != null) {
+          try {
+            final dynamic p = map['payload'];
+            if (p is Map && p['frequencyNote'] != null) {
+              medFrequencyNote = p['frequencyNote'].toString();
+            } else if (p is String && p.isNotEmpty) {
+              final parsed = json.decode(p);
+              if (parsed is Map && parsed['frequencyNote'] != null) {
+                medFrequencyNote = parsed['frequencyNote'].toString();
+              }
+            }
+          } catch (_) {}
+        }
         final String medPreStartDate = medPre?['startDate']?.toString() ?? '';
         final String medPreEndDate = medPre?['endDate']?.toString() ?? '';
         final String medPreStatus = medPre?['status']?.toString() ?? '';
@@ -218,6 +268,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
           time: timeStr,
           title: titleText,
           subtitle: subtitle,
+          frequencyNote: medFrequencyNote.isNotEmpty ? medFrequencyNote : null,
           dosage: medPreDosageAmount,
           icon: Icons.medication,
           rightInfo: dateStr,
@@ -260,6 +311,30 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
       });
 
       // show green state for 5 seconds then remove
+      // Call backend to mark reminder as completed (fire GraphQL mutation)
+      try {
+        final client = GraphQLProvider.of(context).value;
+        const String markCompletedMutation = r'''
+        mutation MarkReminderCompleted($id: ID!) {
+          mark_reminder_completed(id: $id) {
+            id
+            status
+            firedAt
+          }
+        }
+        ''';
+        final res = await client.mutate(MutationOptions(
+          document: gql(markCompletedMutation),
+          variables: {'id': task.id},
+          fetchPolicy: FetchPolicy.networkOnly,
+        ));
+        if (res.hasException) {
+          debugPrint('markReminderCompleted mutation failed: ${res.exception}');
+        }
+      } catch (e) {
+        debugPrint('markReminderCompleted error: $e');
+      }
+
       await Future.delayed(const Duration(seconds: 5));
       if (!mounted) return;
       setState(() {
@@ -359,7 +434,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
     });
 
     _now = DateTime.now();
-    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _clockTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!mounted) return;
       setState(() => _now = DateTime.now());
     });
@@ -381,7 +456,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
     _loadCurrentUser().then((_) async {
       await _loadTasks();
       _tasksTimer?.cancel();
-      _tasksTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _tasksTimer = Timer.periodic(const Duration(minutes: 1), (_) {
         if (!mounted) return;
         _loadTasks();
       });
@@ -747,6 +822,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                             time: t.time,
                             title: t.title,
                             subtitle: t.subtitle ?? '',
+                            frequencyNote: t.frequencyNote,
                             dosage: t.dosage ?? '',
                             icon: t.icon,
                             rightInfo: t.rightInfo,
@@ -835,7 +911,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
               SizedBox(height: 8.h),
 
               Text(
-                'Health Tracking',
+                'Services',
                 style: TextStyle(
                   fontSize: 25.sp,
                   fontWeight: FontWeight.bold,
@@ -883,7 +959,7 @@ class _CareRecipientHomePageState extends State<CareRecipientHomePage>
                       subtitle: '',
                       icon: Icons.person_outline,
                       color: Colors.purple,
-                      onTap: () => context.push('/caregiver'),
+                      onTap: () => context.push('/managecaregiver'),
                     ),
                   ),
                   buildServiceCard(
